@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Similarity Search</title>
+    <script src="https://cdn.jsdelivr.net/npm/imjoy-rpc@latest/dist/imjoy-rpc.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/imjoy-rpc@0.5.48-post1/dist/hypha-rpc-websocket.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/17.0.2/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/17.0.2/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/6.26.0/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+<div id="app"></div>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+// Define custom components
+const Button = ({ onClick, children, className, disabled }) => (
+  <button onClick={onClick} disabled={disabled} className={`px-4 py-2 bg-blue-500 text-white rounded ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
+    {children}
+  </button>
+);
+
+const Input = ({ value, onChange, placeholder, type }) => (
+  <input
+    value={value}
+    onChange={onChange}
+    placeholder={placeholder}
+    type={type}
+    className="px-4 py-2 border rounded w-full"
+  />
+);
+
+const Card = ({ children, className }) => (
+  <div className={`bg-white shadow rounded ${className}`}>
+    {children}
+  </div>
+);
+
+const CardContent = ({ children }) => (
+  <div className="p-4">
+    {children}
+  </div>
+);
+
+const CardHeader = ({ children }) => (
+  <div className="p-4 border-b">
+    {children}
+  </div>
+);
+
+const CardTitle = ({ children }) => (
+  <h2 className="text-lg font-semibold">
+    {children}
+  </h2>
+);
+
+const ImageSimilaritySearch = () => {
+  const [svc, setSvc] = useState(null);
+  const [currentImage, setCurrentImage] = useState(null);
+  const [numResults, setNumResults] = useState(5);
+  const [searchResults, setSearchResults] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [log, setLog] = useState('');
+
+  const appendLog = (message) => {
+    setLog(prevLog => prevLog + message + '\n');
+  };
+
+  useEffect(() => {
+    const initService = async () => {
+      try {
+        appendLog('Connecting to server...');
+        const server = await hyphaWebsocketClient.connectToServer({ "server_url": "http://reef.aicell.io:9520" });
+        appendLog('Server connected.');
+        
+        appendLog('Getting image-embedding-similarity-search service...');
+        const service = await server.getService("image-embedding-similarity-search");
+        appendLog('Service acquired.');
+        
+        setSvc(service);
+      } catch (error) {
+        appendLog(`Error: ${error.message}`);
+      }
+    };
+    initService();
+  }, []);
+
+  const handleImageUpload = (event) => {
+    const file = event.target.files[0];
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setCurrentImage(e.target.result);
+      appendLog('Image uploaded and converted to base64.');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSearch = async () => {
+    if (!currentImage || !svc) return;
+
+    setIsLoading(true);
+    appendLog('Starting similarity search...');
+    try {
+      // Convert base64 to Uint8Array
+      const base64Data = currentImage.split(',')[1];
+      const binaryData = atob(base64Data);
+      const uint8Array = new Uint8Array(binaryData.length);
+      for (let i = 0; i < binaryData.length; i++) {
+        uint8Array[i] = binaryData.charCodeAt(i);
+      }
+
+      const results = await svc.find_similar_images(uint8Array, parseInt(numResults));
+      appendLog(`Found ${results.length} similar images.`);
+
+      setSearchResults(results);
+    } catch (error) {
+      appendLog(`Error searching for similar images: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="p-4 max-w-4xl mx-auto">
+      <h1 className="text-2xl font-bold mb-4">Image Similarity Search</h1>
+      
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Upload Image</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Input type="file" onChange={handleImageUpload} accept="image/*" />
+          {currentImage && <img src={currentImage} alt="Uploaded" className="mt-2 max-w-full h-auto" />}
+        </CardContent>
+      </Card>
+
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Search Settings</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex space-x-2">
+            <Input 
+              value={numResults} 
+              onChange={(e) => setNumResults(e.target.value)} 
+              placeholder="Number of results" 
+              type="number"
+            />
+            <Button onClick={handleSearch} disabled={!currentImage || isLoading}>
+              {isLoading ? 'Searching...' : 'Search Similar Images'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {searchResults.length > 0 && (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>Search Results</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              {searchResults.map((result, index) => (
+                <div key={index} className="border rounded p-2">
+                  <img src={`data:image/jpeg;base64,${result.image}`} alt={`Result ${index + 1}`} className="w-full mb-2 rounded-lg" />
+                  <p className="text-sm text-gray-600">Path: {result.image_path}</p>
+                  <p className="text-sm text-gray-600">Channel: {result.fluorescent_channel}</p>
+                  <p className="text-sm text-gray-600">Similarity: {result.similarity.toFixed(2)}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Log</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <pre className="whitespace-pre-wrap">{log}</pre>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+ReactDOM.render(<ImageSimilaritySearch />, document.getElementById('app'));
+</script>
+</body>
+</html>
