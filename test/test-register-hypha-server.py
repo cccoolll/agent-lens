@@ -129,7 +129,7 @@ async def start_hypha_service(server):
     )
  
 async def setup():
-    server_url = "http://reef.aicell.io:9520"
+    server_url = "https://ai.imjoy.io"
     server = await connect_to_server({"server_url": server_url})
     await start_hypha_service(server)
     print(f"Image embedding and similarity search service registered at workspace: {server.config.workspace}")
