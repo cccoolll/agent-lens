@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Image Similarity Search</title>
-    <script src="https://cdn.jsdelivr.net/npm/imjoy-rpc@latest/dist/imjoy-rpc.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/imjoy-rpc@0.5.48-post1/dist/hypha-rpc-websocket.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hypha-rpc@0.1.10/dist/hypha-rpc-websocket.min.js"></script>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/17.0.2/umd/react.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/17.0.2/umd/react-dom.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/6.26.0/babel.min.js"></script>
@@ -60,6 +60,7 @@ const CardTitle = ({ children }) => (
 const ImageSimilaritySearch = () => {
   const [svc, setSvc] = useState(null);
   const [currentImage, setCurrentImage] = useState(null);
+  const [imageName, setImageName] = useState('');
   const [numResults, setNumResults] = useState(5);
   const [searchResults, setSearchResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -73,7 +74,7 @@ const ImageSimilaritySearch = () => {
     const initService = async () => {
       try {
         appendLog('Connecting to server...');
-        const server = await hyphaWebsocketClient.connectToServer({ "server_url": "https://ai.imjoy.io" });
+        const server = await hyphaWebsocketClient.connectToServer({ "server_url": "http://reef.aicell.io:9527" });
         appendLog('Server connected.');
         
         appendLog('Getting image-embedding-similarity-search service...');
@@ -90,6 +91,7 @@ const ImageSimilaritySearch = () => {
 
   const handleImageUpload = (event) => {
     const file = event.target.files[0];
+    setImageName(file.name);
     const reader = new FileReader();
     reader.onload = (e) => {
       setCurrentImage(e.target.result);
@@ -112,7 +114,11 @@ const ImageSimilaritySearch = () => {
         uint8Array[i] = binaryData.charCodeAt(i);
       }
 
-      const results = await svc.find_similar_images(uint8Array, parseInt(numResults));
+      const imageData = {
+        name: imageName
+      };
+
+      const results = await svc.find_similar_images(uint8Array, imageData, parseInt(numResults));
       appendLog(`Found ${results.length} similar images.`);
 
       setSearchResults(results);
@@ -166,7 +172,6 @@ const ImageSimilaritySearch = () => {
               {searchResults.map((result, index) => (
                 <div key={index} className="border rounded p-2">
                   <img src={`data:image/jpeg;base64,${result.image}`} alt={`Result ${index + 1}`} className="w-full mb-2 rounded-lg" />
-                  <p className="text-sm text-gray-600">Path: {result.image_path}</p>
                   <p className="text-sm text-gray-600">Channel: {result.fluorescent_channel}</p>
                   <p className="text-sm text-gray-600">Similarity: {result.similarity.toFixed(2)}</p>
                 </div>

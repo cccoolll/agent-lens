@@ -1,5 +1,5 @@
 import asyncio
-from imjoy_rpc.hypha import connect_to_server
+from hypha_rpc import connect_to_server
 import sqlite3
 import numpy as np
 import clip
@@ -20,44 +20,47 @@ def get_db_connection():
     conn = sqlite3.connect('image_vectors-hpa.db')
     return conn, conn.cursor()
 
-# Load all vectors, their IDs, paths, and channels from the database
-conn, c = get_db_connection()
-c.execute('SELECT id, vector, image_path, fluorescent_channel FROM images')
-rows = c.fetchall()
-conn.close()
-
-# Extract vectors, IDs, paths, and channels
-image_ids = []
-image_vectors = []
-image_paths = {}
-image_channels = {}
-
-for row in rows:
-    img_id, img_vector, img_path, img_channel = row
-    img_vector = np.frombuffer(img_vector, dtype=np.float32)
-    image_ids.append(img_id)
-    image_vectors.append(img_vector)
-    image_paths[img_id] = img_path
-    image_channels[img_id] = img_channel
-
-# Convert to numpy array
-image_vectors = np.array(image_vectors)
-
-# Check the dimension of the image vectors
-d = image_vectors.shape[1]  # dimension
-print(f"Dimension of image vectors: {d}")
-
-# Build the FAISS index
-index = faiss.IndexFlatL2(d)
-index.add(image_vectors.astype(np.float32))
-
-from PIL import Image
-import io
-import base64
-
-def find_similar_images(input_image, top_k=5, context=None):
+def load_vectors_from_db(channel=None):
     conn, c = get_db_connection()
+    query = 'SELECT id, vector, image_path, fluorescent_channel FROM images'
+    if channel:
+        query += f" WHERE fluorescent_channel = '{channel}'"
+    c.execute(query)
+    rows = c.fetchall()
+    conn.close()
+
+    image_ids = []
+    image_vectors = []
+    image_paths = {}
+    image_channels = {}
+
+    for row in rows:
+        img_id, img_vector, img_path, img_channel = row
+        img_vector = np.frombuffer(img_vector, dtype=np.float32)
+        image_ids.append(img_id)
+        image_vectors.append(img_vector)
+        image_paths[img_id] = img_path
+        image_channels[img_id] = img_channel
+
+    return image_ids, np.array(image_vectors), image_paths, image_channels
+
+def build_faiss_index(vectors):
+    d = vectors.shape[1]  # dimension
+    index = faiss.IndexFlatL2(d)
+    index.add(vectors.astype(np.float32))
+    return index
+
+def find_similar_images(input_image,image_data, top_k=5):
+    input_image_name=image_data['name']
     try:
+        channel = None
+        if '-' in input_image_name:
+            channel = input_image_name.split('-')[1].split('.')[0]
+            print(f"Fluorescent channel: {channel}")
+        # Load vectors and build FAISS index based on the channel
+        image_ids, image_vectors, image_paths, image_channels = load_vectors_from_db(channel)
+        index = build_faiss_index(image_vectors)
+
         # Convert input bytes to an image
         image = Image.open(io.BytesIO(input_image)).convert("RGB")
 
@@ -72,19 +75,11 @@ def find_similar_images(input_image, top_k=5, context=None):
         query_vector = np.expand_dims(query_vector, axis=0).astype(np.float32)
         distances, indices = index.search(query_vector, len(image_ids))  # Search all images
 
-        # Filter results based on the fluorescent channel (assuming we don't have this information for the query image)
-        filtered_results = []
+        # Collect and sort results
+        results = []
         for i, idx in enumerate(indices[0]):
             img_id = image_ids[idx]
-            filtered_results.append((img_id, distances[0][i]))
-
-        # Sort filtered results and get top_k
-        filtered_results.sort(key=lambda x: x[1])
-        top_results = filtered_results[:top_k]
-
-        print(f"Found {len(top_results)} results")
-        results = []
-        for img_id, distance in top_results:
+            distance = distances[0][i]
             sim = 1 - distance  # Convert distance to similarity
             print(f"ID: {img_id}, Score: {sim:.2f}")
             print(f"Image path: {image_paths[img_id]}")
@@ -93,8 +88,7 @@ def find_similar_images(input_image, top_k=5, context=None):
             
             # Open the image, resize it, and convert to base64
             with Image.open(image_paths[img_id]) as img:
-                img.thumbnail((512, 512))  # Resize image to max 512x512 while maintaining ase
-                # t ratio
+                img.thumbnail((512, 512))  # Resize image to max 512x512 while maintaining aspect ratio
                 buffered = io.BytesIO()
                 img.save(buffered, format="JPEG")
                 img_str = base64.b64encode(buffered.getvalue()).decode()
@@ -105,14 +99,15 @@ def find_similar_images(input_image, top_k=5, context=None):
                 'fluorescent_channel': image_channels[img_id],
                 'similarity': float(sim)
             })
+            if len(results) >= top_k:
+                break
+        
         return results
     except Exception as e:
         print(f"Error processing image: {e}")
         traceback.print_exc()
         return []
-    finally:
-        conn.close()
-        
+
 async def start_hypha_service(server):
     await server.register_service(
         {
@@ -120,7 +115,7 @@ async def start_hypha_service(server):
             "config":{
                 "visibility": "public",
                 "run_in_executor": True,
-                "require_context": True,   
+                "require_context": False,   
             },
             "type": "echo",
             "find_similar_images": find_similar_images,
@@ -129,7 +124,7 @@ async def start_hypha_service(server):
     )
  
 async def setup():
-    server_url = "https://ai.imjoy.io"
+    server_url = "http://localhost:9527"
     server = await connect_to_server({"server_url": server_url})
     await start_hypha_service(server)
     print(f"Image embedding and similarity search service registered at workspace: {server.config.workspace}")

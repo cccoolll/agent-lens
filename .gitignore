@@ -5,3 +5,5 @@ package-lock.json
 package.json
 server.js
 *.db
+*.pkl
+*.idx
