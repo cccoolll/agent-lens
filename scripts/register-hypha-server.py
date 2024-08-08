@@ -50,16 +50,42 @@ def build_faiss_index(vectors):
     index.add(vectors.astype(np.float32))
     return index
 
-def find_similar_images(input_image,image_data, top_k=5):
+
+# Load vectors and build FAISS index based on the channel
+image_ids, image_vectors, image_paths, image_channels = load_vectors_from_db()
+print(f"types: {type(image_ids)}, {type(image_vectors)}, {type(image_paths)}, {type(image_channels)}")
+
+index = build_faiss_index(image_vectors)
+
+"""
+Precompute separate FAISS indices for each channel at the time of building the indices.
+Use the appropriate index based on the channel extracted from the input image name.
+"""
+
+def separate_indices_by_channel(image_vectors, image_channels):
+    indices = {}
+    image_channel_info= image_channels.values()
+    #channel_vectors =
+    for channel in set(image_channel_info):
+        channel_vectors = [image_vectors[i] for i, c in enumerate(image_channel_info) if c == channel]
+        indices[channel] = build_faiss_index(np.array(channel_vectors))
+        print(f"Built index for channel: {channel},the legnth of channel_vectors is {len(channel_vectors)}")
+    return indices
+
+channel_indices = separate_indices_by_channel(image_vectors, image_channels)
+
+def find_similar_images(input_image,image_data, top_k=5, index=index):
     input_image_name=image_data['name']
     try:
         channel = None
         if '-' in input_image_name:
+            'image-green.png'
+            ['image','green.png']
+            'green.png'
+            ['green', 'png']
+            'green'
+             
             channel = input_image_name.split('-')[1].split('.')[0]
-            print(f"Fluorescent channel: {channel}")
-        # Load vectors and build FAISS index based on the channel
-        image_ids, image_vectors, image_paths, image_channels = load_vectors_from_db(channel)
-        index = build_faiss_index(image_vectors)
 
         # Convert input bytes to an image
         image = Image.open(io.BytesIO(input_image)).convert("RGB")
@@ -70,10 +96,13 @@ def find_similar_images(input_image,image_data, top_k=5):
             query_vector = model.encode_image(image_input).cpu().numpy().flatten()
 
         print(f"Query vector shape: {query_vector.shape}")
-
-        # Perform the search
+        
         query_vector = np.expand_dims(query_vector, axis=0).astype(np.float32)
-        distances, indices = index.search(query_vector, len(image_ids))  # Search all images
+
+        if channel:
+            distance, indices = channel_indices[channel].search(query_vector, len(image_ids))
+        else:
+            distances, indices = index.search(query_vector, len(image_ids))  # Search all images
 
         # Collect and sort results
         results = []
@@ -124,7 +153,7 @@ async def start_hypha_service(server):
     )
  
 async def setup():
-    server_url = "http://localhost:9527"
+    server_url = "http://localhost:9528"
     server = await connect_to_server({"server_url": server_url})
     await start_hypha_service(server)
     print(f"Image embedding and similarity search service registered at workspace: {server.config.workspace}")
