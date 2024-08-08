@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Image Similarity Search</title>
-    <script src="https://cdn.jsdelivr.net/npm/hypha-rpc@0.20.14/dist/hypha-rpc-websocket.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/imjoy-rpc@0.5.48-post1/dist/hypha-rpc-websocket.min.js"></script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/17.0.2/umd/react.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/17.0.2/umd/react-dom.production.min.js"></script>
@@ -78,7 +78,8 @@ const ImageSimilaritySearch = () => {
         appendLog('Server connected.');
         
         appendLog('Getting image-embedding-similarity-search service...');
-        const service = await server.getService("ivy-anaconda-60035681/image-embedding-similarity-search");
+        //const service = await server.getService("ivy-anaconda-60035681/image-embedding-similarity-search");
+        const service = await server.getService("image-embedding-similarity-search");
         appendLog('Service acquired.');
         
         setSvc(service);
