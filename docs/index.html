@@ -74,7 +74,7 @@ const ImageSimilaritySearch = () => {
     const initService = async () => {
       try {
         appendLog('Connecting to server...');
-        const server = await hyphaWebsocketClient.connectToServer({ "server_url": "http://reef.aicell.io:9528" });
+        const server = await hyphaWebsocketClient.connectToServer({ "server_url": "https://ai.imjoy.io" });
         appendLog('Server connected.');
         
         appendLog('Getting image-embedding-similarity-search service...');
