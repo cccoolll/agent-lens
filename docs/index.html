@@ -62,7 +62,6 @@
 <script type="text/babel">
 const { useState, useEffect } = React;
 
-
 const MicroscopeControl = () => {
     const [microscopeControl, setMicroscopeControl] = useState(null);
     const [snapshotImage, setSnapshotImage] = useState(null);
@@ -76,7 +75,7 @@ const MicroscopeControl = () => {
     const [isPlateScanRunning, setIsPlateScanRunning] = useState(false);
     const [log, setLog] = useState('');
     const [chatbotUrl, setChatbotUrl] = useState(null);
-    const [svc, setSvc] = useState(null);
+    const [svc, setSvc] = useState(null);  // Correctly initialize the similarity search service state
     const [numSimilarResults, setNumSimilarResults] = useState(5);
     const [searchResults, setSearchResults] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -99,8 +98,13 @@ const MicroscopeControl = () => {
                 appendLog('Getting microscope-control-squid-2 service...');
                 const mc = await server.get_service("microscope-control-squid-test");
                 appendLog('Service acquired.');
+
+                appendLog('Getting image-embedding-similarity-search service...');
+                const similarityService = await server.getService("image-embedding-similarity-search");
+                appendLog('Similarity search service acquired.');
                 
                 setMicroscopeControl(mc);
+                setSvc(similarityService);  // Set the similarity search service
             } catch (error) {
                 appendLog(`Error: ${error.message}`);
             }
@@ -110,18 +114,23 @@ const MicroscopeControl = () => {
     }, []);
 
     const handleSimilaritySearch = async () => {
-      if (!snapshotImage || !svc) return;
-
+      if (!snapshotImage || !svc) {
+        appendLog('No image or service available for similarity search.');
+        return;
+      }
+  
       setIsLoading(true);
       appendLog('Starting similarity search...');
       try {
-          // Convert base64 to Uint8Array
-          const base64Data = snapshotImage.split(',')[1];
-          const binaryData = atob(base64Data);
-          const uint8Array = new Uint8Array(binaryData.length);
-          for (let i = 0; i < binaryData.length; i++) {
-              uint8Array[i] = binaryData.charCodeAt(i);
-          }
+          // Fetch the image data as a Blob
+          const response = await fetch(snapshotImage);
+          const blob = await response.blob();
+
+          // Convert Blob to ArrayBuffer
+          const arrayBuffer = await new Response(blob).arrayBuffer();
+
+          // Convert ArrayBuffer to Uint8Array
+          const uint8Array = new Uint8Array(arrayBuffer);
 
           const imageData = {
               name: 'snapshot'
@@ -129,7 +138,7 @@ const MicroscopeControl = () => {
 
           const results = await svc.find_similar_images(uint8Array, imageData, parseInt(numSimilarResults));
           appendLog(`Found ${results.length} similar images.`);
-
+  
           setSearchResults(results);
       } catch (error) {
           appendLog(`Error searching for similar images: ${error.message}`);
@@ -175,6 +184,7 @@ const MicroscopeControl = () => {
             appendLog(`Error in moveMicroscope: ${error.message}`);
         }
     };
+
     const moveToPosition = async () => {
         if (!microscopeControl) return;
         try {
@@ -190,6 +200,7 @@ const MicroscopeControl = () => {
             appendLog(`Error in moveToPosition: ${error.message}`);
         }
     };
+
     const toggleLight = async () => {
         if (!microscopeControl) return;
         try {
