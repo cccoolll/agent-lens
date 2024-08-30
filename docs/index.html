@@ -79,6 +79,8 @@ const MicroscopeControl = () => {
     const [numSimilarResults, setNumSimilarResults] = useState(5);
     const [searchResults, setSearchResults] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isPenActive, setIsPenActive] = useState(false); // State to track if the pen tool is active
+    const [segmentedImage, setSegmentedImage] = useState(null); // State for the segmented image
 
     const appendLog = (message) => {
         setLog(prevLog => prevLog + message + '\n');
@@ -95,7 +97,7 @@ const MicroscopeControl = () => {
                 });
                 appendLog('Server connected.');
                 
-                appendLog('Getting microscope-control-squid-2 service...');
+                appendLog('Getting service...');
                 const mc = await server.get_service("microscope-control-squid-test");
                 appendLog('Service acquired.');
 
@@ -112,6 +114,51 @@ const MicroscopeControl = () => {
 
         initializeWebRPC();
     }, []);
+
+    const activatePenTool = () => {
+      if (isPenActive) {
+          // If pen tool is active, deactivate it
+          document.body.style.cursor = 'default';
+          setIsPenActive(false);
+          appendLog('Pen tool deactivated.');
+      } else {
+          // If pen tool is not active, activate it
+          document.body.style.cursor = 'crosshair';
+          setIsPenActive(true);
+          appendLog('Pen tool activated. Click on the image to segment a cell.');
+      }
+  };
+  
+  
+    const handleImageClick = async (event) => {
+      if (!isPenActive || !svc || !snapshotImage) return; // Ensure pen tool is active and service is available
+    
+      // Get click coordinates relative to the image
+      const rect = event.target.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      const pointCoordinates = [x, y];
+    
+      appendLog(`Clicked at coordinates: (${x}, ${y})`);
+    
+      try {
+        // Call the segment_cell function via the service
+        const segmentedResult = await svc.segment_cell({
+          point_coordinates: pointCoordinates,
+          point_labels: [1], // Assuming a label of 1 for the clicked cell
+          context: { user: 'test_user' } // Replace with actual context if needed
+        });
+    
+        // Update the segmented image
+        setSegmentedImage(`data:image/png;base64,${segmentedResult.mask}`); // Assuming the result returns a base64-encoded mask
+        appendLog('Segmentation completed and displayed.');
+      } catch (error) {
+        appendLog(`Error in segmentation: ${error.message}`);
+      } finally {
+        setIsPenActive(false); // Deactivate the pen tool after segmentation
+        document.body.style.cursor = 'default'; // Reset cursor to default
+      }
+    };
 
     const handleSimilaritySearch = async () => {
       if (!snapshotImage || !svc) {
@@ -283,7 +330,12 @@ const MicroscopeControl = () => {
         <div id="viewer-section" className="flex flex-wrap gap-4">
           <div id="media" className="shadow flex-1 min-w-[480px]">
             {snapshotImage ? (
-              <img src={snapshotImage} alt="Snapshot" />
+              <img
+                src={snapshotImage}
+                alt="Snapshot"
+                onClick={handleImageClick} // Capture click for segmentation
+                style={{ cursor: isPenActive ? 'crosshair' : 'pointer' }} // Conditional cursor
+              />
             ) : (
               <div className="bg-light flex items-center justify-center" style={{ height: "360px" }}>
                 <span>No image available</span>
@@ -326,32 +378,24 @@ const MicroscopeControl = () => {
               </button>
             </div>
           </div>
-    
-          <div className="flex-1 min-w-[300px]">
-            <div className="control-group">
-              <div className="input-group mb-2">
-                <input type="number" value={numSimilarResults} onChange={(e) => setNumSimilarResults(e.target.value)} className="form-control" placeholder="Number of similar results" />
-              </div>
-              <button className={`btn btn-info btn-block ${isLoading ? 'disabled' : ''}`} onClick={handleSimilaritySearch} disabled={!snapshotImage}>
-                <span className={`fas ${isLoading ? 'fa-spinner fa-spin' : 'fa-search'}`}></span> Search Similar Images
-              </button>
-            </div>
-    
-            {searchResults.length > 0 && (
-              <div className="mt-4">
-                <h3>Similarity Search Results:</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                  {searchResults.map((result, index) => (
-                    <div key={index} className="border rounded p-2">
-                      <img src={`data:image/jpeg;base64,${result.image}`} alt={`Result ${index + 1}`} className="w-full mb-2 rounded-lg" />
-                      <p className="text-sm text-gray-600">Channel: {result.fluorescent_channel}</p>
-                      <p className="text-sm text-gray-600">Similarity: {result.similarity.toFixed(2)}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+
+          <div className="control-group">
+            <button className={`btn btn-info btn-block ${isLoading ? 'disabled' : ''}`} onClick={handleSimilaritySearch} disabled={!snapshotImage}>
+                <span className={`fas ${isLoading ? 'fa-spinner fa-spin' : 'fa-search'}`}></span> Search Similar Cells
+            </button>
           </div>
+          
+          <div className="control-group">
+            <button id="pen-button" className="btn btn-secondary btn-block" onClick={activatePenTool}>
+                <span className="fas fa-pen"></span> {isPenActive ? 'Deactivate Pen' : 'Segment Cell'}
+            </button>
+        </div>
+
+          {segmentedImage && (
+            <div className="control-group mt-3">
+              <img src={segmentedImage} alt="Segmented Cell" className="img-thumbnail" />
+            </div>
+          )}
         </div>
     
         <div id="control-panel" className="flex flex-col gap-4">
@@ -360,7 +404,8 @@ const MicroscopeControl = () => {
               <span className="fas fa-camera"></span> Snap Image
             </button>
           </div>
-    
+
+          
           <div className="control-group">
             <label htmlFor="illumination-intensity">Illumination Intensity:</label>
             <input type="range" id="illumination-intensity" className="form-control-range" min="0" max="100" value={illuminationIntensity} onChange={(e) => setIlluminationIntensity(e.target.value)} />
