@@ -26,7 +26,6 @@ STORAGE = {}
 logger = getLogger(__name__)
 logger.setLevel("INFO")
 
-
 def _load_model(model_name: str) -> torch.nn.Module:
     if model_name not in MODELS:
         raise ValueError(
@@ -60,7 +59,6 @@ def _load_model(model_name: str) -> torch.nn.Module:
 
     return sam
 
-
 def _to_image(input_: np.ndarray) -> np.ndarray:
     # we require the input to be uint8
     if input_.dtype != np.dtype("uint8"):
@@ -79,18 +77,13 @@ def _to_image(input_: np.ndarray) -> np.ndarray:
         )
     return image
 
-
-def compute_embedding(model_name: str, image: np.ndarray, context: dict = None) -> bool:
-    user_id = context["user"].get("id")
-    if not user_id:
-        logger.info("User ID not found in context.")
-        return False
+def compute_embedding(model_name: str, image: np.ndarray) -> bool:
     sam = _load_model(model_name)
-    logger.info(f"User {user_id} - computing embedding of model {model_name}...")
+    logger.info(f"Computing embedding of model {model_name}...")
     predictor = SamPredictor(sam)
     predictor.set_image(_to_image(image))
     # Save computed predictor values
-    logger.info(f"User {user_id} - caching embedding of model {model_name}...")
+    logger.info(f"Caching embedding of model {model_name}...")
     predictor_dict = {
         "model_name": model_name,
         "original_size": predictor.original_size,
@@ -98,44 +91,35 @@ def compute_embedding(model_name: str, image: np.ndarray, context: dict = None) 
         "features": predictor.features,  # embedding
         "is_image_set": predictor.is_image_set,
     }
-    STORAGE[user_id] = predictor_dict
+    STORAGE['current_embedding'] = predictor_dict
     return True
 
-
-def reset_embedding(context: dict = None) -> bool:
-    user_id = context["user"].get("id")
-    if user_id not in STORAGE:
-        logger.info(f"User {user_id} not found in storage.")
+def reset_embedding() -> bool:
+    if 'current_embedding' not in STORAGE:
+        logger.info("No embedding found in storage.")
         return False
     else:
-        logger.info(f"User {user_id} - resetting embedding...")
-        STORAGE[user_id].clear()
+        logger.info("Resetting embedding...")
+        del STORAGE['current_embedding']
         return True
-
 
 def segment(
     point_coordinates: Union[list, np.ndarray],
     point_labels: Union[list, np.ndarray],
-    context: dict = None,
 ) -> list:
-    user_id = context["user"].get("id")
-    if user_id not in STORAGE:
-        logger.info(f"User {user_id} not found in storage.")
+    if 'current_embedding' not in STORAGE:
+        logger.info("No embedding found in storage.")
         return []
 
-    logger.info(
-        f"User {user_id} - segmenting with model {STORAGE[user_id].get('model_name')}..."
-    )
+    logger.info(f"Segmenting with model {STORAGE['current_embedding'].get('model_name')}...")
     # Load the model with the pre-computed embedding
-    sam = _load_model(STORAGE[user_id].get("model_name"))
+    sam = _load_model(STORAGE['current_embedding'].get('model_name'))
     predictor = SamPredictor(sam)
-    for key, value in STORAGE[user_id].items():
+    for key, value in STORAGE['current_embedding'].items():
         if key != "model_name":
             setattr(predictor, key, value)
     # Run the segmentation
-    logger.debug(
-        f"User {user_id} - point coordinates: {point_coordinates}, {point_labels}"
-    )
+    logger.debug(f"Point coordinates: {point_coordinates}, {point_labels}")
     if isinstance(point_coordinates, list):
         point_coordinates = np.array(point_coordinates, dtype=np.float32)
     if isinstance(point_labels, list):
@@ -145,27 +129,15 @@ def segment(
         point_labels=point_labels,
         multimask_output=False,
     )
-    logger.debug(f"User {user_id} - predicted mask of shape {mask.shape}")
+    logger.debug(f"Predicted mask of shape {mask.shape}")
     features = mask_to_features(mask[0])
     return features
-
-
-def remove_user_id(context: dict = None) -> bool:
-    user_id = context["user"].get("id")
-    if user_id not in STORAGE:
-        logger.info(f"User {user_id} not found in storage.")
-        return False
-    else:
-        logger.info(f"User {user_id} - removing user from storage...")
-        del STORAGE[user_id]
-        return True
-
 
 async def register_service(args: dict) -> None:
     """
     Register the SAM annotation service on the BioImageIO Colab workspace.
     """
-    token = await login({"server_url": args.server_url,})
+    token = await login({"server_url": args.server_url})
     server = await connect_to_server(
         {
             "server_url": args.server_url,
@@ -180,33 +152,19 @@ async def register_service(args: dict) -> None:
             "id": args.service_id,
             "config": {
                 "visibility": "public",
-                "require_context": False,  # TODO: only allow the service to be called by logged-in users
+                "require_context": False,
                 "run_in_executor": True,
             },
-            # Exposed functions:
-            # compute the image embeddings:
-            # pass the model-name and the image to compute the embeddings on
-            # calls load_model internally
-            # returns True if the embeddings were computed successfully
+            "type": "echo",
             "compute_embedding": compute_embedding,
-            # run interactive segmentation
-            # pass the point coordinates and labels
-            # returns the predicted mask encoded as geo json
             "segment": segment,
-            # reset the embedding for the user
-            # returns True if the embedding was removed successfully
             "reset_embedding": reset_embedding,
-            # remove the user id from the storage
-            # returns True if the user was removed successfully
-            "remove_user_id": remove_user_id,  # TODO: add a timeout to remove a user after a certain time
         },
         overwrite=True
     )
-    sid = service_info["id"]
     logger.info(
         f"Service (service_id={args.service_id}) started successfully, available at http://{args.server_url}/{server.config.workspace}/services"
     )
-
 
 if __name__ == "__main__":
     import asyncio
