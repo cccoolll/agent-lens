@@ -101,9 +101,13 @@ const MicroscopeControl = () => {
                 const mc = await server.get_service("microscope-control-squid-test");
                 appendLog('Service acquired.');
 
-                appendLog('Getting image-embedding-similarity-search service...');
-                const similarityService = await server.getService("image-embedding-similarity-search");
-                appendLog('Similarity search service acquired.');
+                //appendLog('Getting image-embedding-similarity-search service...');
+                //const similarityService = await server.getService("image-embedding-similarity-search");
+                //appendLog('Similarity search service acquired.');
+
+                appendLog('Getting Segmentation service...');
+                const similarityService = await server.get_service("interactive-segmentation");
+                appendLog('Segmentation service acquired.');
                 
                 setMicroscopeControl(mc);
                 setSvc(similarityService);  // Set the similarity search service

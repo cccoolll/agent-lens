@@ -1,6 +1,8 @@
 import asyncio
 from imjoy_rpc.hypha import connect_to_server
 import numpy as np
+from PIL import Image
+import io
 
 async def main():
     try:
@@ -12,15 +14,31 @@ async def main():
 
         print("Service info:", segment_svc)
 
-        # Compute embedding
-        result = await segment_svc.compute_embedding("vit_b", np.random.rand(256, 256))
-        print("Embedding computed:", result)
+        # Prepare image as bytes
+        image = np.random.rand(256, 256, 3) * 255
+        image = image.astype(np.uint8)
+        buffer = io.BytesIO()
+        Image.fromarray(image).save(buffer, format="PNG")
+        image_bytes = buffer.getvalue()
 
-        # Perform segmentation
-        features = await segment_svc.segment([[128, 128]], [1])
-        print("Segmentation features:", features)
+        # Perform initial segmentation and compute embedding
+        initial_point = [[128, 128]]
+        initial_label = [1]
+        result = await segment_svc.compute_embedding_with_initial_segment("vit_b", image_bytes, initial_point, initial_label)
+        print("Embedding computed based on initial segmentation:", result)
 
-        # Reset embedding
+        # Use embedding to perform segmentation on new images
+        for i in range(1, 5):  # Assuming you have multiple images
+            image = np.random.rand(256, 256, 3) * 255
+            image = image.astype(np.uint8)
+            buffer = io.BytesIO()
+            Image.fromarray(image).save(buffer, format="PNG")
+            image_bytes = buffer.getvalue()
+
+            features = await segment_svc.segment_with_existing_embedding(image_bytes, initial_point, initial_label)
+            print(f"Segmentation features for image {i}:", features)
+
+        # Reset embedding when done
         reset_result = await segment_svc.reset_embedding()
         print("Embedding reset:", reset_result)
 

@@ -3,7 +3,7 @@ import io
 import os
 from logging import getLogger
 from typing import Union
-
+from PIL import Image
 import numpy as np
 import requests
 import torch
@@ -77,12 +77,31 @@ def _to_image(input_: np.ndarray) -> np.ndarray:
         )
     return image
 
-def compute_embedding(model_name: str, image: np.ndarray) -> bool:
+def compute_embedding_with_initial_segment(model_name: str, image_bytes: bytes, point_coordinates: Union[list, np.ndarray], point_labels: Union[list, np.ndarray]) -> bool:
+    # Convert bytes to a numpy array
+    image = np.array(Image.open(io.BytesIO(image_bytes)).convert("RGB"))
+
+    # Load model
     sam = _load_model(model_name)
-    logger.info(f"Computing embedding of model {model_name}...")
+    logger.info(f"Computing embedding of model {model_name} with initial segmentation...")
     predictor = SamPredictor(sam)
     predictor.set_image(_to_image(image))
-    # Save computed predictor values
+
+    # Perform initial segmentation
+    if isinstance(point_coordinates, list):
+        point_coordinates = np.array(point_coordinates, dtype=np.float32)
+    if isinstance(point_labels, list):
+        point_labels = np.array(point_labels, dtype=np.float32)
+    mask, scores, logits = predictor.predict(
+        point_coords=point_coordinates[:, ::-1],  # SAM has reversed XY conventions
+        point_labels=point_labels,
+        multimask_output=False,
+    )
+
+    # Refine embedding based on initial mask if needed
+    # (SAM uses the feature embedding internally for improved segmentation)
+    
+    # Cache the computed embedding and predictor states
     logger.info(f"Caching embedding of model {model_name}...")
     predictor_dict = {
         "model_name": model_name,
@@ -93,6 +112,8 @@ def compute_embedding(model_name: str, image: np.ndarray) -> bool:
     }
     STORAGE['current_embedding'] = predictor_dict
     return True
+
+
 
 def reset_embedding() -> bool:
     if 'current_embedding' not in STORAGE:
@@ -133,6 +154,41 @@ def segment(
     features = mask_to_features(mask[0])
     return features
 
+def segment_with_existing_embedding(image_bytes: bytes, point_coordinates: Union[list, np.ndarray], point_labels: Union[list, np.ndarray]) -> list:
+    if 'current_embedding' not in STORAGE:
+        logger.info("No embedding found in storage.")
+        return []
+
+    # Convert bytes to a numpy array
+    image = np.array(Image.open(io.BytesIO(image_bytes)).convert("RGB"))
+
+    logger.info(f"Segmenting with existing embedding from model {STORAGE['current_embedding'].get('model_name')}...")
+    # Load the model
+    sam = _load_model(STORAGE['current_embedding'].get('model_name'))
+    predictor = SamPredictor(sam)
+    
+    # Set the new image while keeping the old embedding
+    predictor.set_image(_to_image(image))  
+    for key, value in STORAGE['current_embedding'].items():
+        if key not in ["model_name", "is_image_set"]:
+            setattr(predictor, key, value)
+
+    # Run the segmentation
+    if isinstance(point_coordinates, list):
+        point_coordinates = np.array(point_coordinates, dtype=np.float32)
+    if isinstance(point_labels, list):
+        point_labels = np.array(point_labels, dtype=np.float32)
+
+    mask, scores, logits = predictor.predict(
+        point_coords=point_coordinates[:, ::-1],  # SAM uses reversed XY conventions
+        point_labels=point_labels,
+        multimask_output=False,
+    )
+
+    logger.debug(f"Predicted mask of shape {mask.shape}")
+    features = mask_to_features(mask[0])
+    return features
+
 async def register_service(args: dict) -> None:
     """
     Register the SAM annotation service on the BioImageIO Colab workspace.
@@ -156,8 +212,9 @@ async def register_service(args: dict) -> None:
                 "run_in_executor": True,
             },
             "type": "echo",
-            "compute_embedding": compute_embedding,
+            "compute_embedding_with_initial_segment": compute_embedding_with_initial_segment,
             "segment": segment,
+            "segment_with_existing_embedding": segment_with_existing_embedding,
             "reset_embedding": reset_embedding,
         },
         overwrite=True
