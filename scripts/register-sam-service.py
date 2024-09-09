@@ -11,6 +11,7 @@ from dotenv import find_dotenv, load_dotenv
 from imjoy_rpc.hypha import connect_to_server, login
 from kaibu_utils import mask_to_features
 from segment_anything import SamPredictor, sam_model_registry
+import base64
 
 ENV_FILE = find_dotenv()
 if ENV_FILE:
@@ -77,9 +78,10 @@ def _to_image(input_: np.ndarray) -> np.ndarray:
         )
     return image
 
-def compute_embedding_with_initial_segment(model_name: str, image_bytes: bytes, point_coordinates: Union[list, np.ndarray], point_labels: Union[list, np.ndarray]) -> bool:
+def compute_embedding_with_initial_segment(model_name: str, image_bytes: bytes, point_coordinates: Union[list, np.ndarray], point_labels: Union[list, np.ndarray]) -> dict:
     # Convert bytes to a numpy array
     image = np.array(Image.open(io.BytesIO(image_bytes)).convert("RGB"))
+    logger.info(f"Image size: {image.shape}, Point coordinates received: {point_coordinates}")
 
     # Load model
     sam = _load_model(model_name)
@@ -98,20 +100,20 @@ def compute_embedding_with_initial_segment(model_name: str, image_bytes: bytes, 
         multimask_output=False,
     )
 
-    # Refine embedding based on initial mask if needed
-    # (SAM uses the feature embedding internally for improved segmentation)
+    # Ensure the mask is not empty
+    if mask is None or mask.size == 0:
+        logger.error("Generated mask is empty.")
+        return {"error": "Generated mask is empty."}
+
+    # Convert mask to an image
+    mask_image = Image.fromarray((mask[0] * 255).astype(np.uint8))
+    buffer = io.BytesIO()
+    mask_image.save(buffer, format="PNG")
+    mask_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+    logger.info(f"Computed embedding of model {model_name} with initial segmentation. Mask size: {mask_image.size}")
     
-    # Cache the computed embedding and predictor states
-    logger.info(f"Caching embedding of model {model_name}...")
-    predictor_dict = {
-        "model_name": model_name,
-        "original_size": predictor.original_size,
-        "input_size": predictor.input_size,
-        "features": predictor.features,  # embedding
-        "is_image_set": predictor.is_image_set,
-    }
-    STORAGE['current_embedding'] = predictor_dict
-    return True
+    return {"mask": mask_base64}
+
 
 
 
@@ -154,40 +156,42 @@ def segment(
     features = mask_to_features(mask[0])
     return features
 
-def segment_with_existing_embedding(image_bytes: bytes, point_coordinates: Union[list, np.ndarray], point_labels: Union[list, np.ndarray]) -> list:
+def segment_with_existing_embedding(image_bytes: bytes, point_coordinates: Union[list, np.ndarray], point_labels: Union[list, np.ndarray]) -> dict:
     if 'current_embedding' not in STORAGE:
         logger.info("No embedding found in storage.")
-        return []
+        return {}
+    logger.info(f"Image size: {image.shape}, Point coordinates received: {point_coordinates}")
 
     # Convert bytes to a numpy array
     image = np.array(Image.open(io.BytesIO(image_bytes)).convert("RGB"))
 
     logger.info(f"Segmenting with existing embedding from model {STORAGE['current_embedding'].get('model_name')}...")
-    # Load the model
     sam = _load_model(STORAGE['current_embedding'].get('model_name'))
     predictor = SamPredictor(sam)
-    
-    # Set the new image while keeping the old embedding
+
     predictor.set_image(_to_image(image))  
     for key, value in STORAGE['current_embedding'].items():
         if key not in ["model_name", "is_image_set"]:
             setattr(predictor, key, value)
 
-    # Run the segmentation
     if isinstance(point_coordinates, list):
         point_coordinates = np.array(point_coordinates, dtype=np.float32)
     if isinstance(point_labels, list):
         point_labels = np.array(point_labels, dtype=np.float32)
 
     mask, scores, logits = predictor.predict(
-        point_coords=point_coordinates[:, ::-1],  # SAM uses reversed XY conventions
+        point_coords=point_coordinates[:, ::-1],
         point_labels=point_labels,
         multimask_output=False,
     )
 
-    logger.debug(f"Predicted mask of shape {mask.shape}")
-    features = mask_to_features(mask[0])
-    return features
+    # Convert mask to an image
+    mask_image = Image.fromarray((mask[0] * 255).astype(np.uint8))
+    buffer = io.BytesIO()
+    mask_image.save(buffer, format="PNG")
+    mask_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+    return {"mask": mask_base64}
 
 async def register_service(args: dict) -> None:
     """

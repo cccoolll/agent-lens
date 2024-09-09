@@ -51,10 +51,10 @@
             margin-top: 20px;
         }
         img {
-            width: 100%;
-            height: auto;
-            border-radius: 10px;
-        }
+          max-width: 100%;
+          height: auto;
+          border-radius: 10px;
+      }      
     </style>
 </head>
 <body>
@@ -80,92 +80,174 @@ const MicroscopeControl = () => {
     const [searchResults, setSearchResults] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isPenActive, setIsPenActive] = useState(false); // State to track if the pen tool is active
+    const [isFirstClick, setIsFirstClick] = useState(true); // Track if it's the first click for segmentation
     const [segmentedImage, setSegmentedImage] = useState(null); // State for the segmented image
-
+    const [segmentService, setSegmentService] = useState(null);
+    const [selectedModel, setSelectedModel] = useState('vit_b'); // Default model
+    const [similarityService, setSimilarityService] = useState(null);
     const appendLog = (message) => {
         setLog(prevLog => prevLog + message + '\n');
     };
 
     useEffect(() => {
-        const initializeWebRPC = async () => {
-            try {
-                appendLog('Connecting to server...');
-                const server = await hyphaWebsocketClient.connectToServer({ 
-                    "name": "js-client", 
-                    "server_url": "https://ai.imjoy.io", 
-                    "method_timeout": 10 
-                });
-                appendLog('Server connected.');
-                
-                appendLog('Getting service...');
-                const mc = await server.get_service("microscope-control-squid-test");
-                appendLog('Service acquired.');
+      const initializeWebRPC = async () => {
+          try {
+              appendLog('Connecting to server...');
+              const server = await hyphaWebsocketClient.connectToServer({ 
+                  "name": "js-client", 
+                  "server_url": "https://ai.imjoy.io", 
+                  "method_timeout": 10 
+              });
+              appendLog('Server connected.');
+              appendLog('Getting imasfadsfdsdfasfdsad.');
 
-                //appendLog('Getting image-embedding-similarity-search service...');
-                //const similarityService = await server.getService("image-embedding-similarity-search");
-                //appendLog('Similarity search service acquired.');
+              appendLog('Getting Segmentation service...');
+              try {
+                  const segmentationService = await server.get_service("interactive-segmentation");
+                  appendLog('Segmentation service acquired.');
+                  setSegmentService(segmentationService);  // Set the segmentation service
+              } catch (segmentationError) {
+                  appendLog(`Error acquiring segmentation service: ${segmentationError.message}`);
+              }
+              
+              appendLog('Getting microscope control service...');
+              const mc = await server.get_service("microscope-control-squid-test");
+              appendLog('Microscope control service acquired.');
 
-                appendLog('Getting Segmentation service...');
-                const similarityService = await server.get_service("interactive-segmentation");
-                appendLog('Segmentation service acquired.');
-                
-                setMicroscopeControl(mc);
-                setSvc(similarityService);  // Set the similarity search service
-            } catch (error) {
-                appendLog(`Error: ${error.message}`);
-            }
-        };
+              appendLog('Getting image-embedding-similarity-search service...');
+              const similarityService = await server.get_service("image-embedding-similarity-search");
+              appendLog('Similarity search service acquired.');
+  
+              setMicroscopeControl(mc);
+              setSimilarityService(similarityService);  // Set the similarity search service
 
-        initializeWebRPC();
+          } catch (error) {
+              appendLog(`Error: ${error.message}`);
+          }
+      };
+  
+      initializeWebRPC();
     }, []);
+  
 
     const activatePenTool = () => {
-      if (isPenActive) {
-          // If pen tool is active, deactivate it
-          document.body.style.cursor = 'default';
-          setIsPenActive(false);
-          appendLog('Pen tool deactivated.');
-      } else {
-          // If pen tool is not active, activate it
-          document.body.style.cursor = 'crosshair';
-          setIsPenActive(true);
-          appendLog('Pen tool activated. Click on the image to segment a cell.');
-      }
-  };
-  
+      setIsPenActive(!isPenActive);
+      setIsFirstClick(true); // Reset to first click whenever the tool is activated
+      document.body.style.cursor = isPenActive ? 'default' : 'crosshair';
+      appendLog(isPenActive ? 'Pen tool deactivated.' : 'Pen tool activated. Click on the image to segment a cell.');
+    };
   
     const handleImageClick = async (event) => {
-      if (!isPenActive || !svc || !snapshotImage) return; // Ensure pen tool is active and service is available
-    
+      if (!isPenActive || !segmentService || !snapshotImage) return;
+  
+      // Get the original image dimensions (2048x2048)
+      const originalWidth = 2048;
+      const originalHeight = 2048;
+  
       // Get click coordinates relative to the image
       const rect = event.target.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const y = event.clientY - rect.top;
-      const pointCoordinates = [x, y];
-    
-      appendLog(`Clicked at coordinates: (${x}, ${y})`);
-    
+      const clickX = event.clientX - rect.left;
+      const clickY = event.clientY - rect.top;
+  
+      // Scale coordinates to the original image size
+      const scaleX = originalWidth / rect.width;
+      const scaleY = originalHeight / rect.height;
+      const pointCoordinates = [clickX * scaleX, clickY * scaleY];
+  
+      appendLog(`Clicked at coordinates: (${pointCoordinates[0]}, ${pointCoordinates[1]})`);
+  
       try {
-        // Call the segment_cell function via the service
-        const segmentedResult = await svc.segment_cell({
-          point_coordinates: pointCoordinates,
-          point_labels: [1], // Assuming a label of 1 for the clicked cell
-          context: { user: 'test_user' } // Replace with actual context if needed
-        });
-    
-        // Update the segmented image
-        setSegmentedImage(`data:image/png;base64,${segmentedResult.mask}`); // Assuming the result returns a base64-encoded mask
-        appendLog('Segmentation completed and displayed.');
+          // Fetch the image data as a Blob
+          const response = await fetch(snapshotImage);
+          const blob = await response.blob();
+  
+          // Convert Blob to ArrayBuffer
+          const arrayBuffer = await new Response(blob).arrayBuffer();
+  
+          // Convert ArrayBuffer to Uint8Array
+          const uint8Array = new Uint8Array(arrayBuffer);
+  
+          let segmentedResult;
+          if (isFirstClick) {
+              // First click: Use compute_embedding_with_initial_segment with the selected model
+              segmentedResult = await segmentService.compute_embedding_with_initial_segment(
+                  selectedModel,
+                  uint8Array,
+                  [pointCoordinates],
+                  [1]
+              );
+              setIsFirstClick(false);
+          } else {
+              // Subsequent clicks: Use segment_with_existing_embedding
+              segmentedResult = await segmentService.segment_with_existing_embedding(
+                  uint8Array,
+                  [pointCoordinates],
+                  [1]
+              );
+          }
+  
+          if (segmentedResult.error) {
+              appendLog(`Segmentation error: ${segmentedResult.error}`);
+              return;
+          }
+  
+          // Ensure mask data is not empty or malformed
+          const maskData = segmentedResult.mask;
+          if (!maskData) {
+              appendLog("Received empty mask data from the server.");
+              return;
+          }
+  
+          // Create an image element to decode base64 mask data
+          const maskImage = new Image();
+          maskImage.crossOrigin = "anonymous"; // Set cross-origin attribute
+          maskImage.src = `data:image/png;base64,${maskData}`;
+  
+          maskImage.onload = () => {
+              // Create a canvas with the original image size
+              const maskCanvas = document.createElement('canvas');
+              const ctx = maskCanvas.getContext('2d');
+              maskCanvas.width = originalWidth;
+              maskCanvas.height = originalHeight;
+  
+              // Create an image element for the original snapshot image
+              const originalImage = new Image();
+              originalImage.crossOrigin = "anonymous"; // Set cross-origin attribute
+              originalImage.src = snapshotImage;
+  
+              originalImage.onload = () => {
+                  ctx.drawImage(originalImage, 0, 0, originalWidth, originalHeight);
+  
+                  // Set transparency for the mask
+                  ctx.globalAlpha = 0.5;
+  
+                  // Draw the mask with green color where positive zones are detected
+                  ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
+                  ctx.drawImage(maskImage, 0, 0, originalWidth, originalHeight);
+  
+                  // Convert the canvas to an image and set as segmented image
+                  setSegmentedImage(maskCanvas.toDataURL());
+                  appendLog('Segmentation completed and displayed.');
+              };
+  
+              originalImage.onerror = () => {
+                  appendLog("Failed to load the original snapshot image.");
+              };
+          };
+  
+          maskImage.onerror = () => {
+              appendLog("Failed to load mask image.");
+          };
+  
       } catch (error) {
-        appendLog(`Error in segmentation: ${error.message}`);
-      } finally {
-        setIsPenActive(false); // Deactivate the pen tool after segmentation
-        document.body.style.cursor = 'default'; // Reset cursor to default
+          appendLog(`Error in segmentation: ${error.message}`);
       }
     };
+  
+  
 
     const handleSimilaritySearch = async () => {
-      if (!snapshotImage || !svc) {
+      if (!snapshotImage || !similarityService) {
         appendLog('No image or service available for similarity search.');
         return;
       }
@@ -187,7 +269,7 @@ const MicroscopeControl = () => {
               name: 'snapshot'
           };
 
-          const results = await svc.find_similar_images(uint8Array, imageData, parseInt(numSimilarResults));
+          const results = await similarityService.find_similar_images(uint8Array, imageData, parseInt(numSimilarResults));
           appendLog(`Found ${results.length} similar images.`);
   
           setSearchResults(results);
@@ -327,6 +409,7 @@ const MicroscopeControl = () => {
         }
     };
 
+
     return (
       <div>
         <h1 id="title" className="text-center">WebRTC Microscope Control</h1>
@@ -401,7 +484,16 @@ const MicroscopeControl = () => {
             </div>
           )}
         </div>
-    
+
+        <div className="control-group">
+          <label htmlFor="model-selection">Select Segmentation Model:</label>
+          <select id="model-selection" className="form-control" value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}>
+              <option value="vit_b">ViT-B</option>
+              <option value="vit_b_lm">ViT-B LM</option>
+              <option value="vit_b_em_organelles">ViT-B EM Organelles</option>
+          </select>
+      </div>
+          
         <div id="control-panel" className="flex flex-col gap-4">
           <div className="control-group">
             <button className="btn btn-primary btn-block" onClick={snapImage} disabled={!microscopeControl}>
@@ -452,8 +544,8 @@ const MicroscopeControl = () => {
       </div>
     );
 };
-
 ReactDOM.render(<MicroscopeControl />, document.getElementById('app'));
+
 </script>
 </body>
 </html>
