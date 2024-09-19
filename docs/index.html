@@ -260,27 +260,22 @@ const MicroscopeControl = () => {
         appendLog('No image or service available for similarity search.');
         return;
       }
-  
       setIsLoading(true);
       appendLog('Starting similarity search...');
       try {
           // Fetch the image data as a Blob
           const response = await fetch(snapshotImage);
           const blob = await response.blob();
-
           // Convert Blob to ArrayBuffer
           const arrayBuffer = await new Response(blob).arrayBuffer();
-
           // Convert ArrayBuffer to Uint8Array
           const uint8Array = new Uint8Array(arrayBuffer);
-
           const imageData = {
               name: 'snapshot'
           };
-
           const results = await similarityService.find_similar_images(uint8Array, imageData, parseInt(numSimilarResults));
           appendLog(`Found ${results.length} similar images.`);
-  
+          // Save the results to the state
           setSearchResults(results);
       } catch (error) {
           appendLog(`Error searching for similar images: ${error.message}`);
@@ -503,6 +498,21 @@ const MicroscopeControl = () => {
                 <span className={`fas ${isLoading ? 'fa-spinner fa-spin' : 'fa-search'}`}></span> Search Similar Images
             </button>
           </div>
+          
+          {searchResults.length > 0 && (
+            <div className="control-group mt-3">
+              <h5>Similar Images:</h5>
+              <div className="d-flex flex-wrap">
+                {searchResults.map((result, index) => (
+                  <div key={index} className="p-2">
+                    <img src={`data:image/jpeg;base64,${result.image}`} alt={`similar-img-${index}`} className="img-thumbnail" style={{ width: '100px', height: '100px' }} />
+                    <p>Channel: {result.fluorescent_channel}</p>
+                    <p>Similarity: {result.similarity.toFixed(2)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           
           <div className="control-group">
             <button id="pen-button" className="btn btn-secondary btn-block" onClick={activatePenTool}>
