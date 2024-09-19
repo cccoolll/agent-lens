@@ -284,6 +284,17 @@ const MicroscopeControl = () => {
       }
     };
 
+    const autoFocus = async () => {
+      if (!microscopeControl) return;
+      try {
+        appendLog('Autofocusing...');
+        await microscopeControl.auto_focus();
+        appendLog('Autofocus completed.');
+      } catch (error) {
+        appendLog(`Error during autofocus: ${error.message}`);
+      }
+    };
+    
     const snapImage = async () => {
       if (!microscopeControl) return;
       try {
@@ -538,6 +549,11 @@ const MicroscopeControl = () => {
             </button>
           </div>
 
+          <div className="control-group">
+            <button className="btn btn-secondary btn-block" onClick={autoFocus} disabled={!microscopeControl}>
+              <span className="fas fa-crosshairs"></span> Autofocus
+            </button>
+          </div>
           
           <div className="control-group">
             <label htmlFor="illumination-intensity">Illumination Intensity:</label>
