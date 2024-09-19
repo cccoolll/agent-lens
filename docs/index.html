@@ -60,9 +60,12 @@
 <body>
 <div id="app"></div>
 <script type="text/babel">
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
+const originalWidth = 2048;
+const originalHeight = 2048;
 
 const MicroscopeControl = () => {
+    const canvasRef = useRef(null);
     const [microscopeControl, setMicroscopeControl] = useState(null);
     const [snapshotImage, setSnapshotImage] = useState(null);
     const [illuminationIntensity, setIlluminationIntensity] = useState(50);
@@ -81,7 +84,6 @@ const MicroscopeControl = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isPenActive, setIsPenActive] = useState(false); // State to track if the pen tool is active
     const [isFirstClick, setIsFirstClick] = useState(true); // Track if it's the first click for segmentation
-    const [segmentedImage, setSegmentedImage] = useState(null); // State for the segmented image
     const [segmentService, setSegmentService] = useState(null);
     const [selectedModel, setSelectedModel] = useState('vit_b'); // Default model
     const [similarityService, setSimilarityService] = useState(null);
@@ -139,21 +141,19 @@ const MicroscopeControl = () => {
   
     const handleImageClick = async (event) => {
       if (!isPenActive || !segmentService || !snapshotImage) return;
-  
-      // Get the original image dimensions (2048x2048)
-      const originalWidth = 2048;
-      const originalHeight = 2048;
-  
-      // Get click coordinates relative to the image
-      const rect = event.target.getBoundingClientRect();
+    
+      const canvas = canvasRef.current;
+    
+      // Get click coordinates relative to the canvas
+      const rect = canvas.getBoundingClientRect();
       const clickX = event.clientX - rect.left;
       const clickY = event.clientY - rect.top;
-  
+    
       // Scale coordinates to the original image size
-      const scaleX = originalWidth / rect.width;
-      const scaleY = originalHeight / rect.height;
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
       const pointCoordinates = [clickX * scaleX, clickY * scaleY];
-  
+    
       appendLog(`Clicked at coordinates: (${pointCoordinates[0]}, ${pointCoordinates[1]})`);
   
       try {
@@ -204,36 +204,45 @@ const MicroscopeControl = () => {
           maskImage.src = `data:image/png;base64,${maskData}`;
   
           maskImage.onload = () => {
-              // Create a canvas with the original image size
-              const maskCanvas = document.createElement('canvas');
-              const ctx = maskCanvas.getContext('2d');
-              maskCanvas.width = originalWidth;
-              maskCanvas.height = originalHeight;
-  
-              // Create an image element for the original snapshot image
-              const originalImage = new Image();
-              originalImage.crossOrigin = "anonymous"; // Set cross-origin attribute
-              originalImage.src = snapshotImage;
-  
-              originalImage.onload = () => {
-                  ctx.drawImage(originalImage, 0, 0, originalWidth, originalHeight);
-  
-                  // Set transparency for the mask
-                  ctx.globalAlpha = 0.5;
-  
-                  // Draw the mask with green color where positive zones are detected
-                  ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
-                  ctx.drawImage(maskImage, 0, 0, originalWidth, originalHeight);
-  
-                  // Convert the canvas to an image and set as segmented image
-                  setSegmentedImage(maskCanvas.toDataURL());
-                  appendLog('Segmentation completed and displayed.');
-              };
-  
-              originalImage.onerror = () => {
-                  appendLog("Failed to load the original snapshot image.");
-              };
+            const canvas = canvasRef.current;
+            const ctx = canvas.getContext('2d');
+          
+            // Create an offscreen canvas to read the mask image data
+            const maskCanvas = document.createElement('canvas');
+            maskCanvas.width = originalWidth;
+            maskCanvas.height = originalHeight;
+            const maskCtx = maskCanvas.getContext('2d');
+            maskCtx.drawImage(maskImage, 0, 0, originalWidth, originalHeight);
+          
+            // Get the mask image data
+            const maskImageData = maskCtx.getImageData(0, 0, originalWidth, originalHeight);
+            const maskData = maskImageData.data;
+          
+            // Get the image data from the canvas
+            const imageData = ctx.getImageData(0, 0, originalWidth, originalHeight);
+            const data = imageData.data;
+          
+            const overlayColor = [255, 0, 255]; // Pink-purple color
+            const alpha = 0.5; // Transparency (0 to 1)
+          
+            for (let i = 0; i < data.length; i += 4) {
+              const maskValue = maskData[i]; // Mask is grayscale, so R=G=B
+          
+              if (maskValue > 128) { // Adjust threshold as needed
+                // Apply overlay color with transparency
+                data[i] = data[i] * (1 - alpha) + overlayColor[0] * alpha;
+                data[i + 1] = data[i + 1] * (1 - alpha) + overlayColor[1] * alpha;
+                data[i + 2] = data[i + 2] * (1 - alpha) + overlayColor[2] * alpha;
+                // data[i + 3] remains the same
+              }
+            }
+          
+            // Put the modified image data back onto the canvas
+            ctx.putImageData(imageData, 0, 0);
+          
+            appendLog('Segmentation completed and displayed.');
           };
+          
   
           maskImage.onerror = () => {
               appendLog("Failed to load mask image.");
@@ -281,21 +290,42 @@ const MicroscopeControl = () => {
     };
 
     const snapImage = async () => {
-        if (!microscopeControl) return;
-        try {
-            appendLog('Snapping image...');
-            const imageUrl = await microscopeControl.snap(
-                parseInt(cameraExposure),
-                parseInt(illuminationChannel),
-                parseInt(illuminationIntensity)
-            );
-            setSnapshotImage(imageUrl);
-            appendLog('Image snapped successfully.');
-            appendLog(`Image URL: ${imageUrl}`);
-        } catch (error) {
-            appendLog(`Error snapping image: ${error.message}`);
-        }
+      if (!microscopeControl) return;
+      try {
+        appendLog('Snapping image...');
+        const imageUrl = await microscopeControl.snap(
+          parseInt(cameraExposure),
+          parseInt(illuminationChannel),
+          parseInt(illuminationIntensity)
+        );
+        setSnapshotImage(imageUrl);
+        appendLog('Image snapped successfully.');
+        appendLog(`Image URL: ${imageUrl}`);
+    
+        // Draw the snapped image onto the canvas
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.src = imageUrl;
+        img.onload = () => {
+          const canvas = canvasRef.current;
+          const ctx = canvas.getContext('2d');
+    
+          // Set canvas dimensions to match the image's natural dimensions
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+    
+          ctx.drawImage(img, 0, 0);
+    
+          // Ensure the canvas scales responsively
+          canvas.style.width = '100%';
+          canvas.style.height = 'auto';
+        };
+      } catch (error) {
+        appendLog(`Error snapping image: ${error.message}`);
+      }
     };
+    
+    
 
     const moveMicroscope = async (direction, multiplier) => {
         if (!microscopeControl) return;
@@ -417,18 +447,20 @@ const MicroscopeControl = () => {
         <div id="viewer-section" className="flex flex-wrap gap-4">
           <div id="media" className="shadow flex-1 min-w-[480px]">
             {snapshotImage ? (
-              <img
-                src={snapshotImage}
-                alt="Snapshot"
+              <canvas
+                ref={canvasRef}
+                width={originalWidth}
+                height={originalHeight}
                 onClick={handleImageClick} // Capture click for segmentation
-                style={{ cursor: isPenActive ? 'crosshair' : 'pointer' }} // Conditional cursor
-              />
+                style={{ cursor: isPenActive ? 'crosshair' : 'pointer', width: '100%', height: 'auto' }}
+              ></canvas>
             ) : (
               <div className="bg-light flex items-center justify-center" style={{ height: "360px" }}>
                 <span>No image available</span>
               </div>
             )}
           </div>
+          
     
           <div className="flex-1 min-w-[300px]">
             <div className="control-group">
@@ -468,7 +500,7 @@ const MicroscopeControl = () => {
 
           <div className="control-group">
             <button className={`btn btn-info btn-block ${isLoading ? 'disabled' : ''}`} onClick={handleSimilaritySearch} disabled={!snapshotImage}>
-                <span className={`fas ${isLoading ? 'fa-spinner fa-spin' : 'fa-search'}`}></span> Search Similar Cells
+                <span className={`fas ${isLoading ? 'fa-spinner fa-spin' : 'fa-search'}`}></span> Search Similar Images
             </button>
           </div>
           
@@ -478,11 +510,6 @@ const MicroscopeControl = () => {
             </button>
         </div>
 
-          {segmentedImage && (
-            <div className="control-group mt-3">
-              <img src={segmentedImage} alt="Segmented Cell" className="img-thumbnail" />
-            </div>
-          )}
         </div>
 
         <div className="control-group">
