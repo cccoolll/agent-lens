@@ -95,7 +95,7 @@ def compute_embedding_with_initial_segment(model_name: str, image_bytes: bytes, 
     if isinstance(point_labels, list):
         point_labels = np.array(point_labels, dtype=np.float32)
     mask, scores, logits = predictor.predict(
-        point_coords=point_coordinates[:, ::-1],  # SAM has reversed XY conventions
+        point_coords=point_coordinates,
         point_labels=point_labels,
         multimask_output=False,
     )
@@ -111,7 +111,11 @@ def compute_embedding_with_initial_segment(model_name: str, image_bytes: bytes, 
     mask_image.save(buffer, format="PNG")
     mask_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
     logger.info(f"Computed embedding of model {model_name} with initial segmentation. Mask size: {mask_image.size}")
-    
+    # Store the embedding in STORAGE
+    STORAGE['current_embedding'] = {
+        'model_name': model_name,
+        'embedding': (mask, scores, logits)  # Store the necessary data
+    }
     return {"mask": mask_base64}
 
 
@@ -148,7 +152,7 @@ def segment(
     if isinstance(point_labels, list):
         point_labels = np.array(point_labels, dtype=np.float32)
     mask, scores, logits = predictor.predict(
-        point_coords=point_coordinates[:, ::-1],  # SAM has reversed XY conventions
+        point_coords=point_coordinates,
         point_labels=point_labels,
         multimask_output=False,
     )
@@ -159,18 +163,25 @@ def segment(
 def segment_with_existing_embedding(image_bytes: bytes, point_coordinates: Union[list, np.ndarray], point_labels: Union[list, np.ndarray]) -> dict:
     if 'current_embedding' not in STORAGE:
         logger.info("No embedding found in storage.")
-        return {}
-    logger.info(f"Image size: {image.shape}, Point coordinates received: {point_coordinates}")
+        return {"error": "No embedding found in storage."}
+
+    # Retrieve the stored embedding
+    embedding_data = STORAGE['current_embedding']
+    model_name = embedding_data['model_name']
 
     # Convert bytes to a numpy array
     image = np.array(Image.open(io.BytesIO(image_bytes)).convert("RGB"))
+    logger.info(f"Image size: {image.shape}, Point coordinates received: {point_coordinates}")
 
-    logger.info(f"Segmenting with existing embedding from model {STORAGE['current_embedding'].get('model_name')}...")
-    sam = _load_model(STORAGE['current_embedding'].get('model_name'))
+    logger.info(f"Segmenting with existing embedding from model {model_name}...")
+    sam = _load_model(model_name)
     predictor = SamPredictor(sam)
 
-    predictor.set_image(_to_image(image))  
-    for key, value in STORAGE['current_embedding'].items():
+    # Set the image on the predictor
+    predictor.set_image(_to_image(image))
+
+    # Set any additional attributes from the stored embedding
+    for key, value in embedding_data.items():
         if key not in ["model_name", "is_image_set"]:
             setattr(predictor, key, value)
 
@@ -180,7 +191,7 @@ def segment_with_existing_embedding(image_bytes: bytes, point_coordinates: Union
         point_labels = np.array(point_labels, dtype=np.float32)
 
     mask, scores, logits = predictor.predict(
-        point_coords=point_coordinates[:, ::-1],
+        point_coords=point_coordinates,
         point_labels=point_labels,
         multimask_output=False,
     )

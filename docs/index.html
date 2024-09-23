@@ -68,6 +68,23 @@ const MicroscopeControl = () => {
     const canvasRef = useRef(null);
     const [microscopeControl, setMicroscopeControl] = useState(null);
     const [snapshotImage, setSnapshotImage] = useState(null);
+
+    const [xPosition, setXPosition] = useState(0);
+    const [yPosition, setYPosition] = useState(0);
+    const [zPosition, setZPosition] = useState(0);
+    const [BrightFieldIntensity, setBrightFieldIntensity] = useState(50);
+    const [BrightFieldCameraExposure, setBrightFieldCameraExposure] = useState(100);
+    const [Fluorescence405Intensity, setFluorescence405Intensity] = useState(50);
+    const [Fluorescence405CameraExposure, setFluorescence405CameraExposure] = useState(100);
+    const [Fluorescence488Intensity, setFluorescence488Intensity] = useState(50);
+    const [Fluorescence488CameraExposure, setFluorescence488CameraExposure] = useState(100);
+    const [Fluorescence561Intensity, setFluorescence561Intensity] = useState(50);
+    const [Fluorescence561CameraExposure, setFluorescence561CameraExposure] = useState(100);
+    const [Fluorescence638Intensity, setFluorescence638Intensity] = useState(50);
+    const [Fluorescence638CameraExposure, setFluorescence638CameraExposure] = useState(100);
+    const [Fluorescence730Intensity, setFluorescence730Intensity] = useState(50);
+    const [Fluorescence730CameraExposure, setFluorescence730CameraExposure] = useState(100);
+
     const [illuminationIntensity, setIlluminationIntensity] = useState(50);
     const [illuminationChannel, setIlluminationChannel] = useState("0");
     const [cameraExposure, setCameraExposure] = useState(100);
@@ -121,6 +138,19 @@ const MicroscopeControl = () => {
               appendLog('Similarity search service acquired.');
   
               setMicroscopeControl(mc);
+                          // Poll the server for status updates every 5 seconds
+              const statusInterval = setInterval(async () => {
+                try {
+                    const status = await mc.get_status();
+                    updateUIBasedOnStatus(status); // Call function to update UI
+                } catch (statusError) {
+                    appendLog(`Error fetching status: ${statusError.message}`);
+                }
+              }, 2000); // Poll every 2 seconds
+
+              // Clear the interval when the component unmounts
+              return () => clearInterval(statusInterval);
+            
               setSimilarityService(similarityService);  // Set the similarity search service
 
           } catch (error) {
@@ -131,13 +161,64 @@ const MicroscopeControl = () => {
       initializeWebRPC();
     }, []);
   
-
+    useEffect(() => {
+      switch (illuminationChannel) {
+        case "0":
+          setIlluminationIntensity(BrightFieldIntensity);
+          setCameraExposure(BrightFieldCameraExposure);
+          break;
+        case "11":
+          setIlluminationIntensity(Fluorescence405Intensity);
+          setCameraExposure(Fluorescence405CameraExposure);
+          break;
+        case "12":
+          setIlluminationIntensity(Fluorescence488Intensity);
+          setCameraExposure(Fluorescence488CameraExposure);
+          break;
+        case "14":
+          setIlluminationIntensity(Fluorescence561Intensity);
+          setCameraExposure(Fluorescence561CameraExposure);
+          break;
+        case "13":
+          setIlluminationIntensity(Fluorescence638Intensity);
+          setCameraExposure(Fluorescence638CameraExposure);
+          break;
+        case "15":
+          setIlluminationIntensity(Fluorescence730Intensity);
+          setCameraExposure(Fluorescence730CameraExposure);
+          break;
+        default:
+          break;
+      }
+    }, [illuminationChannel, BrightFieldIntensity, BrightFieldCameraExposure, Fluorescence405Intensity, Fluorescence405CameraExposure, Fluorescence488Intensity, Fluorescence488CameraExposure, Fluorescence561Intensity, Fluorescence561CameraExposure, Fluorescence638Intensity, Fluorescence638CameraExposure, Fluorescence730Intensity, Fluorescence730CameraExposure]);
+     
     const activatePenTool = () => {
       setIsPenActive(!isPenActive);
       setIsFirstClick(true); // Reset to first click whenever the tool is activated
       document.body.style.cursor = isPenActive ? 'default' : 'crosshair';
       appendLog(isPenActive ? 'Pen tool deactivated.' : 'Pen tool activated. Click on the image to segment a cell.');
     };
+
+    const updateUIBasedOnStatus = (status) => {
+      setXPosition(status.current_x);
+      setYPosition(status.current_y);
+      setZPosition(status.current_z);
+      setIsLightOn(status.is_illumination_on);
+      setBrightFieldIntensity(status.BF_intensity_exposure[0]);
+      setBrightFieldCameraExposure(status.BF_intensity_exposure[1]);
+      setFluorescence405Intensity(status.F405_intensity_exposure[0]);
+      setFluorescence405CameraExposure(status.F405_intensity_exposure[1]);
+      setFluorescence488Intensity(status.F488_intensity_exposure[0]);
+      setFluorescence488CameraExposure(status.F488_intensity_exposure[1]);
+      setFluorescence561Intensity(status.F561_intensity_exposure[0]);
+      setFluorescence561CameraExposure(status.F561_intensity_exposure[1]);
+      setFluorescence638Intensity(status.F638_intensity_exposure[0]);
+      setFluorescence638CameraExposure(status.F638_intensity_exposure[1]);
+      setFluorescence730Intensity(status.F730_intensity_exposure[0]);
+      setFluorescence730CameraExposure(status.F730_intensity_exposure[1]);
+      console.log(status);
+    };
+
   
     const handleImageClick = async (event) => {
       if (!isPenActive || !segmentService || !snapshotImage) return;
@@ -239,6 +320,11 @@ const MicroscopeControl = () => {
           
             // Put the modified image data back onto the canvas
             ctx.putImageData(imageData, 0, 0);
+            // Draw the clicked point as a red circle
+            ctx.beginPath();
+            ctx.arc(pointCoordinates[0], pointCoordinates[1], 5, 0, 2 * Math.PI, false);
+            ctx.fillStyle = 'red';
+            ctx.fill();
           
             appendLog('Segmentation completed and displayed.');
           };
@@ -466,11 +552,21 @@ const MicroscopeControl = () => {
               </div>
             )}
           </div>
+
           
     
           <div className="flex-1 min-w-[300px]">
             <div className="control-group">
               <label>Stage Movement:</label>
+              <div className="control-group">
+                <label>Stage Position (X, Y, Z):</label>
+                <div className="input-group mb-2">
+                  <input type="text" value={xPosition} readOnly className="form-control" placeholder="X (mm)" />
+                  <input type="text" value={yPosition} readOnly className="form-control" placeholder="Y (mm)" />
+                  <input type="text" value={zPosition} readOnly className="form-control" placeholder="Z (mm)" />
+                </div>
+              </div>
+
               <div className="input-group mb-2">
                 <input type="number" value={xMove} onChange={(e) => setXMove(parseFloat(e.target.value))} className="form-control" placeholder="X (mm)" />
                 <input type="number" value={yMove} onChange={(e) => setYMove(parseFloat(e.target.value))} className="form-control" placeholder="Y (mm)" />
@@ -557,7 +653,15 @@ const MicroscopeControl = () => {
           
           <div className="control-group">
             <label htmlFor="illumination-intensity">Illumination Intensity:</label>
-            <input type="range" id="illumination-intensity" className="form-control-range" min="0" max="100" value={illuminationIntensity} onChange={(e) => setIlluminationIntensity(e.target.value)} />
+            <input
+              type="range"
+              id="illumination-intensity"
+              className="form-control-range"
+              min="0"
+              max="100"
+              value={illuminationIntensity} // This will automatically update based on selected channel
+              onChange={(e) => setIlluminationIntensity(e.target.value)}
+            />
             <span>{illuminationIntensity}%</span>
           </div>
     
@@ -575,7 +679,15 @@ const MicroscopeControl = () => {
     
           <div className="control-group">
             <label htmlFor="camera-exposure">Camera Exposure (ms):</label>
-            <input type="number" id="camera-exposure" className="form-control" value={cameraExposure} min="1" max="1000" onChange={(e) => setCameraExposure(e.target.value)} />
+            <input
+              type="number"
+              id="camera-exposure"
+              className="form-control"
+              value={cameraExposure} // This will automatically update based on selected channel
+              min="1"
+              max="1000"
+              onChange={(e) => setCameraExposure(e.target.value)}
+            />
           </div>
     
           <div className="control-group">
