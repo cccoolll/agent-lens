@@ -219,7 +219,38 @@ const MicroscopeControl = () => {
       console.log(status);
     };
 
-  
+    const updateParameters = async (updatedParams) => {
+      if (!microscopeControl) return;
+      try {
+          appendLog('Updating parameters on the server...');
+          const response = await microscopeControl.update_parameters_from_client(updatedParams);
+          if (response.success) {
+              appendLog('Parameters updated successfully.');
+          } else {
+              appendLog('Failed to update parameters.');
+          }
+      } catch (error) {
+          appendLog(`Error updating parameters: ${error.message}`);
+      }
+  };
+    const channelKeyMap = {
+        "0": "BF_intensity_exposure",
+        "11": "F405_intensity_exposure",
+        "12": "F488_intensity_exposure",
+        "14": "F561_intensity_exposure",
+        "13": "F638_intensity_exposure",
+        "15": "F730_intensity_exposure"
+    };
+
+    const updateParametersOnServer = async (updatedParams) => {
+        if (!microscopeControl) return;
+        try {
+            await microscopeControl.update_parameters_from_client(updatedParams);
+            appendLog(`Parameters updated on server: ${JSON.stringify(updatedParams)}`);
+        } catch (error) {
+            appendLog(`Error updating parameters on server: ${error.message}`);
+        }
+    };
     const handleImageClick = async (event) => {
       if (!isPenActive || !segmentService || !snapshotImage) return;
     
@@ -654,41 +685,65 @@ const MicroscopeControl = () => {
           <div className="control-group">
             <label htmlFor="illumination-intensity">Illumination Intensity:</label>
             <input
-              type="range"
-              id="illumination-intensity"
-              className="form-control-range"
-              min="0"
-              max="100"
-              value={illuminationIntensity} // This will automatically update based on selected channel
-              onChange={(e) => setIlluminationIntensity(e.target.value)}
+                type="range"
+                id="illumination-intensity"
+                className="form-control-range"
+                min="0"
+                max="100"
+                value={illuminationIntensity}
+                onChange={(e) => {
+                    const newIntensity = parseInt(e.target.value, 10); // Ensure the value is an integer
+                    setIlluminationIntensity(newIntensity);
+                    const key = channelKeyMap[illuminationChannel];
+                    if (key) {
+                        // Update both intensity and exposure for the current channel
+                        updateParametersOnServer({ [key]: [newIntensity, cameraExposure] });
+                    }
+                }}
             />
             <span>{illuminationIntensity}%</span>
-          </div>
-    
-          <div className="control-group">
+        </div>
+        
+        <div className="control-group">
             <label htmlFor="illumination-channel">Illumination Channel:</label>
-            <select id="illumination-channel" className="form-control" value={illuminationChannel} onChange={(e) => setIlluminationChannel(e.target.value)}>
-              <option value="0">BF LED matrix full</option>
-              <option value="11">Fluorescence 405 nm Ex</option>
-              <option value="12">Fluorescence 488 nm Ex</option>
-              <option value="14">Fluorescence 561nm Ex</option>
-              <option value="13">Fluorescence 638nm Ex</option>
-              <option value="15">Fluorescence 730nm Ex</option>
+            <select
+                id="illumination-channel"
+                className="form-control"
+                value={illuminationChannel}
+                onChange={(e) => {
+                    const newChannel = e.target.value;
+                    setIlluminationChannel(newChannel);
+                }}
+            >
+                <option value="0">BF LED matrix full</option>
+                <option value="11">Fluorescence 405 nm Ex</option>
+                <option value="12">Fluorescence 488 nm Ex</option>
+                <option value="14">Fluorescence 561nm Ex</option>
+                <option value="13">Fluorescence 638nm Ex</option>
+                <option value="15">Fluorescence 730nm Ex</option>
             </select>
-          </div>
-    
-          <div className="control-group">
+        </div>
+        
+        <div className="control-group">
             <label htmlFor="camera-exposure">Camera Exposure (ms):</label>
             <input
-              type="number"
-              id="camera-exposure"
-              className="form-control"
-              value={cameraExposure} // This will automatically update based on selected channel
-              min="1"
-              max="1000"
-              onChange={(e) => setCameraExposure(e.target.value)}
+                type="number"
+                id="camera-exposure"
+                className="form-control"
+                value={cameraExposure}
+                min="1"
+                max="1000"
+                onChange={(e) => {
+                    const newExposure = parseInt(e.target.value, 10); // Ensure the value is an integer
+                    setCameraExposure(newExposure);
+                    const key = channelKeyMap[illuminationChannel];
+                    if (key) {
+                        // Update both intensity and exposure for the current channel
+                        updateParametersOnServer({ [key]: [illuminationIntensity, newExposure] });
+                    }
+                }}
             />
-          </div>
+        </div>
     
           <div className="control-group">
             <button className="btn btn-primary btn-block" onClick={setIllumination} disabled={!microscopeControl}>Set Illumination</button>

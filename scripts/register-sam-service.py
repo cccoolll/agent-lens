@@ -1,3 +1,5 @@
+#Acknowledgement: This script is adapted from the original script provided by the authors: @Nils Mechetel, https://github.com/bioimage-io/bioimageio-colab/blob/main/bioimageio_colab/register_sam_service.py.
+
 import argparse
 import io
 import os
