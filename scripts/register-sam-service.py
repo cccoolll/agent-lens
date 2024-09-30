@@ -13,6 +13,7 @@ from dotenv import find_dotenv, load_dotenv
 from imjoy_rpc.hypha import connect_to_server, login
 from kaibu_utils import mask_to_features
 from segment_anything import SamPredictor, sam_model_registry
+import cv2
 import base64
 
 ENV_FILE = find_dotenv()
@@ -22,45 +23,56 @@ if ENV_FILE:
 MODELS = {
     "vit_b": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth",
     "vit_b_lm": "https://uk1s3.embassy.ebi.ac.uk/public-datasets/bioimage.io/diplomatic-bug/1/files/vit_b.pt",
+    "vit_l_lm": "https://zenodo.org/records/11111177/files/vit_l.pt",
     "vit_b_em_organelles": "https://uk1s3.embassy.ebi.ac.uk/public-datasets/bioimage.io/noisy-ox/1/files/vit_b.pt",
 }
-STORAGE = {}
+STORAGE = {"vit_b": "models/sam_vit_b_01ec64.pth", "vit_b_lm": "models/vit_b_lm.pt", "vit_l_lm": "models/vit_l_lm.pt"}
 
 logger = getLogger(__name__)
 logger.setLevel("INFO")
 
 def _load_model(model_name: str) -> torch.nn.Module:
-    if model_name not in MODELS:
-        raise ValueError(
-            f"Model {model_name} not found. Available models: {list(MODELS.keys())}"
-        )
+  if model_name not in MODELS:
+      raise ValueError(
+          f"Model {model_name} not found. Available models: {list(MODELS.keys())}"
+      )
 
-    model_url = MODELS[model_name]
+  # Check if the model is available in local storage
+  if model_name in STORAGE:
+      local_path = STORAGE[model_name]
+      if os.path.exists(local_path):
+          logger.info(f"Loading model {model_name} from local storage at {local_path}...")
+          device = "cuda" if torch.cuda.is_available() else "cpu"
+          ckpt = torch.load(local_path, map_location=device)
+          model_type = model_name[:5]
+          sam = sam_model_registry[model_type]()
+          sam.load_state_dict(ckpt)
+          return sam
+      else:
+          logger.warning(f"Model file {local_path} not found in local storage.")
 
-    # Check cache first
-    if model_url in STORAGE:
-        logger.info(f"Loading model {model_name} with ID '{model_url}' from cache...")
-        return STORAGE[model_url]
+  # If not in local storage, download the model
+  model_url = MODELS[model_name]
+  logger.info(f"Loading model {model_name} from {model_url}...")
+  response = requests.get(model_url)
+  if response.status_code != 200:
+      raise RuntimeError(f"Failed to download model from {model_url}")
+  buffer = io.BytesIO(response.content)
 
-    # Download model if not in cache
-    logger.info(f"Loading model {model_name} from {model_url}...")
-    response = requests.get(model_url)
-    if response.status_code != 200:
-        raise RuntimeError(f"Failed to download model from {model_url}")
-    buffer = io.BytesIO(response.content)
+  # Load model state
+  device = "cuda" if torch.cuda.is_available() else "cpu"
+  ckpt = torch.load(buffer, map_location=device)
+  model_type = model_name[:5]
+  sam = sam_model_registry[model_type]()
+  sam.load_state_dict(ckpt)
 
-    # Load model state
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    ckpt = torch.load(buffer, map_location=device)
-    model_type = model_name[:5]
-    sam = sam_model_registry[model_type]()
-    sam.load_state_dict(ckpt)
+  # Optionally, save the downloaded model to local storage for future use
+  os.makedirs(os.path.dirname(STORAGE[model_name]), exist_ok=True)
+  with open(STORAGE[model_name], 'wb') as f:
+      f.write(buffer.getvalue())
+  logger.info(f"Model {model_name} cached to {STORAGE[model_name]}")
 
-    # Cache the model
-    logger.info(f"Caching model {model_name} (device={device}) with ID '{model_url}'...")
-    STORAGE[model_url] = sam
-
-    return sam
+  return sam
 
 def _to_image(input_: np.ndarray) -> np.ndarray:
     # we require the input to be uint8
@@ -206,6 +218,51 @@ def segment_with_existing_embedding(image_bytes: bytes, point_coordinates: Union
 
     return {"mask": mask_base64}
 
+def segment_all_cells(model_name: str, image_bytes: bytes) -> dict:
+  # Convert bytes to a numpy array
+  image = np.array(Image.open(io.BytesIO(image_bytes)).convert("RGB"))
+  logger.info(f"Image size: {image.shape}")
+
+  # Load model
+  sam = _load_model(model_name)
+  predictor = SamPredictor(sam)
+
+  # Always set the image on the predictor
+  predictor.set_image(_to_image(image))
+
+  # Check if an embedding exists
+  if 'current_embedding' in STORAGE and STORAGE['current_embedding']['model_name'] == model_name:
+      logger.info("Using existing embedding for segmentation.")
+      # Use the existing embedding
+      embedding_data = STORAGE['current_embedding']
+      for key, value in embedding_data.items():
+          if key not in ["model_name", "is_image_set"]:
+              setattr(predictor, key, value)
+  else:
+      logger.info("No existing embedding found. Performing segmentation without embedding.")
+
+  # Perform segmentation on the entire image
+  masks, scores, logits = predictor.predict(
+      multimask_output=True  # Assuming this outputs multiple masks for the entire image
+  )
+
+  # Ensure the masks are not empty
+  if masks is None or len(masks) == 0:
+      logger.error("No masks generated.")
+      return {"error": "No masks generated."}
+
+  # Convert masks to bounding boxes
+  bounding_boxes = []
+  for mask in masks:
+      # Find contours and bounding boxes
+      contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+      for contour in contours:
+          x, y, w, h = cv2.boundingRect(contour)
+          bounding_boxes.append([x, y, w, h])
+
+  logger.info(f"Segmented {len(bounding_boxes)} cells.")
+  return {"bounding_boxes": bounding_boxes}
+
 async def register_service(args: dict) -> None:
     """
     Register the SAM annotation service on the BioImageIO Colab workspace.
@@ -233,6 +290,7 @@ async def register_service(args: dict) -> None:
             "segment": segment,
             "segment_with_existing_embedding": segment_with_existing_embedding,
             "reset_embedding": reset_embedding,
+            "segment_all_cells": segment_all_cells,
         },
         overwrite=True
     )

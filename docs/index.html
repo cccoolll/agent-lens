@@ -369,8 +369,77 @@ const MicroscopeControl = () => {
           appendLog(`Error in segmentation: ${error.message}`);
       }
     };
+
+    const handleSegmentAllCells = async () => {
+      if (!segmentService || !snapshotImage) return;
+    
+      appendLog('Segmenting all cells in the image...');
+      try {
+        // Fetch the image data as a Blob
+        const response = await fetch(snapshotImage);
+        const blob = await response.blob();
+    
+        // Convert Blob to ArrayBuffer
+        const arrayBuffer = await new Response(blob).arrayBuffer();
+    
+        // Convert ArrayBuffer to Uint8Array
+        const uint8Array = new Uint8Array(arrayBuffer);
+    
+        // Use the segmentation service to segment all cells
+        const segmentedResult = await segmentService.segment_all_cells(selectedModel, uint8Array);
+    
+        if (segmentedResult.error) {
+          appendLog(`Segmentation error: ${segmentedResult.error}`);
+          return;
+        }
+    
+        // Process the bounding boxes from the segmentation result
+        const boundingBoxes = segmentedResult.bounding_boxes;
+        if (!boundingBoxes || boundingBoxes.length === 0) {
+          appendLog("No cells found for segmentation.");
+          return;
+        }
+    
+        // Draw bounding boxes on the canvas
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        ctx.strokeStyle = 'green';
+        ctx.lineWidth = 2;
+    
+        boundingBoxes.forEach(box => {
+          const [x, y, width, height] = box;
+          ctx.strokeRect(x, y, width, height);
+        });
+    
+        appendLog('All cells segmented and bounding boxes drawn.');
+      } catch (error) {
+        appendLog(`Error in segmenting all cells: ${error.message}`);
+      }
+    };
   
-  
+    const handleResetEmbedding = async () => {
+      if (!segmentService) return;
+    
+      appendLog('Resetting embedding...');
+      try {
+        const result = await segmentService.reset_embedding();
+        if (result) {
+          appendLog('Embedding reset successfully.');
+        } else {
+          appendLog('No embedding was found to reset.');
+        }
+    
+        // Clear the canvas
+        const canvas = canvasRef.current;
+        if (canvas) {
+          const ctx = canvas.getContext('2d');
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          appendLog('Canvas cleared.');
+        }
+      } catch (error) {
+        appendLog(`Error resetting embedding: ${error.message}`);
+      }
+    };
 
     const handleSimilaritySearch = async () => {
       console.log(
@@ -661,15 +730,28 @@ const MicroscopeControl = () => {
             <button id="pen-button" className="btn btn-secondary btn-block" onClick={activatePenTool}>
                 <span className="fas fa-pen"></span> {isPenActive ? 'Deactivate Pen' : 'Segment Cell'}
             </button>
-        </div>
+          </div>
+
+          <div className="control-group">
+            <button className="btn btn-secondary btn-block" onClick={handleSegmentAllCells} disabled={!snapshotImage || !segmentService}>
+              <span className="fas fa-object-group"></span> Segment All Cells
+            </button>
+          </div>
+
+          <div className="control-group">
+            <button className="btn btn-warning btn-block" onClick={handleResetEmbedding} disabled={!segmentService}>
+              <span className="fas fa-undo"></span> Reset Embedding
+            </button>
+          </div>
 
         </div>
 
         <div className="control-group">
           <label htmlFor="model-selection">Select Segmentation Model:</label>
           <select id="model-selection" className="form-control" value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}>
-              <option value="vit_b">ViT-B</option>
               <option value="vit_b_lm">ViT-B LM</option>
+              <option value="vit_l_lm">ViT-L LM</option>
+              <option value="vit_b">ViT-B</option>
               <option value="vit_b_em_organelles">ViT-B EM Organelles</option>
           </select>
       </div>
