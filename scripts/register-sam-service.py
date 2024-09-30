@@ -12,7 +12,7 @@ import torch
 from dotenv import find_dotenv, load_dotenv
 from imjoy_rpc.hypha import connect_to_server, login
 from kaibu_utils import mask_to_features
-from segment_anything import SamPredictor, sam_model_registry
+from segment_anything import SamPredictor, sam_model_registry, SamAutomaticMaskGenerator
 import cv2
 import base64
 
@@ -27,11 +27,18 @@ MODELS = {
     "vit_b_em_organelles": "https://uk1s3.embassy.ebi.ac.uk/public-datasets/bioimage.io/noisy-ox/1/files/vit_b.pt",
 }
 STORAGE = {"vit_b": "models/sam_vit_b_01ec64.pth", "vit_b_lm": "models/vit_b_lm.pt", "vit_l_lm": "models/vit_l_lm.pt"}
+CURRENT_MODEL = {"name": None, "model": None}
 
 logger = getLogger(__name__)
 logger.setLevel("INFO")
 
 def _load_model(model_name: str) -> torch.nn.Module:
+  global CURRENT_MODEL
+  
+  if CURRENT_MODEL["name"] == model_name and CURRENT_MODEL["model"] is not None:
+      logger.info(f"Model {model_name} is already loaded, reusing it.")
+      return CURRENT_MODEL["model"]
+
   if model_name not in MODELS:
       raise ValueError(
           f"Model {model_name} not found. Available models: {list(MODELS.keys())}"
@@ -43,10 +50,14 @@ def _load_model(model_name: str) -> torch.nn.Module:
       if os.path.exists(local_path):
           logger.info(f"Loading model {model_name} from local storage at {local_path}...")
           device = "cuda" if torch.cuda.is_available() else "cpu"
+          print(device)
           ckpt = torch.load(local_path, map_location=device)
           model_type = model_name[:5]
           sam = sam_model_registry[model_type]()
           sam.load_state_dict(ckpt)
+          sam.to(device)
+          CURRENT_MODEL["name"] = model_name
+          CURRENT_MODEL["model"] = sam
           return sam
       else:
           logger.warning(f"Model file {local_path} not found in local storage.")
@@ -65,6 +76,8 @@ def _load_model(model_name: str) -> torch.nn.Module:
   model_type = model_name[:5]
   sam = sam_model_registry[model_type]()
   sam.load_state_dict(ckpt)
+  sam.to(device)
+  
 
   # Optionally, save the downloaded model to local storage for future use
   os.makedirs(os.path.dirname(STORAGE[model_name]), exist_ok=True)
@@ -72,6 +85,8 @@ def _load_model(model_name: str) -> torch.nn.Module:
       f.write(buffer.getvalue())
   logger.info(f"Model {model_name} cached to {STORAGE[model_name]}")
 
+  CURRENT_MODEL["name"] = model_name
+  CURRENT_MODEL["model"] = sam
   return sam
 
 def _to_image(input_: np.ndarray) -> np.ndarray:
@@ -99,6 +114,7 @@ def compute_embedding_with_initial_segment(model_name: str, image_bytes: bytes, 
 
     # Load model
     sam = _load_model(model_name)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     logger.info(f"Computing embedding of model {model_name} with initial segmentation...")
     predictor = SamPredictor(sam)
     predictor.set_image(_to_image(image))
@@ -108,10 +124,19 @@ def compute_embedding_with_initial_segment(model_name: str, image_bytes: bytes, 
         point_coordinates = np.array(point_coordinates, dtype=np.float32)
     if isinstance(point_labels, list):
         point_labels = np.array(point_labels, dtype=np.float32)
+
+    # Move point coordinates and labels to the GPU
+    point_coordinates_tensor = torch.tensor(point_coordinates).to(device)
+    point_labels_tensor = torch.tensor(point_labels).to(device)
+
+    # Convert tensors back to numpy arrays for the predictor
+    point_coordinates = point_coordinates_tensor.cpu().numpy()
+    point_labels = point_labels_tensor.cpu().numpy()
+
     mask, scores, logits = predictor.predict(
-        point_coords=point_coordinates,
-        point_labels=point_labels,
-        multimask_output=False,
+    point_coords=point_coordinates,
+    point_labels=point_labels,
+    multimask_output=False,
     )
 
     # Ensure the mask is not empty
@@ -165,11 +190,22 @@ def segment(
         point_coordinates = np.array(point_coordinates, dtype=np.float32)
     if isinstance(point_labels, list):
         point_labels = np.array(point_labels, dtype=np.float32)
+
+    # Move point coordinates and labels to the GPU
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    point_coordinates_tensor = torch.tensor(point_coordinates).to(device)
+    point_labels_tensor = torch.tensor(point_labels).to(device)
+
+    # Convert tensors back to numpy arrays for the predictor
+    point_coordinates = point_coordinates_tensor.cpu().numpy()
+    point_labels = point_labels_tensor.cpu().numpy()
+
     mask, scores, logits = predictor.predict(
-        point_coords=point_coordinates,
-        point_labels=point_labels,
-        multimask_output=False,
+    point_coords=point_coordinates,
+    point_labels=point_labels,
+    multimask_output=False,
     )
+    
     logger.debug(f"Predicted mask of shape {mask.shape}")
     features = mask_to_features(mask[0])
     return features
@@ -204,10 +240,19 @@ def segment_with_existing_embedding(image_bytes: bytes, point_coordinates: Union
     if isinstance(point_labels, list):
         point_labels = np.array(point_labels, dtype=np.float32)
 
+    # Move point coordinates and labels to the GPU
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    point_coordinates_tensor = torch.tensor(point_coordinates).to(device)
+    point_labels_tensor = torch.tensor(point_labels).to(device)
+
+    # Convert tensors back to numpy arrays for the predictor
+    point_coordinates = point_coordinates_tensor.cpu().numpy()
+    point_labels = point_labels_tensor.cpu().numpy()
+
     mask, scores, logits = predictor.predict(
-        point_coords=point_coordinates,
-        point_labels=point_labels,
-        multimask_output=False,
+    point_coords=point_coordinates,
+    point_labels=point_labels,
+    multimask_output=False,
     )
 
     # Convert mask to an image
@@ -219,49 +264,46 @@ def segment_with_existing_embedding(image_bytes: bytes, point_coordinates: Union
     return {"mask": mask_base64}
 
 def segment_all_cells(model_name: str, image_bytes: bytes) -> dict:
-  # Convert bytes to a numpy array
-  image = np.array(Image.open(io.BytesIO(image_bytes)).convert("RGB"))
-  logger.info(f"Image size: {image.shape}")
+    # Convert bytes to a numpy array
+    image = np.array(Image.open(io.BytesIO(image_bytes)).convert("RGB"))
+    logger.info(f"Image size: {image.shape}")
 
-  # Load model
-  sam = _load_model(model_name)
-  predictor = SamPredictor(sam)
+    # Load model
+    sam = _load_model(model_name)
 
-  # Always set the image on the predictor
-  predictor.set_image(_to_image(image))
+    # Move the model to the GPU
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    sam.to(device)
 
-  # Check if an embedding exists
-  if 'current_embedding' in STORAGE and STORAGE['current_embedding']['model_name'] == model_name:
-      logger.info("Using existing embedding for segmentation.")
-      # Use the existing embedding
-      embedding_data = STORAGE['current_embedding']
-      for key, value in embedding_data.items():
-          if key not in ["model_name", "is_image_set"]:
-              setattr(predictor, key, value)
-  else:
-      logger.info("No existing embedding found. Performing segmentation without embedding.")
+    # Create an automatic mask generator
+    mask_generator = SamAutomaticMaskGenerator(sam)
 
-  # Perform segmentation on the entire image
-  masks, scores, logits = predictor.predict(
-      multimask_output=True  # Assuming this outputs multiple masks for the entire image
-  )
+    # Generate the masks
+    masks = mask_generator.generate(image)
 
-  # Ensure the masks are not empty
-  if masks is None or len(masks) == 0:
-      logger.error("No masks generated.")
-      return {"error": "No masks generated."}
+    # Check if any masks were generated
+    if not masks:
+        logger.error("No masks generated.")
+        return {"error": "No masks generated."}
 
-  # Convert masks to bounding boxes
-  bounding_boxes = []
-  for mask in masks:
-      # Find contours and bounding boxes
-      contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-      for contour in contours:
-          x, y, w, h = cv2.boundingRect(contour)
-          bounding_boxes.append([x, y, w, h])
+    # Process the masks
+    bounding_boxes = []
+    mask_data = []
+    for mask in masks:
+        bbox = mask['bbox']  # x, y, width, height
+        bounding_boxes.append(bbox)
 
-  logger.info(f"Segmented {len(bounding_boxes)} cells.")
-  return {"bounding_boxes": bounding_boxes}
+        mask_array = mask['segmentation']  # 2D numpy array of bools
+
+        # Convert mask to base64
+        mask_image = Image.fromarray((mask_array * 255).astype(np.uint8))
+        buffer = io.BytesIO()
+        mask_image.save(buffer, format="PNG")
+        mask_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+        mask_data.append(mask_base64)
+
+    logger.info(f"Segmented {len(bounding_boxes)} cells.")
+    return {"bounding_boxes": bounding_boxes, "masks": mask_data}
 
 async def register_service(args: dict) -> None:
     """
