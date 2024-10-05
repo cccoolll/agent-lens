@@ -5,8 +5,8 @@ from segment_anything import SamPredictor, sam_model_registry
 from skimage.measure import label, regionprops
 from skimage.transform import resize
 
-model_type = "vit_h"
-model_path = "models/sam_vit_h_4b8939.pth"
+model_type = "vit_b"
+model_path = "./models/sam_vit_b_01ec64.pth"
 sam = sam_model_registry[model_type](checkpoint=model_path)
 sam.to(device='cuda')
 

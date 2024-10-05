@@ -1,5 +1,5 @@
 import asyncio
-from hypha_rpc import connect_to_server
+from imjoy_rpc.hypha import connect_to_server
 import sqlite3
 import numpy as np
 import clip
@@ -153,7 +153,7 @@ async def start_hypha_service(server):
     )
  
 async def setup():
-    server_url = "http://localhost:9528"
+    server_url = "https://ai.imjoy.io"
     server = await connect_to_server({"server_url": server_url})
     await start_hypha_service(server)
     print(f"Image embedding and similarity search service registered at workspace: {server.config.workspace}")
