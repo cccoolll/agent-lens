@@ -55,6 +55,7 @@
           height: auto;
           border-radius: 10px;
       }      
+
     </style>
 </head>
 <body>
@@ -84,7 +85,6 @@ const MicroscopeControl = () => {
     const [Fluorescence638CameraExposure, setFluorescence638CameraExposure] = useState(100);
     const [Fluorescence730Intensity, setFluorescence730Intensity] = useState(50);
     const [Fluorescence730CameraExposure, setFluorescence730CameraExposure] = useState(100);
-
     const [illuminationIntensity, setIlluminationIntensity] = useState(50);
     const [illuminationChannel, setIlluminationChannel] = useState("0");
     const [cameraExposure, setCameraExposure] = useState(100);
@@ -682,7 +682,6 @@ const MicroscopeControl = () => {
         }
     };
 
-
     return (
       <div>
         <h1 id="title" className="text-center">WebRTC Microscope Control</h1>
@@ -690,6 +689,7 @@ const MicroscopeControl = () => {
         <div id="viewer-section" className="flex flex-wrap gap-4">
           <div id="media" className="shadow flex-1 min-w-[480px]">
             {snapshotImage ? (
+
               <canvas
                 ref={canvasRef}
                 width={originalWidth}
@@ -697,18 +697,18 @@ const MicroscopeControl = () => {
                 onClick={handleImageClick} // Capture click for segmentation
                 style={{ cursor: isPenActive ? 'crosshair' : 'pointer', width: '100%', height: 'auto' }}
               ></canvas>
+
             ) : (
               <div className="bg-light flex items-center justify-center" style={{ height: "360px" }}>
                 <span>No image available</span>
               </div>
             )}
-          </div>
-
-          
+          </div>         
     
           <div className="flex-1 min-w-[300px]">
             <div className="control-group">
               <label>Stage Movement:</label>
+
               <div className="control-group">
                 <label>Stage Position (X, Y, Z):</label>
                 <div className="input-group mb-2">
@@ -728,6 +728,7 @@ const MicroscopeControl = () => {
                 <div className="btn-group">
                   <button className="btn btn-secondary" onClick={() => moveMicroscope('x', -1)} disabled={!microscopeControl}><i className="fas fa-arrow-left"></i> X-</button>
                   <button className="btn btn-secondary" onClick={() => moveMicroscope('x', 1)} disabled={!microscopeControl}><i className="fas fa-arrow-right"></i> X+</button>
+
                 </div>
                 <button className="btn btn-secondary" onClick={() => moveMicroscope('y', -1)} disabled={!microscopeControl}><i className="fas fa-arrow-down"></i> Y-</button>
                 <div className="btn-group">
@@ -876,6 +877,7 @@ const MicroscopeControl = () => {
                 }}
             />
         </div>
+
     
           <div className="control-group">
             <button className="btn btn-primary btn-block" onClick={setIllumination} disabled={!microscopeControl}>Set Illumination</button>
