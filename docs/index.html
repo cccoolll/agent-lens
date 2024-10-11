@@ -10,34 +10,69 @@
     body {
       margin: 0;
       padding: 0;
-      overflow: hidden;
       font-family: Arial, sans-serif;
+      overflow-y: auto;
     }
+
     /* Layout styles */
     #image-display {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 60%;
+      position: relative;
+      width: 50%;
       height: 60%;
       border: 1px solid #ccc;
       box-sizing: border-box;
       background-color: #f0f0f0;
+      float: left;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
+
+    .placeholder-text {
+      font-size: 24px;
+      color: #555;
+    }
+
+    #action-similarity-container {
+      display: flex;
+      width: 100%;
+      height: 40%;
+      margin-top: 10px;
+      box-sizing: border-box;
+    }
+
+    #actions {
+      width: 50%;
+      padding: 10px;
+      border-right: 1px solid #ccc;
+      box-sizing: border-box;
+      height: 100%;
+      text-align: left; /* Ensure left alignment */
+    }
+
+    #similarity-search {
+      width: 50%;
+      padding: 10px;
+      box-sizing: border-box;
+      height: 100%;
+      background-color: #f9f9f9;
+    }
+
     #control-chat-section {
-      position: absolute;
+      position: relative;
       top: 0;
       right: 0;
-      width: 40%;
+      width: 50%;
       height: 60%;
       border-left: 1px solid #ccc;
       box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
+      float: right;
     }
+
     #tab-buttons {
       display: flex;
     }
+
     #tab-buttons button {
       flex: 1;
       padding: 10px;
@@ -46,41 +81,27 @@
       border-bottom: 1px solid #ccc;
       background-color: #e0e0e0;
     }
+
     #tab-buttons button.active {
       background-color: #fff;
       border-bottom: 2px solid #007bff;
     }
+
     #tab-contents {
       flex: 1;
       overflow: auto;
       padding: 10px;
     }
+
     #log-section {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      width: 60%;
-      height: 40%;
-      border-top: 1px solid #ccc;
-      box-sizing: border-box;
+      margin-top: 10px;
+      width: 100%;
       background-color: #fafafa;
-      overflow: auto;
       padding: 10px;
-    }
-    #similarity-search {
-      position: absolute;
-      bottom: 0;
-      right: 0;
-      width: 40%;
-      height: 40%;
-      border-left: 1px solid #ccc;
       border-top: 1px solid #ccc;
       box-sizing: border-box;
-      background-color: #f9f9f9;
-      overflow: auto;
-      padding: 10px;
     }
-    /* Additional styles for buttons and inputs */
+
     .control-button {
       display: inline-block;
       margin: 5px;
@@ -90,85 +111,212 @@
       border: none;
       cursor: pointer;
     }
+
     .control-button:hover {
       background-color: #0056b3;
     }
+
     .control-input {
       margin: 5px 0;
       padding: 8px;
       width: 100%;
       box-sizing: border-box;
     }
+
+    .coordinate-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+    }
+
+    .coordinate-container {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .aligned-buttons {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+    }
+
+    .half-button {
+      width: 70%;
+      padding: 10px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .half-button:hover {
+      background-color: #0056b3;
+    }
+
+    .horizontal-buttons {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+    }
+
+    .large-button {
+      width: 49%;
+      padding: 10px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .large-button:hover {
+      background-color: #0056b3;
+    }
+
+    .snap-button {
+      margin-top: 5px;
+    }
+
+    label {
+      margin-top: 20px;
+      display: block;
+    }
+
+    .control-group {
+      display: flex;
+      justify-content: center;
+      flex-direction: column;
+      align-items: flex-start; /* Ensure left alignment */
+      margin-top: 15px;
+    }
+
+    .log-content {
+      max-height: 200px;
+      overflow-y: auto;
+      background-color: #e9ecef;
+      padding: 10px;
+    }
   </style>
 </head>
 <body>
+  
   <!-- Image Display Window -->
   <div id="image-display">
-    <h3>Image Display</h3>
-    <!-- Image or Canvas goes here -->
+    <p class="placeholder-text">Image Display</p>
   </div>
 
   <!-- Control Panel and Chatbot Section -->
   <div id="control-chat-section">
     <div id="tab-buttons">
       <button id="control-tab" class="active">Manual Control</button>
-      <button id="chat-tab">Chat</button>
+      <button id="open-chatbot">Chatbot</button>
     </div>
     <div id="tab-contents">
-      <!-- Manual Control Content -->
       <div id="manual-control-content">
-        <h3>Manual Control Panel</h3>
-        <!-- Control inputs and buttons go here -->
-        <div>
-          <label>Stage Movement:</label><br>
-          <button class="control-button">X+</button>
-          <button class="control-button">X-</button>
-          <button class="control-button">Y+</button>
-          <button class="control-button">Y-</button>
-          <button class="control-button">Z+</button>
-          <button class="control-button">Z-</button>
+        <div class="coordinate-container">
+          <div class="coordinate-group">
+            <input type="text" id="x-coord" class="control-input" placeholder="X Coord" disabled>
+            <input type="number" class="control-input" placeholder="Enter X value">
+            <div class="aligned-buttons">
+              <button class="half-button">X-</button>
+              <button class="half-button">X+</button>
+            </div>
+          </div>
+          
+          <div class="coordinate-group">
+            <input type="text" id="y-coord" class="control-input" placeholder="Y Coord" disabled>
+            <input type="number" class="control-input" placeholder="Enter Y value">
+            <div class="aligned-buttons">
+              <button class="half-button">Y-</button>
+              <button class="half-button">Y+</button>
+            </div>
+          </div>
+
+          <div class="coordinate-group">
+            <input type="text" id="z-coord" class="control-input" placeholder="Z Coord" disabled>
+            <input type="number" class="control-input" placeholder="Enter Z value">
+            <div class="aligned-buttons">
+              <button class="half-button">Z-</button>
+              <button class="half-button">Z+</button>
+            </div>
+          </div>
         </div>
+
         <div>
-          <label>Illumination Control:</label><br>
+          <label>Illumination Intensity:</label>
           <input type="range" class="control-input" min="0" max="100">
+        </div>
+
+        <div>
+          <label>Illumination Channel:</label>
+          <select class="control-input">
+            <option value="0">BF LED matrix full</option>
+            <option value="11">Fluorescence 405 nm Ex</option>
+            <option value="12">Fluorescence 488 nm Ex</option>
+            <option value="14">Fluorescence 561nm Ex</option>
+            <option value="13">Fluorescence 638nm Ex</option>
+            <option value="15">Fluorescence 730nm Ex</option>
+          </select>
           <button class="control-button">Set Illumination</button>
         </div>
+
         <div>
-          <label>Camera Exposure:</label><br>
+          <label>Camera Exposure:</label>
           <input type="number" class="control-input">
-          <button class="control-button">Set Exposure</button>
+          <button class="control-button">Set Camera Exposure</button>
         </div>
-        <button class="control-button">Snap Image</button>
-        <button class="control-button">Autofocus</button>
-      </div>
-      <!-- Chatbot Content -->
-      <div id="chatbot-content" style="display: none;">
-        <h3>Chatbot Conversation</h3>
-        <!-- Chat interface or iframe goes here -->
-        <div>
-          <!-- For example, embed the chatbot iframe -->
-          <!-- <iframe src="chatbot_url_here" style="width: 100%; height: 100%; border: none;"></iframe> -->
-          <p>Chatbot interface will be here.</p>
+
+        <div class="control-group">
+          <div class="horizontal-buttons">
+            <button class="large-button">Toggle Light</button>
+            <button class="large-button">Autofocus</button>
+          </div>
+          <button class="large-button snap-button">Snap Image</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Log Information -->
+  <!-- Similarity Search and Actions Section -->
+  <div id="action-similarity-container">
+    <div id="similarity-search">
+      <h3>Similarity Search</h3>
+      <div>
+        <p>Search results will appear here.</p>
+      </div>
+    </div>
+
+    <div id="actions">
+      <h3>Actions</h3>
+      <div class="control-group">
+        <button class="control-button" onclick="handleSimilaritySearch()">Search Similar Images</button>
+        
+        <label for="segmentation-model" style="margin-top: 15px;">Select Segmentation Model:</label>
+        <select id="segmentation-model" class="control-input">
+          <option value="vit_b_lm">ViT-B LM</option>
+          <option value="vit_l_lm">ViT-L LM</option>
+          <option value="vit_b">ViT-B</option>
+          <option value="vit_b_em_organelles">ViT-B EM Organelles</option>
+        </select>
+
+        <div class="horizontal-buttons" style="margin-top: 15px;">
+          <button class="large-button" onclick="activatePenTool()">Segment Cell</button>
+          <button class="large-button" onclick="handleSegmentAllCells()">Segment all Cells</button>
+        </div>
+
+        <button class="control-button" style="margin-top: 15px;" onclick="handleResetEmbedding()">Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Log Section -->
   <div id="log-section">
-    <h3>Log Information</h3>
-    <!-- Log messages go here -->
-    <div>
-      <p>Log entries will appear here.</p>
-    </div>
-  </div>
-
-  <!-- Similarity Search Panel -->
-  <div id="similarity-search">
-    <h3>Similarity Search</h3>
-    <!-- Similarity search results go here -->
-    <div>
-      <p>Search results will appear here.</p>
+    <h3>Log</h3>
+    <div class="log-content">
+      <pre id="log-text">Log content will appear here.</pre>
     </div>
   </div>
 
@@ -177,38 +325,44 @@
   <!-- Include hypha-core -->
   <script type="module">
     import { HyphaCore } from "https://cdn.jsdelivr.net/npm/hypha-core@0.20.38/dist/hypha-core.mjs";
-
-    const hyphaCore = new HyphaCore();
-
-    hyphaCore.on("add_window", (config) => {
-      // Handle adding new windows if necessary
-    });
-
-    // Start hypha core
-    await hyphaCore.start();
-
-    // Tab switching functionality
-    const controlTab = document.getElementById('control-tab');
-    const chatTab = document.getElementById('chat-tab');
-    const manualControlContent = document.getElementById('manual-control-content');
-    const chatbotContent = document.getElementById('chatbot-content');
-
-    controlTab.addEventListener('click', () => {
-      controlTab.classList.add('active');
-      chatTab.classList.remove('active');
-      manualControlContent.style.display = 'block';
-      chatbotContent.style.display = 'none';
-    });
-
-    chatTab.addEventListener('click', () => {
-      chatTab.classList.add('active');
-      controlTab.classList.remove('active');
-      manualControlContent.style.display = 'none';
-      chatbotContent.style.display = 'block';
-    });
-
-    // You can add more UI interaction scripts here
-
+  
+    async function initialize() {
+      const hyphaCore = new HyphaCore();
+      let chatbotWindow = null;
+  
+      hyphaCore.on("add_window", (config) => {
+        const wb = new WinBox(config.name || config.src.slice(0, 128), {
+          background: "#448aff",
+          x: "right",
+          y: "top",
+          width: "30%",
+          height: "50%",
+        });
+        wb.body.innerHTML = `<iframe src="${config.src}" style="width: 100%; height: 100%; border: none;"></iframe>`;
+        return wb;
+      });
+  
+      await hyphaCore.start();
+      const api = hyphaCore.api;
+  
+      document.getElementById('open-chatbot').addEventListener('click', async () => {
+        try {
+          if (!chatbotWindow || chatbotWindow.closed) {
+            chatbotWindow = await api.createWindow({
+              src: "https://bioimage.io/chat",
+              name: "BioImage Chatbot",
+            });
+          } else {
+            chatbotWindow.close();
+            chatbotWindow = null;
+          }
+        } catch (error) {
+          console.error("Failed to open chatbot window:", error);
+        }
+      });
+    }
+  
+    initialize();
   </script>
 </body>
 </html>
