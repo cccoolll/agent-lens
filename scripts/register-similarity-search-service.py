@@ -140,6 +140,51 @@ def find_similar_images(input_image,image_data, top_k=5, index=index):
         traceback.print_exc()
         return []
 
+def add_image_to_db(image_bytes, image_name, image_channel, image_folder='images'):
+  try:
+      # Ensure the image folder exists
+      os.makedirs(image_folder, exist_ok=True)
+
+      # Save the image to the specified folder
+      image_path = os.path.join(image_folder, image_name)
+      with open(image_path, 'wb') as f:
+          f.write(image_bytes)
+
+      # Open and preprocess the image
+      image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+      image_input = preprocess(image).unsqueeze(0).to(device)
+
+      # Compute the image embedding
+      with torch.no_grad():
+          image_vector = model.encode_image(image_input).cpu().numpy().flatten()
+
+      # Connect to the database and insert the new image data
+      conn, c = get_db_connection()
+      c.execute(
+          'INSERT INTO images (vector, image_path, fluorescent_channel) VALUES (?, ?, ?)',
+          (image_vector.tobytes(), image_path, image_channel)
+      )
+      conn.commit()
+      conn.close()
+
+      # Update the FAISS index
+      global image_ids, image_vectors, image_paths, image_channels, index, channel_indices
+      image_ids.append(c.lastrowid)
+      image_vectors = np.vstack([image_vectors, image_vector])
+      image_paths[c.lastrowid] = image_path
+      image_channels[c.lastrowid] = image_channel
+
+      # Rebuild the FAISS index
+      index = build_faiss_index(image_vectors)
+      channel_indices = separate_indices_by_channel(image_vectors, image_channels)
+
+      print(f"Image {image_name} added successfully.")
+      return {"status": "success", "message": f"Image {image_name} added successfully."}
+  except Exception as e:
+      print(f"Error adding image: {e}")
+      traceback.print_exc()
+      return {"status": "error", "message": str(e)}
+  
 async def start_hypha_service(server):
     await server.register_service(
         {
@@ -151,6 +196,7 @@ async def start_hypha_service(server):
             },
             "type": "echo",
             "find_similar_images": find_similar_images,
+            "add_image_to_db": add_image_to_db,
         },
         overwrite=True
     )
