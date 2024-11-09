@@ -10,6 +10,8 @@ import io
 import traceback
 import os
 import base64
+from datetime import datetime
+import uuid
 
 #This code defines a service for performing image similarity searches using CLIP embeddings, FAISS indexing, and a Hypha server connection. 
 # The key steps include loading vectors from an SQLite database, separating the vectors by fluorescent channel, building FAISS indices for each channel, and registering a Hypha service to handle similarity search requests. 
@@ -22,6 +24,20 @@ model, preprocess = clip.load("ViT-B/32", device=device)
 def get_db_connection():
     conn = sqlite3.connect('image_vectors-hpa.db')
     return conn, conn.cursor()
+
+def get_cell_db_connection():
+  conn = sqlite3.connect('cell_vectors_db.db')
+  # Create table if it doesn't exist
+  conn.execute('''
+      CREATE TABLE IF NOT EXISTS cell_images (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          file_name TEXT NOT NULL,
+          vector BLOB NOT NULL,
+          annotation TEXT,
+          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+  ''')
+  return conn, conn.cursor()
 
 def load_vectors_from_db(channel=None):
     conn, c = get_db_connection()
@@ -46,6 +62,27 @@ def load_vectors_from_db(channel=None):
         image_channels[img_id] = img_channel
 
     return image_ids, np.array(image_vectors), image_paths, image_channels
+
+def load_cell_vectors_from_db():
+  conn, c = get_cell_db_connection()
+  c.execute('SELECT id, vector, file_name, annotation FROM cell_images')
+  rows = c.fetchall()
+  conn.close()
+
+  cell_ids = []
+  cell_vectors = []
+  cell_paths = {}
+  cell_annotations = {}
+
+  for row in rows:
+      cell_id, cell_vector, file_name, annotation = row
+      cell_vector = np.frombuffer(cell_vector, dtype=np.float32)
+      cell_ids.append(cell_id)
+      cell_vectors.append(cell_vector)
+      cell_paths[cell_id] = os.path.join('cell_vectors_db', file_name)
+      cell_annotations[cell_id] = annotation
+
+  return cell_ids, np.array(cell_vectors) if cell_vectors else None, cell_paths, cell_annotations
 
 def build_faiss_index(vectors):
     d = vectors.shape[1]  # dimension
@@ -140,6 +177,54 @@ def find_similar_images(input_image,image_data, top_k=5, index=index):
         traceback.print_exc()
         return []
 
+def find_similar_cells(input_cell_image, top_k=5):
+  try:
+      # Load cell vectors and build index
+      cell_ids, cell_vectors, cell_paths, cell_annotations = load_cell_vectors_from_db()
+      
+      if cell_vectors is None:
+          return {"status": "error", "message": "No cells in database yet"}
+
+      # Build FAISS index for cells
+      cell_index = build_faiss_index(cell_vectors)
+
+      # Process input cell image
+      image = Image.open(io.BytesIO(input_cell_image)).convert("RGB")
+      image_input = preprocess(image).unsqueeze(0).to(device)
+      
+      with torch.no_grad():
+          query_vector = model.encode_image(image_input).cpu().numpy().flatten()
+      
+      query_vector = np.expand_dims(query_vector, axis=0).astype(np.float32)
+      
+      # Search for similar cells
+      distances, indices = cell_index.search(query_vector, min(top_k, len(cell_ids)))
+
+      results = []
+      for i, idx in enumerate(indices[0]):
+          cell_id = cell_ids[idx]
+          distance = distances[0][i]
+          similarity = 1 - distance
+
+          with Image.open(cell_paths[cell_id]) as img:
+              img.thumbnail((256, 256))
+              buffered = io.BytesIO()
+              img.save(buffered, format="PNG")
+              img_str = base64.b64encode(buffered.getvalue()).decode()
+
+          results.append({
+              'image': img_str,
+              'annotation': cell_annotations[cell_id],
+              'similarity': float(similarity)
+          })
+
+      return results
+
+  except Exception as e:
+      print(f"Error in find_similar_cells: {e}")
+      traceback.print_exc()
+      return {"status": "error", "message": str(e)}
+  
 def add_image_to_db(image_bytes, image_name, image_channel, image_folder='images'):
   try:
       # Ensure the image folder exists
@@ -184,7 +269,42 @@ def add_image_to_db(image_bytes, image_name, image_channel, image_folder='images
       print(f"Error adding image: {e}")
       traceback.print_exc()
       return {"status": "error", "message": str(e)}
-  
+
+def save_cell_image(cell_image, annotation=""):
+  try:
+      # Generate unique filename with timestamp
+      timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+      unique_id = str(uuid.uuid4())[:8]
+      filename = f"cell_{timestamp}_{unique_id}.png"
+      
+      # Save image file
+      os.makedirs('cell_vectors_db', exist_ok=True)
+      file_path = os.path.join('cell_vectors_db', filename)
+      with open(file_path, 'wb') as f:
+          f.write(cell_image)
+
+      # Generate vector
+      image = Image.open(io.BytesIO(cell_image)).convert("RGB")
+      image_input = preprocess(image).unsqueeze(0).to(device)
+      with torch.no_grad():
+          vector = model.encode_image(image_input).cpu().numpy().flatten()
+
+      # Save to database
+      conn, c = get_cell_db_connection()
+      c.execute(
+          'INSERT INTO cell_images (file_name, vector, annotation) VALUES (?, ?, ?)',
+          (filename, vector.tobytes(), annotation)
+      )
+      conn.commit()
+      conn.close()
+
+      return {"status": "success", "filename": filename}
+
+  except Exception as e:
+      print(f"Error saving cell image: {e}")
+      traceback.print_exc()
+      return {"status": "error", "message": str(e)}
+    
 async def start_hypha_service(server):
     await server.register_service(
         {
@@ -197,6 +317,8 @@ async def start_hypha_service(server):
             "type": "echo",
             "find_similar_images": find_similar_images,
             "add_image_to_db": add_image_to_db,
+            "find_similar_cells": find_similar_cells,
+            "save_cell_image": save_cell_image,
         },
         overwrite=True
     )
