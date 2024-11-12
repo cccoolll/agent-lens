@@ -60,32 +60,36 @@ def load_vectors_from_db(channel=None):
         image_vectors.append(img_vector)
         image_paths[img_id] = img_path
         image_channels[img_id] = img_channel
-
+    print(f"Loaded {len(image_ids)} image vectors")
+    print(f"Image vector shape: {image_vectors[0].shape}")
+    
     return image_ids, np.array(image_vectors), image_paths, image_channels
 
 def load_cell_vectors_from_db():
-  conn, c = get_cell_db_connection()
-  c.execute('SELECT id, vector, file_name, annotation FROM cell_images')
-  rows = c.fetchall()
-  conn.close()
+    conn, c = get_cell_db_connection()
+    c.execute('SELECT id, vector, file_name, annotation FROM cell_images')
+    rows = c.fetchall()
+    conn.close()
 
-  cell_ids = []
-  cell_vectors = []
-  cell_paths = {}
-  cell_annotations = {}
+    cell_ids = []
+    cell_vectors = []
+    cell_paths = {}
+    cell_annotations = {}
 
-  for row in rows:
-      cell_id, cell_vector, file_name, annotation = row
-      cell_vector = np.frombuffer(cell_vector, dtype=np.float32)
-      cell_ids.append(cell_id)
-      cell_vectors.append(cell_vector)
-      cell_paths[cell_id] = os.path.join('cell_vectors_db', file_name)
-      cell_annotations[cell_id] = annotation
-
-  return cell_ids, np.array(cell_vectors) if cell_vectors else None, cell_paths, cell_annotations
+    for row in rows:
+        cell_id, cell_vector, file_name, annotation = row
+        cell_vector = np.frombuffer(cell_vector, dtype=np.float32)
+        cell_ids.append(cell_id)
+        cell_vectors.append(cell_vector)
+        cell_paths[cell_id] = os.path.join('cell_vectors_db', file_name)
+        cell_annotations[cell_id] = annotation
+    print(f"Loaded {len(cell_ids)} cell vectors")
+    print(f"Cell vector shape: {cell_vectors[0].shape}")
+    return cell_ids, np.array(cell_vectors) if cell_vectors else None, cell_paths, cell_annotations
 
 def build_faiss_index(vectors):
     d = vectors.shape[1]  # dimension
+    print(f"Building FAISS index with {len(vectors)} vectors of dimension {d}")
     index = faiss.IndexFlatL2(d)
     index.add(vectors.astype(np.float32))
     return index
@@ -139,10 +143,8 @@ def find_similar_images(input_image,image_data, top_k=5, index=index):
         
         query_vector = np.expand_dims(query_vector, axis=0).astype(np.float32)
 
-        if channel:
-            distance, indices = channel_indices[channel].search(query_vector, len(image_ids))
-        else:
-            distances, indices = index.search(query_vector, len(image_ids))  # Search all images
+
+        distances, indices = index.search(query_vector, len(image_ids))  # Search all images
 
         # Collect and sort results
         results = []
@@ -178,52 +180,57 @@ def find_similar_images(input_image,image_data, top_k=5, index=index):
         return []
 
 def find_similar_cells(input_cell_image, top_k=5):
-  try:
-      # Load cell vectors and build index
-      cell_ids, cell_vectors, cell_paths, cell_annotations = load_cell_vectors_from_db()
-      
-      if cell_vectors is None:
-          return {"status": "error", "message": "No cells in database yet"}
+    try:
+        cell_ids, cell_vectors, cell_paths, cell_annotations = load_cell_vectors_from_db()
+        
+        if cell_vectors is None:
+            return {"status": "error", "message": "No cells in database yet"}
+        
+        print(f"Loaded {len(cell_ids)} cell vectors")
+        print(f"Cell vector shape: {cell_vectors.shape}")
+        # Process input cell image
+        image = Image.open(io.BytesIO(input_cell_image)).convert("RGB")
+        image_input = preprocess(image).unsqueeze(0).to(device)
+        
+        with torch.no_grad():
+            query_vector = model.encode_image(image_input).cpu().numpy().flatten()
+            
+        # Ensure query_vector has the same shape as vectors in the index
+        query_vector = query_vector.reshape(1, -1).astype(np.float32)
+        
+        # Verify dimensions match
+        if query_vector.shape[1] != cell_vectors.shape[1]:
+            raise ValueError(f"Dimension mismatch: query vector dim={query_vector.shape[1]}, index dim={cell_vectors.shape[1]}")
+        
+        # Build FAISS index for cells
+        cell_index = build_faiss_index(cell_vectors)
+        
+        distances, indices = cell_index.search(query_vector, min(top_k, len(cell_ids)))
 
-      # Build FAISS index for cells
-      cell_index = build_faiss_index(cell_vectors)
+        results = []
+        for i, idx in enumerate(indices[0]):
+            cell_id = cell_ids[idx]
+            distance = distances[0][i]
+            similarity = 1 - distance
 
-      # Process input cell image
-      image = Image.open(io.BytesIO(input_cell_image)).convert("RGB")
-      image_input = preprocess(image).unsqueeze(0).to(device)
-      
-      with torch.no_grad():
-          query_vector = model.encode_image(image_input).cpu().numpy().flatten()
-      
-      query_vector = np.expand_dims(query_vector, axis=0).astype(np.float32)
-      
-      # Search for similar cells
-      distances, indices = cell_index.search(query_vector, min(top_k, len(cell_ids)))
+            with Image.open(cell_paths[cell_id]) as img:
+                img.thumbnail((256, 256))
+                buffered = io.BytesIO()
+                img.save(buffered, format="PNG")
+                img_str = base64.b64encode(buffered.getvalue()).decode()
 
-      results = []
-      for i, idx in enumerate(indices[0]):
-          cell_id = cell_ids[idx]
-          distance = distances[0][i]
-          similarity = 1 - distance
+            results.append({
+                'image': img_str,
+                'annotation': cell_annotations[cell_id],
+                'similarity': float(similarity)
+            })
 
-          with Image.open(cell_paths[cell_id]) as img:
-              img.thumbnail((256, 256))
-              buffered = io.BytesIO()
-              img.save(buffered, format="PNG")
-              img_str = base64.b64encode(buffered.getvalue()).decode()
+        return results
 
-          results.append({
-              'image': img_str,
-              'annotation': cell_annotations[cell_id],
-              'similarity': float(similarity)
-          })
-
-      return results
-
-  except Exception as e:
-      print(f"Error in find_similar_cells: {e}")
-      traceback.print_exc()
-      return {"status": "error", "message": str(e)}
+    except Exception as e:
+        print(f"Error in find_similar_cells: {e}")
+        traceback.print_exc()
+        return {"status": "error", "message": str(e)}
   
 def add_image_to_db(image_bytes, image_name, image_channel, image_folder='images'):
   try:
@@ -288,12 +295,13 @@ def save_cell_image(cell_image, annotation=""):
       image_input = preprocess(image).unsqueeze(0).to(device)
       with torch.no_grad():
           vector = model.encode_image(image_input).cpu().numpy().flatten()
+          print(f"Vector shape: {vector.shape}")
 
       # Save to database
       conn, c = get_cell_db_connection()
       c.execute(
           'INSERT INTO cell_images (file_name, vector, annotation) VALUES (?, ?, ?)',
-          (filename, vector.tobytes(), annotation)
+          (filename, vector.astype(np.float32).tobytes(), annotation)
       )
       conn.commit()
       conn.close()

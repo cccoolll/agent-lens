@@ -708,42 +708,46 @@ const MicroscopeControl = () => {
       });
     };
 
-    // Modified similarity search function
-    const handleCellSimilaritySearch = async (mask) => {
+    const handleCellSimilaritySearch = async (mask, label) => {
       if (!similarityService || !snapshotImage) {
         appendLog('No image or service available for similarity search.');
         return;
       }
-
+    
       setIsLoading(true);
       appendLog('Starting similarity search for selected cell...');
-
+    
       try {
         // Extract the segmented object using the mask
         const segmentedObject = await extractSegmentedObject(snapshotImage, mask);
+        
         // First, save the cell image with annotation
         const saveResult = await similarityService.save_cell_image(
           segmentedObject, 
-          labelText || "" // Use the label if provided, empty string if not
+          label || ""
         );
+        
         if (saveResult.status === "error") {
-          throw new Error(saveResult.message);
+          appendLog(`Error saving cell: ${saveResult.message}`);
+          return;
         }        
+        
         // Then perform the similarity search
         const results = await similarityService.find_similar_cells(
           segmentedObject,
           parseInt(numSimilarResults)
         );
-
+    
         if (results.status === "error") {
-          throw new Error(results.message);
+          appendLog(`Error in similarity search: ${results.message}`);
+          return;
         }
-
+    
         appendLog(`Found ${results.length} similar cells.`);
         setSearchResults(results);
-
+    
       } catch (error) {
-        appendLog(`Error searching for similar cells: ${error.message}`);
+        appendLog(`Error in cell similarity search: ${error.message}`);
       } finally {
         setIsLoading(false);
       }
@@ -864,13 +868,13 @@ const MicroscopeControl = () => {
           };
   
           if (segmentedResult.mask) {
-            // Create label
-            const labelText = prompt("Enter label for this cell:");
-            if (labelText) {
+            // Create label first
+            const label = prompt("Enter label for this cell:");
+            if (label) {
               setLabels([...labels, {
                 x: pointCoordinates[0],
                 y: pointCoordinates[1],
-                text: labelText,
+                text: label,
                 mask: segmentedResult.mask
               }]);
       
@@ -878,15 +882,14 @@ const MicroscopeControl = () => {
               const ctx = canvas.getContext('2d');
               ctx.font = '14px Arial';
               ctx.fillStyle = 'white';
-              ctx.fillRect(pointCoordinates[0], pointCoordinates[1] - 20, ctx.measureText(labelText).width + 10, 20);
+              ctx.fillRect(pointCoordinates[0], pointCoordinates[1] - 20, ctx.measureText(label).width + 10, 20);
               ctx.fillStyle = 'black';
-              ctx.fillText(labelText, pointCoordinates[0] + 5, pointCoordinates[1] - 5);
+              ctx.fillText(label, pointCoordinates[0] + 5, pointCoordinates[1] - 5);
       
-              // Extract the segmented object and perform similarity search
-              await handleCellSimilaritySearch(segmentedResult.mask, labelText);
+              // Pass both mask and label to similarity search
+              await handleCellSimilaritySearch(segmentedResult.mask, label);
             }
           }
-      
         } catch (error) {
           appendLog(`Error: ${error.message}`);
         }
