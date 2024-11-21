@@ -1,4 +1,3 @@
-#Acknowledgement: This script is adapted from the original script provided by the authors: @Nils Mechetel, https://github.com/bioimage-io/bioimageio-colab/blob/main/bioimageio_colab/register_sam_service.py.
 
 import argparse
 import io
@@ -15,6 +14,13 @@ from kaibu_utils import mask_to_features
 from segment_anything import SamPredictor, sam_model_registry, SamAutomaticMaskGenerator
 import cv2
 import base64
+
+
+#Acknowledgement: This script is adapted from the original script provided by the authors: @Nils Mechetel, https://github.com/bioimage-io/bioimageio-colab/blob/main/bioimageio_colab/register_sam_service.py.
+
+# This Python script registers a SAM (Segment Anything Model) annotation service on the BioImageIO Colab workspace, 
+# enabling interactive image segmentation functionalities through a series of image-processing and mask-generation utilities. 
+# Users can load models, compute embeddings, perform segmentation with initial or existing embeddings, and segment all cells in an image.
 
 ENV_FILE = find_dotenv()
 if ENV_FILE:

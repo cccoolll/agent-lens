@@ -10,56 +10,452 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/6.26.0/babel.min.js"></script>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <style>
-        body, html {
-            margin: 0;
-            padding: 0;
-            font-family: Arial, sans-serif;
-        }
-        #app {
-            padding: 20px;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        #title {
-            font-size: 2em;
-            margin-bottom: 20px;
-        }
-        #viewer-section {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-        }
-        #media {
-            flex: 1 1 480px;
-            max-width: 480px;
-        }
-        #control-panel {
-            flex: 1 1 300px;
-            padding: 20px;
-            background-color: #f8f9fa;
-            border-radius: 10px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .control-group {
-            margin-bottom: 15px;
-        }
-        .btn-group-vertical > .btn {
-            margin-bottom: 5px;
-        }
-        #well-plate-svg {
-            margin-top: 20px;
-        }
-        img {
-          max-width: 100%;
-          height: auto;
-          border-radius: 10px;
-      }      
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Include WinBox CSS -->
+    <script src="https://rawcdn.githack.com/nextapps-de/winbox/0.2.82/dist/winbox.bundle.min.js"></script>    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: 'Roboto', sans-serif;  
+        overflow-y: auto;
+      }
+
+      h1, h2, h3 {
+        font-weight: 700; /* Fetstil */
+      }
+      
+      label, button, h3 {
+        font-weight: 500; /* Medium */
+      }
+      
+      body, p, input, select {
+        font-weight: 400; /* Vanlig */
+      }
+
+      #control-chat-section .section-title {
+        margin-top: 15px; /* Adjust the value as needed */
+      }
+
+      .section-title {
+        font-size: 24px;     /* Adjust to match the "Actions" header size */
+        font-weight: 500;    /* Medium weight to match "Actions" */
+        margin-bottom: 20px; /* Consistent spacing below headers */
+      }
+      
+      #image-display {
+        position: relative;
+        width: 50%;
+        height: 60vh; /* Use viewport height for responsiveness */
+        border: 1px solid #ccc;
+        box-sizing: border-box;
+        background-color: #f0f0f0;
+        float: left;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow-x: auto; /* Add this line */
+        overflow-y: auto; /* Ensure vertical scrolling is also enabled if needed */
+      }
+
+      /* Position the Chatbot button in the upper right corner */
+      .chatbot-button {
+        position: absolute;
+        top: 10px;
+        right: 23px;
+        padding: 10px 15px;
+        z-index: 1000; /* Ensure it appears above other elements */
+        background-color: #28a745; /* Green background */
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        font-size: 16px;
+        font-weight: 500;
+        cursor: pointer;
+        box-shadow:
+          inset 0 -3px 0 rgba(0, 0, 0, 0.2),
+          0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+      }
+
+      .chatbot-button:hover {
+        background-color: #218838; /* Darker green on hover */
+        box-shadow:
+          inset 0 -3px 0 rgba(0, 0, 0, 0.2),
+          0 6px 8px rgba(0, 0, 0, 0.15);
+        transform: translateY(-2px);
+      }
+
+      .chatbot-button .icon {
+        margin-right: 8px;
+      }
+
+      /* Ensure the parent container is positioned relatively */
+      body, #app {
+        position: relative;
+      }
+      
+      .placeholder-text {
+        font-size: 24px;
+        color: #555;
+      }
+      
+      #action-similarity-container {
+        display: flex;
+        width: 100%;
+        height: 40vh; /* Use viewport height for responsiveness */
+        box-sizing: border-box;
+      }
+      
+      #actions {
+        width: 50%;
+        padding: 10px;
+        border-right: 1px solid #ccc;
+        box-sizing: border-box;
+        height: 100%;
+        text-align: left;
+        padding-left: 20px;  /* Adjust the value as needed */
+        padding-right: 20px; /* Adjust the value as needed */
+      }
+      
+      #similarity-search {
+        width: 50%;
+        padding: 10px;
+        box-sizing: border-box;
+        height: 100%;
+        background-color: #f9f9f9;
+        display: flex;
+        flex-direction: column; /* Added for proper flex behavior */
+      }
+      
+      #control-chat-section {
+        position: relative;
+        top: 0;
+        right: 0;
+        width: 50%;
+        height: 60vh; /* Use viewport height for responsiveness */
+        border-left: 1px solid #ccc;
+        box-sizing: border-box;
+        float: right;
+        display: flex;
+        flex-direction: column; /* Added for proper flex behavior */
+        padding-left: 20px;  /* Adjust the value as needed */
+        padding-right: 20px; /* Adjust the value as needed */
+      }
+      
+      #log-section {
+        margin-top: 10px;
+        width: 100%;
+        background-color: #fafafa;
+        padding: 10px;
+        border-top: 1px solid #ccc;
+        box-sizing: border-box;
+      }
+
+      input[readonly] {
+        background-color: #e4e1e1; /* Ljusgrå bakgrund */
+        cursor: default; /* Ändra muspekaren till standardpekare */
+      }
+    
+      .icon {
+        margin-right: 8px; /* Justera avståndet mellan ikonen och texten */
+      }
+      
+
+      .illumination-control-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        gap: 10px;
+      }
+    
+      .illumination-item {
+          flex: 1;
+      }
+    
+      .control-input {
+          width: 100%;
+          box-sizing: border-box;
+      }
+
+      .control-button {
+        flex: 1; /* Allows buttons to share available space equally */
+        padding:2px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        cursor: pointer;
+        text-align: center;
+      }
+      
+      .control-button:hover {
+        background-color: #0056b3;
+      }
+      
+      .control-input {
+        margin: 5px 0;
+        padding: 8px;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      
+      .coordinate-group {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+      }
+      
+      .coordinate-container {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+      }
+      
+      .aligned-buttons {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+      }
+      
+      .half-button {
+        width: 49%;
+        padding: 7px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        cursor: pointer;
+        text-align: center;
+      }
+      
+      .half-button:hover {
+        background-color: #0056b3;
+      }
+      
+      .horizontal-buttons {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        gap: 20px; /* Add gap between buttons */
+      }
+      
+      .large-button {
+        padding: 10px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        cursor: pointer;
+        text-align: center;
+      }
+      
+      .large-button:hover {
+        background-color: #0056b3;
+      }
+      
+      .snap-button {
+        background: linear-gradient(135deg, #27AE60, #2ECC71);
+      }
+
+      .snap-button:hover {
+        background: linear-gradient(135deg, #2ECC71, #27AE60);
+      }
+
+      label {
+        margin-top: 20px;
+        display: block;
+      }
+      
+      .control-group {
+        display: flex;
+        justify-content: center;
+        flex-direction: column;
+        align-items: flex-start;
+        margin-top: 15px;
+      }
+      
+      .log-content {
+        max-height: 200px;
+        overflow-y: auto;
+        background-color: #e9ecef;
+        padding: 10px;
+      }
+      
+      .illumination-settings {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+      }
+      
+      .illumination-intensity,
+      .illumination-channel {
+        width: 49%; /* Adjust the width as needed to fit in the current window */
+        box-sizing: border-box;
+      }
+
+      .intensity-label-row {
+        display: flex;
+        align-items: center;
+      }
+
+      .intensity-label-row label,
+      .intensity-label-row span {
+        display: inline;
+        margin: 10px;
+        margin-top: auto;
+      }
+      
+      .illumination-intensity label,
+      .illumination-channel label {
+        display: block;
+        margin-bottom: 10px;
+        margin-top: 15px;
+      }
+      
+      .illumination-intensity input[type="range"] {
+        width: 100%;
+        margin-top: 10px;
+      }
+
+      .illumination-channel label {
+        margin-top: 15px;
+      }
+      
+      .illumination-channel select {
+        width: 100%;
+        margin-bottom: 5px;
+      }
+      
+      .illumination-channel button {
+        width: 100%;
+      }
+
+      .camera-exposure-settings {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .camera-exposure-settings label {
+        margin-top: 2px; /* Decrease the margin-top as needed */
+      }
+      
+      .camera-exposure-row {
+        display: flex;
+        align-items: center;
+      }
+      
+      .camera-exposure-row label {
+        margin-right: 10px;
+      }
+      
+      .camera-exposure-input {
+        width: 340px; /* Adjust this width as needed */
+        box-sizing: border-box;
+      }
+
+      .reset-button {
+        padding: 3px;
+        background: linear-gradient(135deg, #fca61f, #f39c12); /* Orange färg */
+      }
+      
+      .reset-button:hover {
+        background: linear-gradient(135deg, #f39c12, #c38013); /* Mörkare röd vid hovring */
+      }
+
+      .actions-buttons {
+        display: flex;
+        justify-content: flex-start;
+        gap: 20px; /* Behåll avståndet mellan knapparna */
+      }
+
+      .actions-button {
+        padding: 10px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        cursor: pointer;
+        text-align: center;
+      }
+      
+      .actions-button:hover {
+        background-color: #0056b3;
+      }
+      
+      button {
+        /* Common styles for all buttons */
+        padding: 12px 20px;
+        color: #fff;
+        border: none;
+        cursor: pointer;
+        text-align: center;
+        border-radius: 6px;
+        font-size: 16px;
+        font-weight: 500;
+      
+        /* Modern styling */
+        background: linear-gradient(135deg, #007bff, #0185b1);
+        box-shadow:
+          inset 0 -3px 0 rgba(0, 0, 0, 0.2),
+          0 4px 6px rgba(0, 0, 0, 0.1);
+      
+        /* Smooth transitions */
+        transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+      }
+      
+      button:hover {
+        background: linear-gradient(135deg, #00bfff, #007bff);
+        box-shadow:
+          inset 0 -3px 0 rgba(0, 0, 0, 0.2),
+          0 6px 8px rgba(0, 0, 0, 0.15);
+        transform: translateY(-2px);
+      }
+      
+
+      button, input {
+        border-radius: 10px; /* Adjust corners */
+      }
 
     </style>
 </head>
 <body>
 <div id="app"></div>
+
+<!-- Include WinBox JS -->
+<script src="https://unpkg.com/winbox@0.2.9/dist/winbox.bundle.min.js"></script>
+<!-- Include hypha-core -->
+<script type="module">
+  import { HyphaCore } from "https://cdn.jsdelivr.net/npm/hypha-core@0.20.38/dist/hypha-core.mjs";
+
+  window.hyphaCoreInitialized = false;
+  window.initializeHyphaCore = async () => {
+    if (!window.hyphaCoreInitialized) {
+      window.hyphaCoreInitialized = true;
+      window.hyphaCore = new HyphaCore();
+      window.chatbotWindow = null;
+
+      window.hyphaCore.on("add_window", (config) => {
+        const wb = new WinBox(config.name || config.src.slice(0, 128), {
+          background: "#448aff",
+          x: "center",
+          y: "center",
+          width: "40%",
+          height: "70%",
+          movable: true,
+          resizable: true,
+        });
+        wb.body.innerHTML = `<iframe src="${config.src}" style="width: 100%; height: 100%; border: none;"></iframe>`;
+        return wb;
+      });
+
+      await window.hyphaCore.start();
+      window.hyphaApi = window.hyphaCore.api;
+    }
+  };
+</script>
+
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
 const originalWidth = 2048;
@@ -663,237 +1059,336 @@ const MicroscopeControl = () => {
     };
 
     const openChatbot = async () => {
-        if (!microscopeControl) return;
-        try {
-            appendLog('Getting chatbot URL...');
-            const url = await microscopeControl.get_chatbot_url();
-            setChatbotUrl(url);
-            appendLog(`Chatbot URL: ${url}`);
-            
-            // Open a new window with the chatbot URL
-            const chatWindow = window.open(url, 'ChatbotWindow', 'width=400,height=600,scrollbars=yes');
-            if (chatWindow) {
-                chatWindow.focus();
-            } else {
-                appendLog('Unable to open chatbot window. Please check your pop-up blocker settings.');
-            }
-        } catch (error) {
-            appendLog(`Error opening chatbot: ${error.message}`);
+      const url = await microscopeControl.get_chatbot_url();
+      try {
+        await window.initializeHyphaCore();
+    
+        if (!window.chatbotWindow || window.chatbotWindow.closed) {
+          appendLog('Opening chatbot window...');
+          window.chatbotWindow = await window.hyphaApi.createWindow({
+            src: url,
+            name: "Chatbot",
+          });
         }
+      } catch (error) {
+        appendLog(`Failed to open chatbot window: ${error.message}`);
+      }
     };
 
     return (
       <div>
-        <h1 id="title" className="text-center">WebRTC Microscope Control</h1>
-    
-        <div id="viewer-section" className="flex flex-wrap gap-4">
-          <div id="media" className="shadow flex-1 min-w-[480px]">
-            {snapshotImage ? (
-
-              <canvas
-                ref={canvasRef}
-                width={originalWidth}
-                height={originalHeight}
-                onClick={handleImageClick} // Capture click for segmentation
-                style={{ cursor: isPenActive ? 'crosshair' : 'pointer', width: '100%', height: 'auto' }}
-              ></canvas>
-
-            ) : (
-              <div className="bg-light flex items-center justify-center" style={{ height: "360px" }}>
-                <span>No image available</span>
-              </div>
-            )}
-          </div>         
-    
-          <div className="flex-1 min-w-[300px]">
-            <div className="control-group">
-              <label>Stage Movement:</label>
-
-              <div className="control-group">
-                <label>Stage Position (X, Y, Z):</label>
-                <div className="input-group mb-2">
-                  <input type="text" value={xPosition} readOnly className="form-control" placeholder="X (mm)" />
-                  <input type="text" value={yPosition} readOnly className="form-control" placeholder="Y (mm)" />
-                  <input type="text" value={zPosition} readOnly className="form-control" placeholder="Z (mm)" />
-                </div>
-              </div>
-
-              <div className="input-group mb-2">
-                <input type="number" value={xMove} onChange={(e) => setXMove(parseFloat(e.target.value))} className="form-control" placeholder="X (mm)" />
-                <input type="number" value={yMove} onChange={(e) => setYMove(parseFloat(e.target.value))} className="form-control" placeholder="Y (mm)" />
-                <input type="number" value={zMove} onChange={(e) => setZMove(parseFloat(e.target.value))} className="form-control" placeholder="Z (mm)" />
-              </div>
-              <div className="btn-group-vertical btn-block">
-                <button className="btn btn-secondary" onClick={() => moveMicroscope('y', 1)} disabled={!microscopeControl}><i className="fas fa-arrow-up"></i> Y+</button>
-                <div className="btn-group">
-                  <button className="btn btn-secondary" onClick={() => moveMicroscope('x', -1)} disabled={!microscopeControl}><i className="fas fa-arrow-left"></i> X-</button>
-                  <button className="btn btn-secondary" onClick={() => moveMicroscope('x', 1)} disabled={!microscopeControl}><i className="fas fa-arrow-right"></i> X+</button>
-
-                </div>
-                <button className="btn btn-secondary" onClick={() => moveMicroscope('y', -1)} disabled={!microscopeControl}><i className="fas fa-arrow-down"></i> Y-</button>
-                <div className="btn-group">
-                  <button className="btn btn-secondary" onClick={() => moveMicroscope('z', -1)} disabled={!microscopeControl}><i className="fas fa-arrow-down"></i> Z-</button>
-                  <button className="btn btn-secondary" onClick={() => moveMicroscope('z', 1)} disabled={!microscopeControl}><i className="fas fa-arrow-up"></i> Z+</button>
-                </div>
-              </div>
-              <button className="btn btn-primary btn-block mt-2" onClick={moveToPosition} disabled={!microscopeControl}>Move to Position</button>
-            </div>
-    
-            <div className="control-group">
-              <button className={`btn btn-block ${isLightOn ? 'btn-success' : 'btn-warning'}`} onClick={toggleLight} disabled={!microscopeControl}>
-                <span className={`fas ${isLightOn ? 'fa-lightbulb-on' : 'fa-lightbulb'}`}></span> Toggle Light
-              </button>
-            </div>
-    
-            <div className="control-group">
-              <button className={`btn btn-block ${isPlateScanRunning ? 'btn-success' : 'btn-info'}`} onClick={startPlateScan} disabled={!microscopeControl}>
-                <span className={`fas ${isPlateScanRunning ? 'fa-check' : 'fa-microscope'}`}></span> {isPlateScanRunning ? 'Stop Plate Scan' : 'Scan Plate'}
-              </button>
-            </div>
-          </div>
-
-          <div className="control-group">
-            <button className={`btn btn-info btn-block ${isLoading ? 'disabled' : ''}`} onClick={handleSimilaritySearch} disabled={!snapshotImage}>
-                <span className={`fas ${isLoading ? 'fa-spinner fa-spin' : 'fa-search'}`}></span> Search Similar Images
-            </button>
-          </div>
-          
-          {searchResults.length > 0 && (
-            <div className="control-group mt-3">
-              <h5>Similar Images:</h5>
-              <div className="d-flex flex-wrap">
-                {searchResults.map((result, index) => (
-                  <div key={index} className="p-2">
-                    <img src={`data:image/jpeg;base64,${result.image}`} alt={`similar-img-${index}`} className="img-thumbnail" style={{ width: '100px', height: '100px' }} />
-                    <p>Similarity: {result.similarity.toFixed(2)}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+        {/* Image Display Window */}
+        <div id="image-display">
+          {snapshotImage ? (
+            <canvas
+              ref={canvasRef}
+              width={originalWidth}
+              height={originalHeight}
+              onClick={handleImageClick}
+              style={{ cursor: isPenActive ? 'crosshair' : 'pointer', width: '100%', height: '100%' }}
+            ></canvas>
+          ) : (
+            <p className="placeholder-text">Image Display</p>
           )}
-          
-          <div className="control-group">
-            <button id="pen-button" className="btn btn-secondary btn-block" onClick={activatePenTool}>
-                <span className="fas fa-pen"></span> {isPenActive ? 'Deactivate Pen' : 'Segment Cell'}
-            </button>
-          </div>
-
-          <div className="control-group">
-            <button className="btn btn-secondary btn-block" onClick={handleSegmentAllCells} disabled={!snapshotImage || !segmentService}>
-              <span className="fas fa-object-group"></span> Segment All Cells
-            </button>
-          </div>
-
-          <div className="control-group">
-            <button className="btn btn-warning btn-block" onClick={handleResetEmbedding} disabled={!segmentService}>
-              <span className="fas fa-undo"></span> Reset
-            </button>
-          </div>
-
         </div>
 
-        <div className="control-group">
-          <label htmlFor="model-selection">Select Segmentation Model:</label>
-          <select id="model-selection" className="form-control" value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)}>
-              <option value="vit_b_lm">ViT-B LM</option>
-              <option value="vit_l_lm">ViT-L LM</option>
-              <option value="vit_b">ViT-B</option>
-              <option value="vit_b_em_organelles">ViT-B EM Organelles</option>
-          </select>
-      </div>
-          
-        <div id="control-panel" className="flex flex-col gap-4">
-          <div className="control-group">
-            <button className="btn btn-primary btn-block" onClick={snapImage} disabled={!microscopeControl}>
-              <span className="fas fa-camera"></span> Snap Image
-            </button>
-          </div>
+        {/* Chatbot Button in Upper Corner */}
+        <button
+          id="open-chatbot"
+          className="chatbot-button"
+          onClick={openChatbot}
+        >
+          <i className="fas fa-comments icon"></i> Chatbot
+        </button>
 
-          <div className="control-group">
-            <button className="btn btn-secondary btn-block" onClick={autoFocus} disabled={!microscopeControl}>
-              <span className="fas fa-crosshairs"></span> Autofocus
-            </button>
-          </div>
-          
-          <div className="control-group">
-            <label htmlFor="illumination-intensity">Illumination Intensity:</label>
-            <input
-                type="range"
-                id="illumination-intensity"
-                className="form-control-range"
-                min="0"
-                max="100"
-                value={illuminationIntensity}
-                onChange={(e) => {
-                    const newIntensity = parseInt(e.target.value, 10); // Ensure the value is an integer
-                    setIlluminationIntensity(newIntensity);
-                    const key = channelKeyMap[illuminationChannel];
-                    if (key) {
-                        // Update both intensity and exposure for the current channel
-                        updateParametersOnServer({ [key]: [newIntensity, cameraExposure] });
-                    }
-                }}
-            />
-            <span>{illuminationIntensity}%</span>
-        </div>
-        
-        <div className="control-group">
-            <label htmlFor="illumination-channel">Illumination Channel:</label>
-            <select
-                id="illumination-channel"
-                className="form-control"
-                value={illuminationChannel}
-                onChange={(e) => {
-                    const newChannel = e.target.value;
-                    setIlluminationChannel(newChannel);
-                }}
-            >
-                <option value="0">BF LED matrix full</option>
-                <option value="11">Fluorescence 405 nm Ex</option>
-                <option value="12">Fluorescence 488 nm Ex</option>
-                <option value="14">Fluorescence 561nm Ex</option>
-                <option value="13">Fluorescence 638nm Ex</option>
-                <option value="15">Fluorescence 730nm Ex</option>
-            </select>
-        </div>
-        
-        <div className="control-group">
-            <label htmlFor="camera-exposure">Camera Exposure (ms):</label>
-            <input
-                type="number"
-                id="camera-exposure"
-                className="form-control"
-                value={cameraExposure}
-                min="1"
-                max="1000"
-                onChange={(e) => {
-                    const newExposure = parseInt(e.target.value, 10); // Ensure the value is an integer
-                    setCameraExposure(newExposure);
-                    const key = channelKeyMap[illuminationChannel];
-                    if (key) {
-                        // Update both intensity and exposure for the current channel
+
+        {/* Control Panel and Chatbot Section */}
+        <div id="control-chat-section">
+          <h3 className="section-title">Manual Control</h3>
+          <div id="manual-control-content">
+                {/* Coordinate Container */}
+                <div className="coordinate-container">
+                  {/* X Coordinate Group */}
+                  <div className="coordinate-group">
+                    <input
+                      type="text"
+                      id="x-coord"
+                      className="control-input"
+                      placeholder="X Coord"
+                      value={xPosition}
+                      readOnly
+                    />
+                    <input
+                      type="number"
+                      className="control-input"
+                      placeholder="Enter X value"
+                      value={xMove}
+                      onChange={(e) => setXMove(parseFloat(e.target.value))}
+                    />
+                    <div className="aligned-buttons">
+                      <button
+                        className="half-button"
+                        onClick={() => moveMicroscope('x', -1)}
+                        disabled={!microscopeControl}
+                      >
+                        <i className="fas fa-arrow-left"></i> X-
+                      </button>
+                      <button
+                        className="half-button"
+                        onClick={() => moveMicroscope('x', 1)}
+                        disabled={!microscopeControl}
+                      >
+                        X+ <i className="fas fa-arrow-right"></i>
+                      </button>
+                    </div>
+                  </div>
+    
+                  {/* Y Coordinate Group */}
+                  <div className="coordinate-group">
+                    <input
+                      type="text"
+                      id="y-coord"
+                      className="control-input"
+                      placeholder="Y Coord"
+                      value={yPosition}
+                      readOnly
+                    />
+                    <input
+                      type="number"
+                      className="control-input"
+                      placeholder="Enter Y value"
+                      value={yMove}
+                      onChange={(e) => setYMove(parseFloat(e.target.value))}
+                    />
+                    <div className="aligned-buttons">
+                      <button
+                        className="half-button"
+                        onClick={() => moveMicroscope('y', -1)}
+                        disabled={!microscopeControl}
+                      >
+                        <i className="fas fa-arrow-down"></i> Y-
+                      </button>
+                      <button
+                        className="half-button"
+                        onClick={() => moveMicroscope('y', 1)}
+                        disabled={!microscopeControl}
+                      >
+                        Y+ <i className="fas fa-arrow-up"></i>
+                      </button>
+                    </div>
+                  </div>
+    
+                  {/* Z Coordinate Group */}
+                  <div className="coordinate-group">
+                    <input
+                      type="text"
+                      id="z-coord"
+                      className="control-input"
+                      placeholder="Z Coord"
+                      value={zPosition}
+                      readOnly
+                    />
+                    <input
+                      type="number"
+                      className="control-input"
+                      placeholder="Enter Z value"
+                      value={zMove}
+                      onChange={(e) => setZMove(parseFloat(e.target.value))}
+                    />
+                    <div className="aligned-buttons">
+                      <button
+                        className="half-button"
+                        onClick={() => moveMicroscope('z', -1)}
+                        disabled={!microscopeControl}
+                      >
+                        <i className="fas fa-arrow-down"></i> Z-
+                      </button>
+                      <button
+                        className="half-button"
+                        onClick={() => moveMicroscope('z', 1)}
+                        disabled={!microscopeControl}
+                      >
+                        Z+ <i className="fas fa-arrow-up"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+    
+                {/* Illumination Settings */}
+                <div className="illumination-settings">
+                  <div className="illumination-intensity">
+                    <div className="intensity-label-row">
+                      <label>Illumination Intensity: </label>
+                      <span>{illuminationIntensity}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      className="control-input"
+                      min="0"
+                      max="100"
+                      value={illuminationIntensity}
+                      onChange={(e) => {
+                        const newIntensity = parseInt(e.target.value, 10);
+                        setIlluminationIntensity(newIntensity);
+                        const key = channelKeyMap[illuminationChannel];
+                        if (key) {
+                          updateParametersOnServer({ [key]: [newIntensity, cameraExposure] });
+                        }
+                        setIllumination(); // Call setIllumination when intensity changes
+                      }}
+                    />
+                  </div>
+    
+                  <div className="illumination-channel">
+                    <label>Illumination Channel:</label>
+                    <select
+                      className="control-input"
+                      value={illuminationChannel}
+                      onChange={(e) => {
+                        setIlluminationChannel(e.target.value);
+                        setIllumination(); // Call setIllumination when channel changes
+                      }}
+                    >
+                      <option value="0">BF LED matrix full</option>
+                      <option value="11">Fluorescence 405 nm Ex</option>
+                      <option value="12">Fluorescence 488 nm Ex</option>
+                      <option value="14">Fluorescence 561nm Ex</option>
+                      <option value="13">Fluorescence 638nm Ex</option>
+                      <option value="15">Fluorescence 730nm Ex</option>
+                    </select>
+                  </div>
+                </div>
+    
+                {/* Camera Exposure Settings */}
+                <div className="camera-exposure-settings">
+                  <label>Camera Exposure:</label>
+                  <input
+                    type="number"
+                    className="control-input camera-exposure-input"
+                    value={cameraExposure}
+                    onChange={(e) => {
+                      const newExposure = parseInt(e.target.value, 10);
+                      setCameraExposure(newExposure);
+                      const key = channelKeyMap[illuminationChannel];
+                      if (key) {
                         updateParametersOnServer({ [key]: [illuminationIntensity, newExposure] });
-                    }
-                }}
-            />
+                      }
+                    }}
+                  />
+                </div>
+    
+                {/* Control Buttons */}
+                <div className="control-group">
+                  <div className="horizontal-buttons">
+                    <button
+                      className="control-button"
+                      onClick={toggleLight}
+                      disabled={!microscopeControl}
+                    >
+                    <i className="fas fa-lightbulb icon"></i> {isLightOn ? 'Turn Light Off' : 'Turn Light On'}
+                    </button>
+                    <button
+                      className="control-button"
+                      onClick={autoFocus}
+                      disabled={!microscopeControl}
+                    >
+                    <i className="fas fa-crosshairs icon"></i> Autofocus
+                    </button>
+                    <button
+                      className="control-button snap-button"
+                      onClick={snapImage}
+                      disabled={!microscopeControl}
+                    >
+                      <i className="fas fa-camera icon"></i> Snap Image
+                    </button>
+                    <button
+                    className="control-button reset-button"
+                    style={{ marginTop: '15px' }}
+                    onClick={handleResetEmbedding}
+                    disabled={!segmentService}
+                    >
+                    <i className="fas fa-sync icon"></i> Reset
+                  </button>
+                  </div>
+                </div>
+              </div>
         </div>
+        {/* Similarity Search and Actions Section */}
+        <div id="action-similarity-container">
+          <div id="similarity-search">
+            <h3 className="section-title">Similarity Search</h3>
+            <div>
+              {isLoading ? (
+                <p>Loading...</p>
+              ) : searchResults.length > 0 ? (
+                <div className="d-flex flex-wrap">
+                  {searchResults.map((result, index) => (
+                    <div key={index} className="p-2">
+                      <img
+                        src={`data:image/jpeg;base64,${result.image}`}
+                        alt={`similar-img-${index}`}
+                        className="img-thumbnail"
+                        style={{ width: '100px', height: '100px' }}
+                      />
+                      <p>Similarity: {result.similarity.toFixed(2)}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p>Search results will appear here.</p>
+              )}
+            </div>
+          </div>
+          
+          <div id="actions">
+            <h3 className="section-title">Actions</h3>
+            <div className="control-group">
+              <button
+                className="actions-button"
+                onClick={handleSimilaritySearch}
+                disabled={!snapshotImage}
+              >
+              <i className="fas fa-search icon"></i> Search Similar Images
+              </button>
+    
+              <label htmlFor="segmentation-model" style={{ marginTop: '15px' }}>
+                Select Segmentation Model:
+              </label>
+              <select
+                id="segmentation-model"
+                className="control-input"
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+              >
+                <option value="vit_b_lm">ViT-B LM</option>
+                <option value="vit_l_lm">ViT-L LM</option>
+                <option value="vit_b">ViT-B</option>
+                <option value="vit_b_em_organelles">ViT-B EM Organelles</option>
+              </select>
+    
+              <div className="actions-buttons" style={{ marginTop: '15px' }}>
+                <button className="actions-button" onClick={activatePenTool}>
+                  <i className="fas fa-draw-polygon icon"></i> {isPenActive ? 'Deactivate Pen' : 'Segment Cell'}
+                </button>
+                <button
+                  className="actions-button"
+                  onClick={handleSegmentAllCells}
+                  disabled={!snapshotImage || !segmentService}
+                >
+                <i className="fas fa-layer-group icon"></i> Segment all Cells
+                </button>
+              </div>
+            </div>
+          </div>
+    
 
-    
-          <div className="control-group">
-            <button className="btn btn-primary btn-block" onClick={setIllumination} disabled={!microscopeControl}>Set Illumination</button>
-            <button className="btn btn-primary btn-block" onClick={setCameraExposureTime} disabled={!microscopeControl}>Set Camera Exposure</button>
+        </div>    
+        {/* Log Section */}
+        <div id="log-section">
+          <h3>Log</h3>
+          <div className="log-content">
+            <pre id="log-text">{log}</pre>
           </div>
-    
-          <div className="control-group">
-            <button className="btn btn-info btn-block" onClick={openChatbot} disabled={!microscopeControl}>
-              <span className="fas fa-comments"></span> Chat
-            </button>
-          </div>
-        </div>
-    
-        <div className="mt-4">
-          <h4>Log:</h4>
-          <pre className="bg-light p-2" style={{ maxHeight: "200px", overflowY: "auto" }}>{log}</pre>
         </div>
       </div>
     );
