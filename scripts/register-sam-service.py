@@ -315,11 +315,11 @@ async def register_service(args: dict) -> None:
     """
     Register the SAM annotation service on the BioImageIO Colab workspace.
     """
-    ##token = await login({"server_url": args.server_url})
+    token = await login({"server_url": args.server_url})
     server = await connect_to_server(
         {
             "server_url": args.server_url,
-            ##"token": token,
+            "token": token,
         }
     )
 
