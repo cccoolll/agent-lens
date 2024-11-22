@@ -4,8 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Microscope Control</title>
-    <script src="https://cdn.jsdelivr.net/npm/imjoy-rpc@0.5.48-post1/dist/hypha-rpc-websocket.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/17.0.2/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hypha-rpc@0.20.39/dist/hypha-rpc-websocket.min.js"></script>    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/17.0.2/umd/react.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/17.0.2/umd/react-dom.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/6.26.0/babel.min.js"></script>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
@@ -516,7 +515,7 @@ const MicroscopeControl = () => {
               appendLog('Connecting to server...');
               const server = await hyphaWebsocketClient.connectToServer({ 
                   "name": "js-client", 
-                  "server_url": "https://ai.imjoy.io", 
+                  "server_url": "https://hypha.aicell.io", 
                   "method_timeout": 10 
               });
               appendLog('Server connected.');
@@ -524,7 +523,7 @@ const MicroscopeControl = () => {
 
               appendLog('Getting Segmentation service...');
               try {
-                  const segmentationService = await server.get_service("interactive-segmentation");
+                  const segmentationService = await server.get_service("ws-user-green-tugboat-44026160:interactive-segmentation");
                   appendLog('Segmentation service acquired.');
                   setSegmentService(segmentationService);  // Set the segmentation service
               } catch (segmentationError) {
@@ -532,11 +531,11 @@ const MicroscopeControl = () => {
               }
               
               appendLog('Getting microscope control service...');
-              const mc = await server.get_service("microscope-control-squid-test");
+              const mc = await server.get_service("ws-user-google-oauth2/103047988474094226050:microscope-control-squid-test");
               appendLog('Microscope control service acquired.');
 
               appendLog('Getting image-embedding-similarity-search service...');
-              const similarityService = await server.get_service("image-embedding-similarity-search");
+              const similarityService = await server.get_service("ws-user-google-oauth2/103047988474094226050:image-embedding-similarity-search");
               appendLog('Similarity search service acquired.');
               console.log('Acquired similarity service:', similarityService);
               setSimilarityService(similarityService);

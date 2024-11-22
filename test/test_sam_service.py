@@ -7,7 +7,7 @@ import io
 async def main():
     try:
         # Connect to the server
-        server = await connect_to_server({"server_url": "https://ai.imjoy.io"})
+        server = await connect_to_server({"server_url": "https://hypha.aicell.io"})
 
         # Get the existing service
         segment_svc = await server.get_service("interactive-segmentation")

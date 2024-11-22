@@ -18,4 +18,4 @@ Technology Stack
 
 -   **React**: A JavaScript library for building user interfaces.
 -   **TailwindCSS**: A utility-first CSS framework for rapidly building custom designs.
--   **ImJoy-RPC**: Allows for remote procedure calls in web applications.
+-   **Hypha-RPC**: Allows for remote procedure calls in web applications.

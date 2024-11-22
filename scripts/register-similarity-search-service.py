@@ -1,5 +1,5 @@
 import asyncio
-from imjoy_rpc.hypha import connect_to_server
+from hypha_rpc import connect_to_server, login
 import sqlite3
 import numpy as np
 import clip
@@ -179,58 +179,142 @@ def find_similar_images(input_image,image_data, top_k=5, index=index):
         traceback.print_exc()
         return []
 
-def find_similar_cells(input_cell_image, top_k=5):
-    try:
-        cell_ids, cell_vectors, cell_paths, cell_annotations = load_cell_vectors_from_db()
-        
-        if cell_vectors is None:
-            return {"status": "error", "message": "No cells in database yet"}
-        
-        print(f"Loaded {len(cell_ids)} cell vectors")
-        print(f"Cell vector shape: {cell_vectors.shape}")
-        # Process input cell image
-        image = Image.open(io.BytesIO(input_cell_image)).convert("RGB")
-        image_input = preprocess(image).unsqueeze(0).to(device)
-        
-        with torch.no_grad():
-            query_vector = model.encode_image(image_input).cpu().numpy().flatten()
-            
-        # Ensure query_vector has the same shape as vectors in the index
-        query_vector = query_vector.reshape(1, -1).astype(np.float32)
-        
-        # Verify dimensions match
-        if query_vector.shape[1] != cell_vectors.shape[1]:
-            raise ValueError(f"Dimension mismatch: query vector dim={query_vector.shape[1]}, index dim={cell_vectors.shape[1]}")
-        
-        # Build FAISS index for cells
-        cell_index = build_faiss_index(cell_vectors)
-        
-        distances, indices = cell_index.search(query_vector, min(top_k, len(cell_ids)))
+def crop_cell_image(image_bytes, mask):
+  """
+  Crop the cell image according to the segmentation mask.
+  
+  Args:
+      image_bytes: bytes of the original image
+      mask: mask data (type to be determined through debugging)
+  
+  Returns:
+      bytes of the cropped cell image
+  """
+  try:
+      # Debug information about the mask
+      print("=== Mask Debug Info ===")
+      print(f"Mask type: {type(mask)}")
+      print(f"Mask content: {mask}")
+      if isinstance(mask, str):
+          print(f"Mask length: {len(mask)}")
+          print(f"First 100 characters: {mask[:100]}")
+      
+      # Convert image bytes to PIL Image
+      image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+      image_array = np.array(image)
+      
+      # For now, just return the original image until we understand the mask format
+      print("WARNING: Currently returning uncropped image until mask format is understood")
+      buffered = io.BytesIO()
+      image.save(buffered, format="PNG")
+      return buffered.getvalue()
+      
+  except Exception as e:
+      print(f"Error cropping cell image: {e}")
+      traceback.print_exc()
+      return None
 
-        results = []
-        for i, idx in enumerate(indices[0]):
-            cell_id = cell_ids[idx]
-            distance = distances[0][i]
-            similarity = 1 - distance
+def save_cell_image(cell_image, mask=None, annotation=""):
+  try:
+      print("=== save_cell_image Debug Info ===")
+      print(f"Mask type: {type(mask)}")
+      if mask is not None:
+          print(f"Mask preview: {str(mask)[:100]}...")
+      
+      if mask is not None:
+          cropped_cell_image = crop_cell_image(cell_image, mask)
+          if cropped_cell_image is None:
+              return {"status": "error", "message": "Failed to crop cell image"}
+      else:
+          cropped_cell_image = cell_image
 
-            with Image.open(cell_paths[cell_id]) as img:
-                img.thumbnail((256, 256))
-                buffered = io.BytesIO()
-                img.save(buffered, format="PNG")
-                img_str = base64.b64encode(buffered.getvalue()).decode()
+      # Generate unique filename with timestamp
+      timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+      unique_id = str(uuid.uuid4())[:8]
+      filename = f"cell_{timestamp}_{unique_id}.png"
+      
+      # Save image file
+      os.makedirs('cell_vectors_db', exist_ok=True)
+      file_path = os.path.join('cell_vectors_db', filename)
+      with open(file_path, 'wb') as f:
+          f.write(cropped_cell_image)
 
-            results.append({
-                'image': img_str,
-                'annotation': cell_annotations[cell_id],
-                'similarity': float(similarity)
-            })
+      # Generate vector from cropped image
+      image = Image.open(io.BytesIO(cropped_cell_image)).convert("RGB")
+      image_input = preprocess(image).unsqueeze(0).to(device)
+      with torch.no_grad():
+          vector = model.encode_image(image_input).cpu().numpy().flatten()
 
-        return results
+      # Save to database
+      conn, c = get_cell_db_connection()
+      c.execute(
+          'INSERT INTO cell_images (file_name, vector, annotation) VALUES (?, ?, ?)',
+          (filename, vector.astype(np.float32).tobytes(), annotation)
+      )
+      conn.commit()
+      conn.close()
 
-    except Exception as e:
-        print(f"Error in find_similar_cells: {e}")
-        traceback.print_exc()
-        return {"status": "error", "message": str(e)}
+      return {"status": "success", "filename": filename}
+
+  except Exception as e:
+      print(f"Error saving cell image: {e}")
+      traceback.print_exc()
+      return {"status": "error", "message": str(e)}
+  
+def find_similar_cells(input_cell_image, original_filename=None, top_k=5):
+  try:
+      cell_ids, cell_vectors, cell_paths, cell_annotations = load_cell_vectors_from_db()
+      
+      if cell_vectors is None:
+          return {"status": "error", "message": "No cells in database yet"}
+      
+      # Process input cell image
+      image = Image.open(io.BytesIO(input_cell_image)).convert("RGB")
+      image_input = preprocess(image).unsqueeze(0).to(device)
+      
+      with torch.no_grad():
+          query_vector = model.encode_image(image_input).cpu().numpy().flatten()
+          
+      query_vector = query_vector.reshape(1, -1).astype(np.float32)
+      
+      if query_vector.shape[1] != cell_vectors.shape[1]:
+          raise ValueError(f"Dimension mismatch: query vector dim={query_vector.shape[1]}, index dim={cell_vectors.shape[1]}")
+      
+      cell_index = build_faiss_index(cell_vectors)
+      distances, indices = cell_index.search(query_vector, min(top_k + 1, len(cell_ids)))
+
+      results = []
+      for i, idx in enumerate(indices[0]):
+          cell_id = cell_ids[idx]
+          
+          # Skip if this is the same image we're searching with
+          if original_filename and os.path.basename(cell_paths[cell_id]) == original_filename:
+              continue
+              
+          distance = distances[0][i]
+          similarity = 1 - distance
+
+          with Image.open(cell_paths[cell_id]) as img:
+              img.thumbnail((256, 256))
+              buffered = io.BytesIO()
+              img.save(buffered, format="PNG")
+              img_str = base64.b64encode(buffered.getvalue()).decode()
+
+          results.append({
+              'image': img_str,
+              'annotation': cell_annotations[cell_id],
+              'similarity': float(similarity)
+          })
+          
+          if len(results) >= top_k:
+              break
+
+      return results
+
+  except Exception as e:
+      print(f"Error in find_similar_cells: {e}")
+      traceback.print_exc()
+      return {"status": "error", "message": str(e)}
   
 def add_image_to_db(image_bytes, image_name, image_channel, image_folder='images'):
   try:
@@ -277,8 +361,17 @@ def add_image_to_db(image_bytes, image_name, image_channel, image_folder='images
       traceback.print_exc()
       return {"status": "error", "message": str(e)}
 
-def save_cell_image(cell_image, annotation=""):
+def save_cell_image(cell_image, mask=None, annotation=""):
   try:
+      if mask is not None:
+          # Crop the cell image using the mask
+          cropped_cell_image = crop_cell_image(cell_image, mask)
+          if cropped_cell_image is None:
+              return {"status": "error", "message": "Failed to crop cell image"}
+      else:
+          # If no mask provided, use the original image
+          cropped_cell_image = cell_image
+
       # Generate unique filename with timestamp
       timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
       unique_id = str(uuid.uuid4())[:8]
@@ -288,14 +381,13 @@ def save_cell_image(cell_image, annotation=""):
       os.makedirs('cell_vectors_db', exist_ok=True)
       file_path = os.path.join('cell_vectors_db', filename)
       with open(file_path, 'wb') as f:
-          f.write(cell_image)
+          f.write(cropped_cell_image)
 
-      # Generate vector
-      image = Image.open(io.BytesIO(cell_image)).convert("RGB")
+      # Generate vector from cropped image
+      image = Image.open(io.BytesIO(cropped_cell_image)).convert("RGB")
       image_input = preprocess(image).unsqueeze(0).to(device)
       with torch.no_grad():
           vector = model.encode_image(image_input).cpu().numpy().flatten()
-          print(f"Vector shape: {vector.shape}")
 
       # Save to database
       conn, c = get_cell_db_connection()
@@ -328,12 +420,12 @@ async def start_hypha_service(server):
             "find_similar_cells": find_similar_cells,
             "save_cell_image": save_cell_image,
         },
-        overwrite=True
     )
- 
+
 async def setup():
-    server_url = "https://ai.imjoy.io"
-    server = await connect_to_server({"server_url": server_url})
+    server_url = "https://hypha.aicell.io"
+    token = await login({"server_url": server_url})
+    server = await connect_to_server({"server_url": server_url, "token": token})
     await start_hypha_service(server)
     print(f"Image embedding and similarity search service registered at workspace: {server.config.workspace}")
     print(f"Test it with the HTTP proxy: {server_url}/{server.config.workspace}/services/image-embedding-similarity-search")

@@ -9,7 +9,7 @@ import numpy as np
 import requests
 import torch
 from dotenv import find_dotenv, load_dotenv
-from imjoy_rpc.hypha import connect_to_server, login
+from hypha_rpc import connect_to_server, login
 from kaibu_utils import mask_to_features
 from segment_anything import SamPredictor, sam_model_registry, SamAutomaticMaskGenerator
 import cv2
@@ -340,7 +340,6 @@ async def register_service(args: dict) -> None:
             "reset_embedding": reset_embedding,
             "segment_all_cells": segment_all_cells,
         },
-        overwrite=True
     )
     logger.info(
         f"Service (service_id={args.service_id}) started successfully, available at {args.server_url}/{server.config.workspace}/services"
@@ -354,7 +353,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--server_url",
-        default="https://ai.imjoy.io",
+        default="https://hypha.aicell.io",
         help="URL of the Hypha server",
     )
     parser.add_argument(
