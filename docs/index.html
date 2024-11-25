@@ -498,8 +498,14 @@ const MicroscopeControl = () => {
     const [isPenActive, setIsPenActive] = useState(false); // State to track if the pen tool is active
     const [isFirstClick, setIsFirstClick] = useState(true); // Track if it's the first click for segmentation
     const [segmentService, setSegmentService] = useState(null);
+    const [labels, setLabels] = useState([]);
+    const [activeLabel, setActiveLabel] = useState(null);
     const [selectedModel, setSelectedModel] = useState('vit_b_lm'); // Default model
     const [similarityService, setSimilarityService] = useState(null);
+    const [isBoxSelectionActive, setIsBoxSelectionActive] = useState(false);
+    const [isDrawing, setIsDrawing] = useState(false);
+    const [startPoint, setStartPoint] = useState({ x: 0, y: 0 });
+    const [annotations, setAnnotations] = useState([]);
     const appendLog = (message) => {
         setLog(prevLog => prevLog + message + '\n');
     };
@@ -647,6 +653,106 @@ const MicroscopeControl = () => {
             appendLog(`Error updating parameters on server: ${error.message}`);
         }
     };
+
+    // Function to extract the segmented object using the mask
+    const extractSegmentedObject = (originalImage, mask) => {
+      return new Promise((resolve) => {
+        // Create a canvas for the segmented object
+        const objectCanvas = document.createElement('canvas');
+        objectCanvas.width = originalWidth;
+        objectCanvas.height = originalHeight;
+        const objectCtx = objectCanvas.getContext('2d');
+
+        // Load the original image
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.src = originalImage;
+
+        img.onload = () => {
+          // Draw the original image
+          objectCtx.drawImage(img, 0, 0);
+          
+          // Load and apply the mask
+          const maskImg = new Image();
+          maskImg.src = `data:image/png;base64,${mask}`;
+          
+          maskImg.onload = () => {
+            // Get image data
+            const imageData = objectCtx.getImageData(0, 0, originalWidth, originalHeight);
+            const maskCanvas = document.createElement('canvas');
+            maskCanvas.width = originalWidth;
+            maskCanvas.height = originalHeight;
+            const maskCtx = maskCanvas.getContext('2d');
+            maskCtx.drawImage(maskImg, 0, 0);
+            const maskData = maskCtx.getImageData(0, 0, originalWidth, originalHeight).data;
+
+            // Apply mask to original image
+            for (let i = 0; i < imageData.data.length; i += 4) {
+              // If mask pixel is black (0), make the image pixel transparent
+              if (maskData[i] < 128) {
+                imageData.data[i + 3] = 0; // Set alpha to 0
+              }
+            }
+
+            // Put the masked image data back
+            objectCtx.putImageData(imageData, 0, 0);
+
+            // Convert the canvas to blob
+            objectCanvas.toBlob((blob) => {
+              blob.arrayBuffer().then(buffer => {
+                resolve(new Uint8Array(buffer));
+              });
+            }, 'image/png');
+          };
+        };
+      });
+    };
+
+    const handleCellSimilaritySearch = async (mask, label) => {
+      if (!similarityService || !snapshotImage) {
+        appendLog('No image or service available for similarity search.');
+        return;
+      }
+    
+      setIsLoading(true);
+      appendLog('Starting similarity search for selected cell...');
+    
+      try {
+        // Extract the segmented object using the mask
+        const segmentedObject = await extractSegmentedObject(snapshotImage, mask);
+        
+        // First, save the cell image with annotation
+        const saveResult = await similarityService.save_cell_image(
+          segmentedObject, 
+          label || ""
+        );
+        
+        if (saveResult.status === "error") {
+          appendLog(`Error saving cell: ${saveResult.message}`);
+          return;
+        }        
+        
+        // Then perform the similarity search
+        const results = await similarityService.find_similar_cells(
+          segmentedObject,
+          parseInt(numSimilarResults)
+        );
+    
+        if (results.status === "error") {
+          appendLog(`Error in similarity search: ${results.message}`);
+          return;
+        }
+    
+        appendLog(`Found ${results.length} similar cells.`);
+        setSearchResults(results);
+    
+      } catch (error) {
+        appendLog(`Error in cell similarity search: ${error.message}`);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
     const handleImageClick = async (event) => {
       if (!isPenActive || !segmentService || !snapshotImage) return;
     
@@ -761,10 +867,33 @@ const MicroscopeControl = () => {
               appendLog("Failed to load mask image.");
           };
   
-      } catch (error) {
-          appendLog(`Error in segmentation: ${error.message}`);
-      }
-    };
+          if (segmentedResult.mask) {
+            // Create label first
+            const label = prompt("Enter label for this cell:");
+            if (label) {
+              setLabels([...labels, {
+                x: pointCoordinates[0],
+                y: pointCoordinates[1],
+                text: label,
+                mask: segmentedResult.mask
+              }]);
+      
+              // Draw label on canvas
+              const ctx = canvas.getContext('2d');
+              ctx.font = '14px Arial';
+              ctx.fillStyle = 'white';
+              ctx.fillRect(pointCoordinates[0], pointCoordinates[1] - 20, ctx.measureText(label).width + 10, 20);
+              ctx.fillStyle = 'black';
+              ctx.fillText(label, pointCoordinates[0] + 5, pointCoordinates[1] - 5);
+      
+              // Pass both mask and label to similarity search
+              await handleCellSimilaritySearch(segmentedResult.mask, label);
+            }
+          }
+        } catch (error) {
+          appendLog(`Error: ${error.message}`);
+        }
+      };
 
     const handleSegmentAllCells = async () => {
       if (!segmentService || !snapshotImage) return;
@@ -917,6 +1046,96 @@ const MicroscopeControl = () => {
       }
     };
 
+    const startDrawing = (event) => {
+      if (!isBoxSelectionActive) return;
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      
+      // Calculate the scale factors
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      
+      setIsDrawing(true);
+      setStartPoint({
+        x: (event.clientX - rect.left) * scaleX,
+        y: (event.clientY - rect.top) * scaleY
+      });
+    };
+    
+    const drawBox = (event) => {
+      if (!isDrawing || !isBoxSelectionActive) return;
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      const rect = canvas.getBoundingClientRect();
+      
+      // Calculate the scale factors
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      
+      // Create a cached image if it doesn't exist
+      if (!canvas.cachedImage) {
+        const img = new Image();
+        img.src = snapshotImage;
+        canvas.cachedImage = img;
+      }
+      
+      // Clear and redraw only when the image is loaded
+      if (canvas.cachedImage.complete) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(canvas.cachedImage, 0, 0, canvas.width, canvas.height);
+        
+        // Draw existing annotations
+        annotations.forEach(ann => {
+          ctx.strokeStyle = 'red';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(ann.x, ann.y, ann.width, ann.height);
+          ctx.fillStyle = 'white';
+          ctx.fillRect(ann.x + ann.width + 5, ann.y, 100, 20);
+          ctx.fillStyle = 'black';
+          ctx.fillText(ann.text, ann.x + ann.width + 10, ann.y + 15);
+        });
+        
+        // Draw current box with scaled coordinates
+        const currentX = (event.clientX - rect.left) * scaleX;
+        const currentY = (event.clientY - rect.top) * scaleY;
+        
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(
+          startPoint.x,
+          startPoint.y,
+          currentX - startPoint.x,
+          currentY - startPoint.y
+        );
+      }
+    };
+    
+    const endDrawing = (event) => {
+      if (!isDrawing || !isBoxSelectionActive) return;
+      setIsDrawing(false);
+      
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      
+      // Calculate the scale factors
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      
+      const endX = (event.clientX - rect.left) * scaleX;
+      const endY = (event.clientY - rect.top) * scaleY;
+      
+      const text = prompt('Enter annotation text:');
+      if (text) {
+        setAnnotations([...annotations, {
+          x: startPoint.x,
+          y: startPoint.y,
+          width: endX - startPoint.x,
+          height: endY - startPoint.y,
+          text: text
+        }]);
+      }
+    };
+
     const autoFocus = async () => {
       if (!microscopeControl) return;
       try {
@@ -947,15 +1166,26 @@ const MicroscopeControl = () => {
         img.src = imageUrl;
         img.onload = () => {
           const canvas = canvasRef.current;
-          const ctx = canvas.getContext('2d');
-    
-          // Set canvas dimensions to match the image's natural dimensions
+          const ctx = canvas.getContext('2d');       
           canvas.width = img.naturalWidth;
           canvas.height = img.naturalHeight;
-    
+          
+          // Clear the cached image
+          canvas.cachedImage = null;
+          
           ctx.drawImage(img, 0, 0);
-    
-          // Ensure the canvas scales responsively
+        
+          // Redraw existing annotations
+          annotations.forEach(ann => {
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(ann.x, ann.y, ann.width, ann.height);
+            ctx.fillStyle = 'white';
+            ctx.fillRect(ann.x + ann.width + 5, ann.y, 100, 20);
+            ctx.fillStyle = 'black';
+            ctx.fillText(ann.text, ann.x + ann.width + 10, ann.y + 15);
+          });
+        
           canvas.style.width = '100%';
           canvas.style.height = 'auto';
         };
@@ -1085,7 +1315,14 @@ const MicroscopeControl = () => {
               width={originalWidth}
               height={originalHeight}
               onClick={handleImageClick}
-              style={{ cursor: isPenActive ? 'crosshair' : 'pointer', width: '100%', height: '100%' }}
+              onMouseDown={startDrawing}
+              onMouseMove={drawBox}
+              onMouseUp={endDrawing}
+              style={{ 
+                cursor: isPenActive ? 'crosshair' : isBoxSelectionActive ? 'crosshair' : 'pointer', 
+                width: '100%', 
+                height: '100%' 
+              }}
             ></canvas>
           ) : (
             <p className="placeholder-text">Image Display</p>
@@ -1377,6 +1614,12 @@ const MicroscopeControl = () => {
                 >
                 <i className="fas fa-layer-group icon"></i> Segment all Cells
                 </button>
+                <button
+                  className="actions-button"
+                  onClick={() => setIsBoxSelectionActive(!isBoxSelectionActive)}
+                >
+                  <i className="fas fa-vector-square icon"></i> {isBoxSelectionActive ? 'Disable Box Selection' : 'Enable Box Selection'}
+                </button>                
               </div>
             </div>
           </div>
