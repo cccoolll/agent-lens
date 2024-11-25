@@ -525,6 +525,7 @@ const MicroscopeControl = () => {
 
               appendLog('Getting Segmentation service...');
               try {
+
                 const segmentationService = await server.getService(
                     "ws-user-google-oauth2|103047988474094226050/W3sBK4RR2ZkrixwftvU9d5:interactive-segmentation"
                 );
@@ -546,6 +547,7 @@ const MicroscopeControl = () => {
               }
               
               appendLog('Getting image-embedding-similarity-search service...');
+
               try {
                 const similarityService = await server.getService(
                     "ws-user-google-oauth2|103047988474094226050/SRNhPD5EsrF8PVhrTHTQ9R:image-embedding-similarity-search"
