@@ -178,88 +178,6 @@ def find_similar_images(input_image,image_data, top_k=5, index=index):
         print(f"Error processing image: {e}")
         traceback.print_exc()
         return []
-
-def crop_cell_image(image_bytes, mask):
-  """
-  Crop the cell image according to the segmentation mask.
-  
-  Args:
-      image_bytes: bytes of the original image
-      mask: mask data (type to be determined through debugging)
-  
-  Returns:
-      bytes of the cropped cell image
-  """
-  try:
-      # Debug information about the mask
-      print("=== Mask Debug Info ===")
-      print(f"Mask type: {type(mask)}")
-      print(f"Mask content: {mask}")
-      if isinstance(mask, str):
-          print(f"Mask length: {len(mask)}")
-          print(f"First 100 characters: {mask[:100]}")
-      
-      # Convert image bytes to PIL Image
-      image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-      image_array = np.array(image)
-      
-      # For now, just return the original image until we understand the mask format
-      print("WARNING: Currently returning uncropped image until mask format is understood")
-      buffered = io.BytesIO()
-      image.save(buffered, format="PNG")
-      return buffered.getvalue()
-      
-  except Exception as e:
-      print(f"Error cropping cell image: {e}")
-      traceback.print_exc()
-      return None
-
-def save_cell_image(cell_image, mask=None, annotation=""):
-  try:
-      print("=== save_cell_image Debug Info ===")
-      print(f"Mask type: {type(mask)}")
-      if mask is not None:
-          print(f"Mask preview: {str(mask)[:100]}...")
-      
-      if mask is not None:
-          cropped_cell_image = crop_cell_image(cell_image, mask)
-          if cropped_cell_image is None:
-              return {"status": "error", "message": "Failed to crop cell image"}
-      else:
-          cropped_cell_image = cell_image
-
-      # Generate unique filename with timestamp
-      timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-      unique_id = str(uuid.uuid4())[:8]
-      filename = f"cell_{timestamp}_{unique_id}.png"
-      
-      # Save image file
-      os.makedirs('cell_vectors_db', exist_ok=True)
-      file_path = os.path.join('cell_vectors_db', filename)
-      with open(file_path, 'wb') as f:
-          f.write(cropped_cell_image)
-
-      # Generate vector from cropped image
-      image = Image.open(io.BytesIO(cropped_cell_image)).convert("RGB")
-      image_input = preprocess(image).unsqueeze(0).to(device)
-      with torch.no_grad():
-          vector = model.encode_image(image_input).cpu().numpy().flatten()
-
-      # Save to database
-      conn, c = get_cell_db_connection()
-      c.execute(
-          'INSERT INTO cell_images (file_name, vector, annotation) VALUES (?, ?, ?)',
-          (filename, vector.astype(np.float32).tobytes(), annotation)
-      )
-      conn.commit()
-      conn.close()
-
-      return {"status": "success", "filename": filename}
-
-  except Exception as e:
-      print(f"Error saving cell image: {e}")
-      traceback.print_exc()
-      return {"status": "error", "message": str(e)}
   
 def find_similar_cells(input_cell_image, original_filename=None, top_k=5):
   try:
@@ -363,14 +281,6 @@ def add_image_to_db(image_bytes, image_name, image_channel, image_folder='images
 
 def save_cell_image(cell_image, mask=None, annotation=""):
   try:
-      if mask is not None:
-          # Crop the cell image using the mask
-          cropped_cell_image = crop_cell_image(cell_image, mask)
-          if cropped_cell_image is None:
-              return {"status": "error", "message": "Failed to crop cell image"}
-      else:
-          # If no mask provided, use the original image
-          cropped_cell_image = cell_image
 
       # Generate unique filename with timestamp
       timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -381,10 +291,10 @@ def save_cell_image(cell_image, mask=None, annotation=""):
       os.makedirs('cell_vectors_db', exist_ok=True)
       file_path = os.path.join('cell_vectors_db', filename)
       with open(file_path, 'wb') as f:
-          f.write(cropped_cell_image)
+          f.write(cell_image)
 
-      # Generate vector from cropped image
-      image = Image.open(io.BytesIO(cropped_cell_image)).convert("RGB")
+      # Generate vector from image
+      image = Image.open(io.BytesIO(cell_image)).convert("RGB")
       image_input = preprocess(image).unsqueeze(0).to(device)
       with torch.no_grad():
           vector = model.encode_image(image_input).cpu().numpy().flatten()

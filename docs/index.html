@@ -526,7 +526,7 @@ const MicroscopeControl = () => {
               appendLog('Getting Segmentation service...');
               try {
                 const segmentationService = await server.getService(
-                    "ws-user-google-oauth2|103047988474094226050/GxEXZDcuC7xafPCbZSmEqA:interactive-segmentation"
+                    "ws-user-google-oauth2|103047988474094226050/W3sBK4RR2ZkrixwftvU9d5:interactive-segmentation"
                 );
                 appendLog('Segmentation service acquired.');
                 setSegmentService(segmentationService);
@@ -548,7 +548,7 @@ const MicroscopeControl = () => {
               appendLog('Getting image-embedding-similarity-search service...');
               try {
                 const similarityService = await server.getService(
-                    "ws-user-google-oauth2|103047988474094226050/fAyNw4wuoJyGSpKhHULzj9:image-embedding-similarity-search"
+                    "ws-user-google-oauth2|103047988474094226050/SRNhPD5EsrF8PVhrTHTQ9R:image-embedding-similarity-search"
                 );
                 appendLog('Similarity search service acquired.');
                 console.log('Acquired similarity service:', similarityService);
@@ -678,20 +678,20 @@ const MicroscopeControl = () => {
         objectCanvas.width = originalWidth;
         objectCanvas.height = originalHeight;
         const objectCtx = objectCanvas.getContext('2d');
-
+      
         // Load the original image
         const img = new Image();
         img.crossOrigin = "anonymous";
         img.src = originalImage;
-
+      
         img.onload = () => {
           // Draw the original image
           objectCtx.drawImage(img, 0, 0);
-          
+      
           // Load and apply the mask
           const maskImg = new Image();
           maskImg.src = `data:image/png;base64,${mask}`;
-          
+      
           maskImg.onload = () => {
             // Get image data
             const imageData = objectCtx.getImageData(0, 0, originalWidth, originalHeight);
@@ -701,20 +701,68 @@ const MicroscopeControl = () => {
             const maskCtx = maskCanvas.getContext('2d');
             maskCtx.drawImage(maskImg, 0, 0);
             const maskData = maskCtx.getImageData(0, 0, originalWidth, originalHeight).data;
-
-            // Apply mask to original image
-            for (let i = 0; i < imageData.data.length; i += 4) {
-              // If mask pixel is black (0), make the image pixel transparent
-              if (maskData[i] < 128) {
-                imageData.data[i + 3] = 0; // Set alpha to 0
+      
+            // Find the boundaries of the masked region
+            let minX = originalWidth;
+            let minY = originalHeight;
+            let maxX = 0;
+            let maxY = 0;
+      
+            // Scan through the mask to find boundaries
+            for (let y = 0; y < originalHeight; y++) {
+              for (let x = 0; x < originalWidth; x++) {
+                const i = (y * originalWidth + x) * 4;
+                if (maskData[i] >= 128) { // If mask pixel is white
+                  minX = Math.min(minX, x);
+                  minY = Math.min(minY, y);
+                  maxX = Math.max(maxX, x);
+                  maxY = Math.max(maxY, y);
+                }
               }
             }
-
+      
+            // Add padding to the boundaries (optional)
+            const padding = 10;
+            minX = Math.max(0, minX - padding);
+            minY = Math.max(0, minY - padding);
+            maxX = Math.min(originalWidth - 1, maxX + padding);
+            maxY = Math.min(originalHeight - 1, maxY + padding);
+      
+            // Calculate dimensions of the cropped image
+            const cropWidth = maxX - minX + 1;
+            const cropHeight = maxY - minY + 1;
+      
+            // Create a canvas for the cropped result
+            const croppedCanvas = document.createElement('canvas');
+            croppedCanvas.width = cropWidth;
+            croppedCanvas.height = cropHeight;
+            const croppedCtx = croppedCanvas.getContext('2d');
+            croppedCtx.fillStyle = 'black';
+            croppedCtx.fillRect(0, 0, cropWidth, cropHeight);
+      
+            // Apply mask to original image
+            for (let i = 0; i < imageData.data.length; i += 4) {
+              // If mask pixel is black (0), make the image pixel black
+              if (maskData[i] < 128) {
+                imageData.data[i] = 0;     // R
+                imageData.data[i + 1] = 0; // G
+                imageData.data[i + 2] = 0; // B
+                imageData.data[i + 3] = 255; // Alpha (fully opaque)
+              }
+              }
+      
             // Put the masked image data back
             objectCtx.putImageData(imageData, 0, 0);
-
-            // Convert the canvas to blob
-            objectCanvas.toBlob((blob) => {
+      
+            // Draw the cropped region
+            croppedCtx.drawImage(
+              objectCanvas,
+              minX, minY, cropWidth, cropHeight,  // Source rectangle
+              0, 0, cropWidth, cropHeight         // Destination rectangle
+            );
+      
+            // Convert the cropped canvas to blob
+            croppedCanvas.toBlob((blob) => {
               blob.arrayBuffer().then(buffer => {
                 resolve(new Uint8Array(buffer));
               });
@@ -722,7 +770,7 @@ const MicroscopeControl = () => {
           };
         };
       });
-    };
+      };
 
     const handleCellSimilaritySearch = async (mask, label) => {
       if (!similarityService || !snapshotImage) {
