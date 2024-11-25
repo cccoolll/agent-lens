@@ -4,8 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Microscope Control</title>
-    <script src="https://cdn.jsdelivr.net/npm/imjoy-rpc@0.5.48-post1/dist/hypha-rpc-websocket.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/17.0.2/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hypha-rpc@latest/dist/hypha-rpc-websocket.min.js"></script>    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/17.0.2/umd/react.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/17.0.2/umd/react-dom.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/6.26.0/babel.min.js"></script>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
@@ -514,13 +513,15 @@ const MicroscopeControl = () => {
       const initializeWebRPC = async () => {
           try {
               appendLog('Connecting to server...');
+              const server_url = "https://hypha.aicell.io";
+              //const token = await hyphaWebsocketClient.login({"server_url": server_url});
               const server = await hyphaWebsocketClient.connectToServer({ 
                   "name": "js-client", 
-                  "server_url": "https://ai.imjoy.io", 
-                  "method_timeout": 10 
+                  "server_url": server_url, 
+                  "method_timeout": 10,
+                  //"token": token
               });
               appendLog('Server connected.');
-              appendLog('Getting imasfadsfdsdfasfdsad.');
 
               appendLog('Getting Segmentation service...');
               try {
@@ -535,9 +536,16 @@ const MicroscopeControl = () => {
               }
               
               appendLog('Getting microscope control service...');
-              const mc = await server.get_service("microscope-control-squid-test");
-              appendLog('Microscope control service acquired.');
-
+              try {
+                const mc = await server.getService(
+                    "ws-user-google-oauth2|103047988474094226050/EvAytsZjAYwdiXG5ywVWYw:microscope-control-squid-test"
+                );
+                appendLog('Microscope control service acquired.');
+                setMicroscopeControl(mc);
+              } catch (error) {
+                appendLog(`Error acquiring microscope control service: ${error.message}`);
+              }
+              
               appendLog('Getting image-embedding-similarity-search service...');
 
               try {
@@ -551,17 +559,17 @@ const MicroscopeControl = () => {
                 appendLog(`Error acquiring similarity search service: ${error.message}`);
               }
   
-              setMicroscopeControl(mc);
-                          // Poll the server for status updates every 5 seconds
               const statusInterval = setInterval(async () => {
                 try {
-                    const status = await mc.get_status();
-                    updateUIBasedOnStatus(status); // Call function to update UI
+                    if (microscopeControl) {  // Check if microscopeControl is available
+                        const status = await microscopeControl.get_status();
+                        updateUIBasedOnStatus(status);
+                    }
                 } catch (statusError) {
                     appendLog(`Error fetching status: ${statusError.message}`);
                 }
-              }, 2000); // Poll every 2 seconds
-
+              }, 2000);
+              
               // Clear the interval when the component unmounts
               return () => clearInterval(statusInterval);
             
