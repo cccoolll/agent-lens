@@ -783,20 +783,9 @@ const MicroscopeControl = () => {
     
       try {
         // Extract the segmented object using the mask
-        const segmentedObject = await extractSegmentedObject(snapshotImage, mask);
+        const segmentedObject = await extractSegmentedObject(snapshotImage, mask); 
         
-        // First, save the cell image with annotation
-        const saveResult = await similarityService.save_cell_image(
-          segmentedObject, 
-          label || ""
-        );
-        
-        if (saveResult.status === "error") {
-          appendLog(`Error saving cell: ${saveResult.message}`);
-          return;
-        }        
-        
-        // Then perform the similarity search
+        // Perform the similarity search
         const results = await similarityService.find_similar_cells(
           segmentedObject,
           parseInt(numSimilarResults)
@@ -809,6 +798,17 @@ const MicroscopeControl = () => {
     
         appendLog(`Found ${results.length} similar cells.`);
         setSearchResults(results);
+
+        // Save the cell image with annotation
+        const saveResult = await similarityService.save_cell_image(
+          segmentedObject, 
+          label || ""
+        );
+        
+        if (saveResult.status === "error") {
+          appendLog(`Error saving cell: ${saveResult.message}`);
+          return;
+        }               
     
       } catch (error) {
         appendLog(`Error in cell similarity search: ${error.message}`);
