@@ -8,3 +8,5 @@ server.js
 *.idx
 cell_vectors_db
 .DS_Store
+tiles_output/
+vips-properties.xml

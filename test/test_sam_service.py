@@ -1,5 +1,5 @@
 import asyncio
-from imjoy_rpc.hypha import connect_to_server
+from hypha_rpc import connect_to_server
 import numpy as np
 from PIL import Image
 import io
