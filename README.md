@@ -58,7 +58,7 @@
 
 2. **Install dependencies:**
 
-   ```bash
+  ```bash
     pip install -r requirements.txt
     pip install -e .
   ```
