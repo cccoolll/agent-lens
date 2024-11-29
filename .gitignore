@@ -2,9 +2,9 @@ Images/
 models/
 node_modules/
 package-lock.json
-package.json
 server.js
 *.db
 *.pkl
 *.idx
 cell_vectors_db
+.DS_Store
