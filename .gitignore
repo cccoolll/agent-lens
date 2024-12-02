@@ -10,3 +10,4 @@ cell_vectors_db
 .DS_Store
 tiles_output/
 vips-properties.xml
+src/frontend/dist/
