@@ -24,7 +24,7 @@ import argparse
 # Initialize argument parser
 parser = argparse.ArgumentParser(description="Process images and store embeddings in database with CLIP")
 parser.add_argument('--image_folder', type=str, required=True, help='Path to folder containing images')
-parser.add_argument('--db_file', type=str, default='image_vectors.db', help='Path to the SQLite database file')
+parser.add_argument('--db_file', type=str, default='cell_vectors_db.db', help='Path to the SQLite database file')
 parser.add_argument('--datatype', type=str, choices=['hpa', 'squid'], required=True, help="Dataset type: 'hpa' for Human Protein Atlas, 'squid' for squid microscope")
 parser.add_argument('--max_workers', type=int, default=10, help='Number of threads for image processing')
 args = parser.parse_args()
@@ -76,6 +76,9 @@ def process_image(image_path, datatype):
         # Adjust extraction logic for squid dataset as needed, using parts of the filename.
         image_id = filename.split('.')[0]
         fluorescent_channel = parts[1] if len(parts) > 1 else 'unknown'
+    else:
+        print(f"Invalid datatype: {datatype}")
+        return None
     
     try:
         image = Image.open(image_path).convert("RGB")
