@@ -7,6 +7,7 @@ from typing import Union
 from PIL import Image
 import numpy as np
 import requests
+import dotenv
 import torch
 from dotenv import find_dotenv, load_dotenv
 from hypha_rpc import connect_to_server, login
@@ -14,6 +15,8 @@ from kaibu_utils import mask_to_features
 from segment_anything import SamPredictor, sam_model_registry, SamAutomaticMaskGenerator
 import cv2
 import base64
+
+dotenv.load_dotenv()
 
 
 #Acknowledgement: This script is adapted from the original script provided by the authors: @Nils Mechetel, https://github.com/bioimage-io/bioimageio-colab/blob/main/bioimageio_colab/register_sam_service.py.
@@ -315,13 +318,19 @@ async def register_service(args: dict) -> None:
     """
     Register the SAM annotation service on the BioImageIO Colab workspace.
     """
-    token = await login({"server_url": args.server_url})
-    server = await connect_to_server(
-        {
-            "server_url": args.server_url,
-            "token": token,
-        }
-    )
+    has_token = True
+    if has_token:
+        token = os.environ.get("WORKSPACE_TOKEN")
+    else:
+        token = await login({"server_url": args.server_url})
+    
+    workspace_name = "agent-lens"
+    server = await connect_to_server({
+        "server_url": args.server_url,
+         "token": token,
+         "method_timeout": 500,
+        **({"workspace": workspace_name} if workspace_name is not None else {})
+    })
 
     # Register a new service
     service_info = await server.register_service(

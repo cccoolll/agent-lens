@@ -4,6 +4,7 @@ import sqlite3
 import numpy as np
 import clip
 import torch
+import dotenv
 from PIL import Image
 import faiss
 import io
@@ -12,6 +13,8 @@ import os
 import base64
 from datetime import datetime
 import uuid
+
+dotenv.load_dotenv()
 
 #This code defines a service for performing image similarity searches using CLIP embeddings, FAISS indexing, and a Hypha server connection. 
 # The key steps include loading vectors from an SQLite database, separating the vectors by fluorescent channel, building FAISS indices for each channel, and registering a Hypha service to handle similarity search requests. 
@@ -38,33 +41,6 @@ def get_cell_db_connection():
         )
     ''')
     return conn, conn.cursor()
-
-def load_vectors_from_db(channel=None):
-    conn, c = get_db_connection()
-    query = 'SELECT id, vector, image_path, fluorescent_channel FROM images'
-    if channel:
-        query += f" WHERE fluorescent_channel = '{channel}'"
-    c.execute(query)
-    rows = c.fetchall()
-    conn.close()
-
-    img_ids = []
-    img_vectors = []
-    img_paths = {}
-    img_channels = {}
-
-    for row in rows:
-        img_id, img_vector, img_path, img_channel = row
-        img_vector = np.frombuffer(img_vector, dtype=np.float32)
-        img_ids.append(img_id)
-        img_vectors.append(img_vector)
-        img_paths[img_id] = img_path
-        img_channels[img_id] = img_channel
-    print(f"Loaded {len(img_ids)} image vectors")
-    if (len(img_ids) > 0):
-        print(f"Image vector shape: {img_vectors[0].shape}")
-    
-    return img_ids, np.array(img_vectors), img_paths, img_channels
 
 def load_cell_vectors_from_db():
     conn, c = get_cell_db_connection()
@@ -94,30 +70,6 @@ def build_faiss_index(vectors):
     faiss_index = faiss.IndexFlatL2(d)
     faiss_index.add(vectors.astype(np.float32))
     return faiss_index
-
-
-# Load vectors and build FAISS index based on the channel
-image_ids, image_vectors, image_paths, image_channels = load_vectors_from_db()
-print(f"types: {type(image_ids)}, {type(image_vectors)}, {type(image_paths)}, {type(image_channels)}")
-
-index = build_faiss_index(image_vectors)
-
-"""
-Precompute separate FAISS indices for each channel at the time of building the indices.
-Use the appropriate index based on the channel extracted from the input image name.
-"""
-
-def separate_indices_by_channel(img_vectors, img_channels):
-    indices = {}
-    img_channel_info = img_channels.values()
-    #channel_vectors =
-    for channel in set(img_channel_info):
-        channel_vectors = [img_vectors[i] for i, c in enumerate(img_channel_info) if c == channel]
-        indices[channel] = build_faiss_index(np.array(channel_vectors))
-        print(f"Built index for channel: {channel},the legnth of channel_vectors is {len(channel_vectors)}")
-    return indices
-
-channel_indices = separate_indices_by_channel(image_vectors, image_channels)
   
 def find_similar_cells(input_cell_image, original_filename=None, top_k=5):
     try:
@@ -227,8 +179,19 @@ async def start_hypha_service(server):
 
 async def setup():
     server_url = "https://hypha.aicell.io"
-    token = await login({"server_url": server_url})
-    server = await connect_to_server({"server_url": server_url, "token": token})
+    has_token = True
+    if has_token:
+        token = os.environ.get("WORKSPACE_TOKEN")
+    else:
+        token = await login({"server_url": server_url})
+    
+    workspace_name = "agent-lens"
+    server = await connect_to_server({
+        "server_url": server_url,
+         "token": token,
+         "method_timeout": 500,
+        **({"workspace": workspace_name} if workspace_name is not None else {})
+    })
     await start_hypha_service(server)
     print(f"Image embedding and similarity search service registered at workspace: {server.config.workspace}")
     print(f"Test it with the HTTP proxy: {server_url}/{server.config.workspace}/services/image-embedding-similarity-search")
