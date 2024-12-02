@@ -39,4 +39,4 @@ RUN pip install fastapi hypha_rpc uvicorn .
 USER agent_lens
 
 # Entry point for the application
-ENTRYPOINT ["python", "-m", "agent_lens", "connect-server"]
+ENTRYPOINT ["/app/run_scripts.sh"]
