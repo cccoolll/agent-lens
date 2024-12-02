@@ -22,22 +22,22 @@ model, preprocess = clip.load("ViT-B/32", device=device)
 
 # Connect to the SQLite database
 def get_db_connection():
-    conn = sqlite3.connect('image_vectors-hpa.db')
+    conn = sqlite3.connect('cell_vectors_db.db-new.db')
     return conn, conn.cursor()
 
 def get_cell_db_connection():
-  conn = sqlite3.connect('cell_vectors_db.db')
+    conn = sqlite3.connect('cell_vectors_db.db')
   # Create table if it doesn't exist
-  conn.execute('''
-      CREATE TABLE IF NOT EXISTS cell_images (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          file_name TEXT NOT NULL,
-          vector BLOB NOT NULL,
-          annotation TEXT,
-          timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-  ''')
-  return conn, conn.cursor()
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS cell_images (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_name TEXT NOT NULL,
+            vector BLOB NOT NULL,
+            annotation TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    return conn, conn.cursor()
 
 def load_vectors_from_db(channel=None):
     conn, c = get_db_connection()
@@ -48,22 +48,23 @@ def load_vectors_from_db(channel=None):
     rows = c.fetchall()
     conn.close()
 
-    image_ids = []
-    image_vectors = []
-    image_paths = {}
-    image_channels = {}
+    img_ids = []
+    img_vectors = []
+    img_paths = {}
+    img_channels = {}
 
     for row in rows:
         img_id, img_vector, img_path, img_channel = row
         img_vector = np.frombuffer(img_vector, dtype=np.float32)
-        image_ids.append(img_id)
-        image_vectors.append(img_vector)
-        image_paths[img_id] = img_path
-        image_channels[img_id] = img_channel
-    print(f"Loaded {len(image_ids)} image vectors")
-    print(f"Image vector shape: {image_vectors[0].shape}")
+        img_ids.append(img_id)
+        img_vectors.append(img_vector)
+        img_paths[img_id] = img_path
+        img_channels[img_id] = img_channel
+    print(f"Loaded {len(img_ids)} image vectors")
+    if (len(img_ids) > 0):
+        print(f"Image vector shape: {img_vectors[0].shape}")
     
-    return image_ids, np.array(image_vectors), image_paths, image_channels
+    return img_ids, np.array(img_vectors), img_paths, img_channels
 
 def load_cell_vectors_from_db():
     conn, c = get_cell_db_connection()
@@ -90,9 +91,9 @@ def load_cell_vectors_from_db():
 def build_faiss_index(vectors):
     d = vectors.shape[1]  # dimension
     print(f"Building FAISS index with {len(vectors)} vectors of dimension {d}")
-    index = faiss.IndexFlatL2(d)
-    index.add(vectors.astype(np.float32))
-    return index
+    faiss_index = faiss.IndexFlatL2(d)
+    faiss_index.add(vectors.astype(np.float32))
+    return faiss_index
 
 
 # Load vectors and build FAISS index based on the channel
@@ -106,30 +107,30 @@ Precompute separate FAISS indices for each channel at the time of building the i
 Use the appropriate index based on the channel extracted from the input image name.
 """
 
-def separate_indices_by_channel(image_vectors, image_channels):
+def separate_indices_by_channel(img_vectors, img_channels):
     indices = {}
-    image_channel_info= image_channels.values()
+    img_channel_info = img_channels.values()
     #channel_vectors =
-    for channel in set(image_channel_info):
-        channel_vectors = [image_vectors[i] for i, c in enumerate(image_channel_info) if c == channel]
+    for channel in set(img_channel_info):
+        channel_vectors = [img_vectors[i] for i, c in enumerate(img_channel_info) if c == channel]
         indices[channel] = build_faiss_index(np.array(channel_vectors))
         print(f"Built index for channel: {channel},the legnth of channel_vectors is {len(channel_vectors)}")
     return indices
 
 channel_indices = separate_indices_by_channel(image_vectors, image_channels)
 
-def find_similar_images(input_image,image_data, top_k=5, index=index):
-    input_image_name=image_data['name']
+def find_similar_images(input_image, image_data=None, top_k=5, img_index=index):
+    # input_image_name=image_data['name']
     try:
-        channel = None
-        if '-' in input_image_name:
-            'image-green.png'
-            ['image','green.png']
-            'green.png'
-            ['green', 'png']
-            'green'
+        # channel = None
+        # if '-' in input_image_name:
+        #     'image-green.png'
+        #     ['image','green.png']
+        #     'green.png'
+        #     ['green', 'png']
+        #     'green'
              
-            channel = input_image_name.split('-')[1].split('.')[0]
+        #     channel = input_image_name.split('-')[1].split('.')[0]
 
         # Convert input bytes to an image
         image = Image.open(io.BytesIO(input_image)).convert("RGB")
@@ -144,7 +145,7 @@ def find_similar_images(input_image,image_data, top_k=5, index=index):
         query_vector = np.expand_dims(query_vector, axis=0).astype(np.float32)
 
 
-        distances, indices = index.search(query_vector, len(image_ids))  # Search all images
+        distances, indices = img_index.search(query_vector, len(image_ids))  # Search all images
 
         # Collect and sort results
         results = []
@@ -180,140 +181,140 @@ def find_similar_images(input_image,image_data, top_k=5, index=index):
         return []
   
 def find_similar_cells(input_cell_image, original_filename=None, top_k=5):
-  try:
-      cell_ids, cell_vectors, cell_paths, cell_annotations = load_cell_vectors_from_db()
-      
-      if cell_vectors is None:
-          return {"status": "error", "message": "No cells in database yet"}
-      
-      # Process input cell image
-      image = Image.open(io.BytesIO(input_cell_image)).convert("RGB")
-      image_input = preprocess(image).unsqueeze(0).to(device)
-      
-      with torch.no_grad():
-          query_vector = model.encode_image(image_input).cpu().numpy().flatten()
-          
-      query_vector = query_vector.reshape(1, -1).astype(np.float32)
-      
-      if query_vector.shape[1] != cell_vectors.shape[1]:
-          raise ValueError(f"Dimension mismatch: query vector dim={query_vector.shape[1]}, index dim={cell_vectors.shape[1]}")
-      
-      cell_index = build_faiss_index(cell_vectors)
-      distances, indices = cell_index.search(query_vector, min(top_k + 1, len(cell_ids)))
+    try:
+        cell_ids, cell_vectors, cell_paths, cell_annotations = load_cell_vectors_from_db()
+        
+        if cell_vectors is None:
+            return {"status": "error", "message": "No cells in database yet"}
+        
+        # Process input cell image
+        image = Image.open(io.BytesIO(input_cell_image)).convert("RGB")
+        image_input = preprocess(image).unsqueeze(0).to(device)
+        
+        with torch.no_grad():
+            query_vector = model.encode_image(image_input).cpu().numpy().flatten()
+            
+        query_vector = query_vector.reshape(1, -1).astype(np.float32)
+        
+        if query_vector.shape[1] != cell_vectors.shape[1]:
+            raise ValueError(f"Dimension mismatch: query vector dim={query_vector.shape[1]}, index dim={cell_vectors.shape[1]}")
+        
+        cell_index = build_faiss_index(cell_vectors)
+        distances, indices = cell_index.search(query_vector, min(top_k + 1, len(cell_ids)))
 
-      results = []
-      for i, idx in enumerate(indices[0]):
-          cell_id = cell_ids[idx]
-          
-          # Skip if this is the same image we're searching with
-          if original_filename and os.path.basename(cell_paths[cell_id]) == original_filename:
-              continue
-              
-          distance = distances[0][i]
-          similarity = 1 - distance
+        results = []
+        for i, idx in enumerate(indices[0]):
+            cell_id = cell_ids[idx]
+            
+            # Skip if this is the same image we're searching with
+            if original_filename and os.path.basename(cell_paths[cell_id]) == original_filename:
+                continue
+                
+            distance = distances[0][i]
+            similarity = 1 - distance
 
-          with Image.open(cell_paths[cell_id]) as img:
-              img.thumbnail((256, 256))
-              buffered = io.BytesIO()
-              img.save(buffered, format="PNG")
-              img_str = base64.b64encode(buffered.getvalue()).decode()
+            with Image.open(cell_paths[cell_id]) as img:
+                img.thumbnail((256, 256))
+                buffered = io.BytesIO()
+                img.save(buffered, format="PNG")
+                img_str = base64.b64encode(buffered.getvalue()).decode()
 
-          results.append({
-              'image': img_str,
-              'annotation': cell_annotations[cell_id],
-              'similarity': float(similarity)
-          })
-          
-          if len(results) >= top_k:
-              break
+            results.append({
+                'image': img_str,
+                'annotation': cell_annotations[cell_id],
+                'similarity': float(similarity)
+            })
+            
+            if len(results) >= top_k:
+                break
 
-      return results
+        return results
 
-  except Exception as e:
-      print(f"Error in find_similar_cells: {e}")
-      traceback.print_exc()
-      return {"status": "error", "message": str(e)}
+    except Exception as e:
+        print(f"Error in find_similar_cells: {e}")
+        traceback.print_exc()
+        return {"status": "error", "message": str(e)}
   
 def add_image_to_db(image_bytes, image_name, image_channel, image_folder='images'):
-  try:
-      # Ensure the image folder exists
-      os.makedirs(image_folder, exist_ok=True)
+    try:
+        # Ensure the image folder exists
+        os.makedirs(image_folder, exist_ok=True)
 
-      # Save the image to the specified folder
-      image_path = os.path.join(image_folder, image_name)
-      with open(image_path, 'wb') as f:
-          f.write(image_bytes)
+        # Save the image to the specified folder
+        image_path = os.path.join(image_folder, image_name)
+        with open(image_path, 'wb') as f:
+            f.write(image_bytes)
 
-      # Open and preprocess the image
-      image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-      image_input = preprocess(image).unsqueeze(0).to(device)
+        # Open and preprocess the image
+        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        image_input = preprocess(image).unsqueeze(0).to(device)
 
-      # Compute the image embedding
-      with torch.no_grad():
-          image_vector = model.encode_image(image_input).cpu().numpy().flatten()
+        # Compute the image embedding
+        with torch.no_grad():
+            image_vector = model.encode_image(image_input).cpu().numpy().flatten()
 
-      # Connect to the database and insert the new image data
-      conn, c = get_db_connection()
-      c.execute(
-          'INSERT INTO images (vector, image_path, fluorescent_channel) VALUES (?, ?, ?)',
-          (image_vector.tobytes(), image_path, image_channel)
-      )
-      conn.commit()
-      conn.close()
+        # Connect to the database and insert the new image data
+        conn, c = get_db_connection()
+        c.execute(
+            'INSERT INTO images (vector, image_path, fluorescent_channel) VALUES (?, ?, ?)',
+            (image_vector.tobytes(), image_path, image_channel)
+        )
+        conn.commit()
+        conn.close()
 
-      # Update the FAISS index
-      global image_ids, image_vectors, image_paths, image_channels, index, channel_indices
-      image_ids.append(c.lastrowid)
-      image_vectors = np.vstack([image_vectors, image_vector])
-      image_paths[c.lastrowid] = image_path
-      image_channels[c.lastrowid] = image_channel
+        # Update the FAISS index
+        global image_vectors, index, channel_indices
+        image_ids.append(c.lastrowid)
+        image_vectors = np.vstack([image_vectors, image_vector])
+        image_paths[c.lastrowid] = image_path
+        image_channels[c.lastrowid] = image_channel
 
-      # Rebuild the FAISS index
-      index = build_faiss_index(image_vectors)
-      channel_indices = separate_indices_by_channel(image_vectors, image_channels)
+        # Rebuild the FAISS index
+        index = build_faiss_index(image_vectors)
+        channel_indices = separate_indices_by_channel(image_vectors, image_channels)
 
-      print(f"Image {image_name} added successfully.")
-      return {"status": "success", "message": f"Image {image_name} added successfully."}
-  except Exception as e:
-      print(f"Error adding image: {e}")
-      traceback.print_exc()
-      return {"status": "error", "message": str(e)}
+        print(f"Image {image_name} added successfully.")
+        return {"status": "success", "message": f"Image {image_name} added successfully."}
+    except Exception as e:
+        print(f"Error adding image: {e}")
+        traceback.print_exc()
+        return {"status": "error", "message": str(e)}
 
 def save_cell_image(cell_image, mask=None, annotation=""):
-  try:
+    try:
 
-      # Generate unique filename with timestamp
-      timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-      unique_id = str(uuid.uuid4())[:8]
-      filename = f"cell_{timestamp}_{unique_id}.png"
-      
-      # Save image file
-      os.makedirs('cell_vectors_db', exist_ok=True)
-      file_path = os.path.join('cell_vectors_db', filename)
-      with open(file_path, 'wb') as f:
-          f.write(cell_image)
+        # Generate unique filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        unique_id = str(uuid.uuid4())[:8]
+        filename = f"cell_{timestamp}_{unique_id}.png"
 
-      # Generate vector from image
-      image = Image.open(io.BytesIO(cell_image)).convert("RGB")
-      image_input = preprocess(image).unsqueeze(0).to(device)
-      with torch.no_grad():
-          vector = model.encode_image(image_input).cpu().numpy().flatten()
+        # Save image file
+        os.makedirs('cell_vectors_db', exist_ok=True)
+        file_path = os.path.join('cell_vectors_db', filename)
+        with open(file_path, 'wb') as f:
+            f.write(cell_image)
 
-      # Save to database
-      conn, c = get_cell_db_connection()
-      c.execute(
-          'INSERT INTO cell_images (file_name, vector, annotation) VALUES (?, ?, ?)',
-          (filename, vector.astype(np.float32).tobytes(), annotation)
-      )
-      conn.commit()
-      conn.close()
+        # Generate vector from image
+        image = Image.open(io.BytesIO(cell_image)).convert("RGB")
+        image_input = preprocess(image).unsqueeze(0).to(device)
+        with torch.no_grad():
+            vector = model.encode_image(image_input).cpu().numpy().flatten()
 
-      return {"status": "success", "filename": filename}
+        # Save to database
+        conn, c = get_cell_db_connection()
+        c.execute(
+            'INSERT INTO cell_images (file_name, vector, annotation) VALUES (?, ?, ?)',
+            (filename, vector.astype(np.float32).tobytes(), annotation)
+        )
+        conn.commit()
+        conn.close()
 
-  except Exception as e:
-      print(f"Error saving cell image: {e}")
-      traceback.print_exc()
-      return {"status": "error", "message": str(e)}
+        return {"status": "success", "filename": filename}
+
+    except Exception as e:
+        print(f"Error saving cell image: {e}")
+        traceback.print_exc()
+        return {"status": "error", "message": str(e)}
     
 async def start_hypha_service(server):
     await server.register_service(
