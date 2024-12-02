@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Build the frontend
+npm run build
+
 # Run the Python scripts in sequence
 python rebuild_cell_db_512.py
 python embed-image-vectors.py
