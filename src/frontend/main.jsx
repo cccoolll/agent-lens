@@ -104,9 +104,7 @@ const MicroscopeControl = () => {
         
         appendLog('Getting microscope control service...');
         try {
-          const mc = await server.getService(
-              "ws-user-google-oauth2|103047988474094226050/EvAytsZjAYwdiXG5ywVWYw:microscope-control-squid-test"
-          );
+          const mc = await getService(server, "agent-lens/microscope-control-squid-test");
           appendLog('Microscope control service acquired.');
           setMicroscopeControl(mc);
         } catch (error) {
@@ -426,10 +424,14 @@ const MicroscopeControl = () => {
       if (imageLayer) {
         map.removeLayer(imageLayer);
       }
+
+      const tileUrl = isLocal()?
+        "http://localhost:8000"
+        : "https://hypha.aicell.io/agent-lens/apps/microscope-control/assets/tiles_output";
   
       const tileLayer = new TileLayer({
         source: new XYZ({
-          url: 'http://localhost:8000/{z}/{x}/{y}.jpeg', // Update with your tile server URL
+          url: `${tileUrl}/{z}/{x}/{y}.jpeg`, // Update with your tile server URL
           crossOrigin: 'anonymous',
           tileSize: 256,
           maxZoom: 10, // Adjust based on your generated tiles
