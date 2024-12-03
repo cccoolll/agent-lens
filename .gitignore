@@ -11,3 +11,7 @@ cell_vectors_db
 tiles_output/
 vips-properties.xml
 src/frontend/dist/
+__pycache__/
+*.egg-info
+.env
+notes.md

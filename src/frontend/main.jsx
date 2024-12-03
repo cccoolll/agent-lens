@@ -95,9 +95,7 @@ const MicroscopeControl = () => {
 
         appendLog('Getting Segmentation service...');
         try {
-          const segmentationService = await server.getService(
-              "ws-user-google-oauth2|103047988474094226050/W3sBK4RR2ZkrixwftvU9d5:interactive-segmentation"
-          );
+          const segmentationService = await getService(server, "agent-lens/interactive-segmentation", "public/interactive-segmentation");
           appendLog('Segmentation service acquired.');
           setSegmentService(segmentationService);
         } catch (error) {
@@ -117,9 +115,7 @@ const MicroscopeControl = () => {
 
         appendLog('Getting Similarity Search Service...');
         try {
-          const similarityService = await server.getService(
-            "ws-user-google-oauth2|103047988474094226050/SRNhPD5EsrF8PVhrTHTQ9R:image-embedding-similarity-search"
-        );
+          const similarityService = await getService(server, "agent-lens/image-embedding-similarity-search", "public/image-embedding-similarity-search");
           appendLog('Similarity Search Service acquired.');
           setSimilarityService(similarityService);
         } catch (error) {
@@ -345,6 +341,26 @@ const MicroscopeControl = () => {
     }
   }, [illuminationChannel, BrightFieldIntensity, BrightFieldCameraExposure, Fluorescence405Intensity, Fluorescence405CameraExposure, Fluorescence488Intensity, Fluorescence488CameraExposure, Fluorescence561Intensity, Fluorescence561CameraExposure, Fluorescence638Intensity, Fluorescence638CameraExposure, Fluorescence730Intensity, Fluorescence730CameraExposure]);
   
+  const getServerUrl = () => {
+    return getUrlParam("server") || window.location.origin;
+  }
+
+  const getUrlParam = (param_name) => {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get(param_name);
+  }
+
+  const isLocal = () => {
+    const serverUrl = getServerUrl();
+    return serverUrl.includes("127.0.0.1") || serverUrl.includes("localhost");
+  }
+
+  const getService = async (server, remoteId, localId = null) => {
+    const serviceId = localId && isLocal()? localId : remoteId;
+    const svc = await server.getService(serviceId, {"case_conversion": "camel"});
+    return svc;
+  }
+
   const handleImageClick = async (coordinate) => {
     if (!isPenActive || !segmentService || !snapshotImage) return;
   

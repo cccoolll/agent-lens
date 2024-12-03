@@ -36,19 +36,15 @@ async def start_hypha_server(server, service_id):
 async def setup():
     server_url = "https://hypha.aicell.io"
     
-    has_token = True
-    
-    if has_token:
-        token = os.environ.get("WORKSPACE_TOKEN")
-    else:
+    token = os.environ.get("WORKSPACE_TOKEN")
+    if token is None:
         token = await login({"server_url": server_url})
     
-    workspace_name = "agent-lens"
     server = await connect_to_server({
         "server_url": server_url,
          "token": token,
          "method_timeout": 500,
-        **({"workspace": workspace_name} if workspace_name is not None else {})
+        "workspace": "agent-lens",
     })
     await start_hypha_server(server, "microscope-control")
     print(f"Image embedding and similarity search service registered at workspace: {server.config.workspace}")

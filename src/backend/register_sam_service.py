@@ -318,18 +318,16 @@ async def register_service(args: dict) -> None:
     """
     Register the SAM annotation service on the BioImageIO Colab workspace.
     """
-    has_token = True
-    if has_token:
-        token = os.environ.get("WORKSPACE_TOKEN")
-    else:
+
+    token = os.environ.get("WORKSPACE_TOKEN")
+    if token is None:
         token = await login({"server_url": args.server_url})
     
-    workspace_name = "agent-lens"
     server = await connect_to_server({
         "server_url": args.server_url,
          "token": token,
          "method_timeout": 500,
-        **({"workspace": workspace_name} if workspace_name is not None else {})
+        "workspace": args.workspace_name,
     })
 
     # Register a new service
@@ -366,20 +364,15 @@ if __name__ == "__main__":
         help="URL of the Hypha server",
     )
     parser.add_argument(
-        "--workspace_name", default="bioimageio-colab", help="Name of the workspace"
-    )
-    parser.add_argument(
-        "--client_id",
-        default="sam-model-server",
-        help="Client ID for registering the service",
+        "--workspace_name", default="agent-lens", help="Name of the workspace"
     )
     parser.add_argument(
         "--service_id",
         default="interactive-segmentation",
         help="Service ID for registering the service",
     )
-    args = parser.parse_args()
+    parser_args = parser.parse_args()
 
     loop = asyncio.get_event_loop()
-    loop.create_task(register_service(args=args))
+    loop.create_task(register_service(parser_args))
     loop.run_forever()
