@@ -6,6 +6,9 @@ RUN apt-get update && apt-get install -y \
     git \
     curl \
     jq \
+    libvips-dev \
+    npm \
+    libgl1-mesa-glx \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user
@@ -20,10 +23,13 @@ WORKDIR /app/
 # Copy the repository to the image
 COPY . .
 
-# Create logs directory and set permissions for /app and /app/logs
-RUN mkdir -p /app/logs && \
-    chmod 777 /app /app/logs && \
-    chown -R agent_lens:agent_lens /app /app/logs
+# Set environment variables
+ENV CLIP_CACHE=/app/.cache
+
+# Create necessary directories and set permissions
+RUN mkdir -p /app/logs /app/.cache && \
+    chmod 777 /app /app/logs /app/.cache && \
+    chown -R agent_lens:agent_lens /app /app/logs /app/.cache
 
 # Add /app to the list of safe directories for Git
 RUN git config --global --add safe.directory /app
@@ -37,6 +43,9 @@ RUN pip install fastapi hypha_rpc uvicorn .
 
 # Switch to the non-root user
 USER agent_lens
+
+# Ensure the start script is executable
+RUN chmod +x /app/scripts/docker_start.sh
 
 # Entry point for the application
 ENTRYPOINT ["/app/scripts/docker_start.sh"]
