@@ -23,11 +23,6 @@ dotenv.load_dotenv()
 device = "cuda" if torch.cuda.is_available() else "cpu"
 model, preprocess = clip.load("ViT-B/32", device=device)
 
-# Connect to the SQLite database
-def get_db_connection():
-    conn = sqlite3.connect('cell_vectors_db.db-new.db')
-    return conn, conn.cursor()
-
 def get_cell_db_connection():
     conn = sqlite3.connect('cell_vectors_db.db')
   # Create table if it doesn't exist
