@@ -1,35 +1,63 @@
-# Use an image with Python 3.11
+# syntax=docker/dockerfile:1.3.1
 FROM python:3.11-slim
 
 # Install git and other system dependencies
-RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    jq \
-    libvips-dev \
-    npm \
-    libgl1-mesa-glx \
-    && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,target=/var/cache/apt \
+    --mount=type=cache,target=/var/lib/apt/lists \
+    rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock && \
+    rm -rf /etc/apt/sources.list.d/* && \
+    echo "deb http://deb.debian.org/debian bookworm main" > /etc/apt/sources.list && \
+    echo "deb http://deb.debian.org/debian bookworm-updates main" >> /etc/apt/sources.list && \
+    echo "deb http://deb.debian.org/debian-security bookworm-security main" >> /etc/apt/sources.list && \
+    apt-get update
 
-# Create a non-root user
-RUN groupadd -r agent_lens && useradd -r -g agent_lens agent_lens
+# Install packages
+RUN apt-get update && apt-get install -y --no-install-recommends git curl jq libvips-dev libvips-tools libgl1-mesa-glx && \
+    curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip
-RUN pip install --upgrade pip
+# Create a non-root user with explicit UID/GID
+RUN groupadd -r -g 1000 agent_lens && useradd -r -u 1000 -g agent_lens -m agent_lens
 
 # Set the working directory
 WORKDIR /app/
 
-# Copy the repository to the image
-COPY . .
+# Create necessary directories with correct permissions
+RUN mkdir -p /app/logs /app/.cache /app/src/frontend/tiles_output && \
+    chown -R agent_lens:agent_lens /app /app/logs /app/.cache /app/src/frontend/tiles_output && \
+    chmod -R 755 /app
+
+# Create a directory for global npm packages in the user's home
+RUN mkdir -p /home/agent_lens/.npm-global && \
+    chown -R agent_lens:agent_lens /home/agent_lens/.npm-global
+
+# Switch to the non-root user
+USER agent_lens
 
 # Set environment variables
-ENV CLIP_CACHE=/app/.cache
+ENV HOME=/home/agent_lens \
+    CLIP_CACHE=/home/agent_lens/.cache/clip \
+    npm_config_cache=/home/agent_lens/.npm \
+    NPM_CONFIG_PREFIX=/home/agent_lens/.npm-global \
+    PATH="/home/agent_lens/.local/bin:${PATH}" \
+    PATH="/home/agent_lens/.local/bin:/home/agent_lens/.npm-global/bin:${PATH}"
 
-# Create necessary directories and set permissions
-RUN mkdir -p /app/logs /app/.cache && \
-    chmod 777 /app /app/logs /app/.cache && \
-    chown -R agent_lens:agent_lens /app /app/logs /app/.cache
+# Copy package files first
+COPY --chown=agent_lens:agent_lens package*.json ./
+COPY --chown=agent_lens:agent_lens src/frontend/package*.json ./src/frontend/
+
+# Configure npm to use the new global directory
+RUN npm config set prefix '/home/agent_lens/.npm-global'
+
+RUN cd src/frontend && npm install
+
+# Copy files with correct ownership
+COPY --chown=agent_lens:agent_lens requirements.txt pyproject.toml ./
+RUN pip install --user -r requirements.txt .
+
+# Copy the rest of the repository
+COPY --chown=agent_lens:agent_lens . .
 
 # Add /app to the list of safe directories for Git
 RUN git config --global --add safe.directory /app
@@ -37,15 +65,7 @@ RUN git config --global --add safe.directory /app
 # Remove all files matching .gitignore patterns and .git directory
 RUN git clean -fdX && rm -rf .git
 
-# Install the required Python packages
-RUN pip install -r requirements.txt
-RUN pip install fastapi hypha_rpc uvicorn .
-
-# Switch to the non-root user
-USER agent_lens
-
 # Ensure the start script is executable
 RUN chmod +x /app/scripts/docker_start.sh
 
-# Entry point for the application
 ENTRYPOINT ["/app/scripts/docker_start.sh"]
