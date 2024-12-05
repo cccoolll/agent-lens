@@ -12,9 +12,12 @@ dotenv.load_dotenv()
 # Or fix this
 async def start_hypha_server(server, service_id):
     app = FastAPI()
-    dist_dir = os.path.join(os.path.dirname(__file__), "../frontend/dist")
+    frontend_dir = os.path.join(os.path.dirname(__file__), "../frontend")
+    tiles_dir = os.path.join(frontend_dir, "tiles_output")
+    dist_dir = os.path.join(frontend_dir, "dist")
     assets_dir = os.path.join(dist_dir, "assets")
     app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+    app.mount("/tiles", StaticFiles(directory=tiles_dir), name="tiles_output")
 
     async def serve_fastapi(args, context=None):
         await app(args["scope"], args["receive"], args["send"])
