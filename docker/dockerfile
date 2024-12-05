@@ -44,8 +44,7 @@ ENV HOME=/home/agent_lens \
     PATH="/home/agent_lens/.local/bin:/home/agent_lens/.npm-global/bin:${PATH}"
 
 # Copy package files first
-COPY --chown=agent_lens:agent_lens package*.json ./
-COPY --chown=agent_lens:agent_lens src/frontend/package*.json ./src/frontend/
+COPY --chown=agent_lens:agent_lens src/frontend/package*.json src/frontend/vite.config.mjs ./src/frontend/
 
 # Configure npm to use the new global directory
 RUN npm config set prefix '/home/agent_lens/.npm-global'
