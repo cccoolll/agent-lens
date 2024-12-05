@@ -320,14 +320,14 @@ async def register_service(args: dict) -> None:
     """
 
     token = os.environ.get("WORKSPACE_TOKEN")
-    if token is None:
-        token = await login({"server_url": args.server_url})
+    if token is None or args.workspace_name is None:
+        token = os.environ.get("PERSONAL_TOKEN")
     
     server = await connect_to_server({
         "server_url": args.server_url,
          "token": token,
          "method_timeout": 500,
-        "workspace": args.workspace_name,
+        **({"workspace": args.workspace_name} if args.workspace_name else {})
     })
 
     # Register a new service

@@ -35,6 +35,13 @@ def get_cell_db_connection():
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    # artifact_manager = ArtifactManager()
+    # artifact_manager.setup(0, 0)
+    # artifact_manager.create_vector_collection(
+    #     "cell-images", {
+    #       "name": "Cell Images",
+    #       "description": "Collection of cell images",
+    #    }    # )
     return conn, conn.cursor()
 
 def load_cell_vectors_from_db():
@@ -172,17 +179,16 @@ async def start_hypha_service(server):
         },
     )
 
-async def setup():
-    server_url = "https://hypha.aicell.io"
+async def setup(workspace=None, server_url="https://hypha.aicell.io"):
     token = os.environ.get("WORKSPACE_TOKEN")
-    if token is None:
-        token = await login({"server_url": server_url})
+    if token is None or workspace is None:
+        token = os.environ.get("PERSONAL_TOKEN")
     
     server = await connect_to_server({
         "server_url": server_url,
         "token": token,
         "method_timeout": 500,
-        "workspace": "agent-lens",
+        **({"workspace": workspace} if workspace else {}),
     })
     await start_hypha_service(server)
     print(f"Image embedding and similarity search service registered at workspace: {server.config.workspace}")

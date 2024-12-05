@@ -84,18 +84,18 @@ const MicroscopeControl = () => {
       try {
         appendLog('Connecting to server...');
         const server_url = "https://hypha.aicell.io";
-        //const token = await hyphaWebsocketClient.login({"server_url": server_url});
+        const token = await login();
         const server = await hyphaWebsocketClient.connectToServer({ 
             "name": "js-client", 
             "server_url": server_url, 
             "method_timeout": 10,
-            //"token": token,
+            "token": token,
         });
         appendLog('Server connected.');
 
         appendLog('Getting Segmentation service...');
         try {
-          const segmentationService = await getService(server, "agent-lens/interactive-segmentation", "public/interactive-segmentation");
+          const segmentationService = await getService(server, "agent-lens/interactive-segmentation", "interactive-segmentation");
           appendLog('Segmentation service acquired.');
           setSegmentService(segmentationService);
         } catch (error) {
@@ -113,7 +113,7 @@ const MicroscopeControl = () => {
 
         appendLog('Getting Similarity Search Service...');
         try {
-          const similarityService = await getService(server, "agent-lens/image-embedding-similarity-search", "public/image-embedding-similarity-search");
+          const similarityService = await getService(server, "agent-lens/image-embedding-similarity-search", "image-embedding-similarity-search");
           appendLog('Similarity Search Service acquired.');
           setSimilarityService(similarityService);
         } catch (error) {
@@ -339,6 +339,33 @@ const MicroscopeControl = () => {
     }
   }, [illuminationChannel, BrightFieldIntensity, BrightFieldCameraExposure, Fluorescence405Intensity, Fluorescence405CameraExposure, Fluorescence488Intensity, Fluorescence488CameraExposure, Fluorescence561Intensity, Fluorescence561CameraExposure, Fluorescence638Intensity, Fluorescence638CameraExposure, Fluorescence730Intensity, Fluorescence730CameraExposure]);
   
+  const login_callback = (context) => {
+    window.open(context.login_url);
+  }
+  
+  const login = async() => {
+    const serverUrl = "https://hypha.aicell.io";
+    let token = localStorage.getItem("token");
+    if (token) {
+      const tokenExpiry = localStorage.getItem("tokenExpiry");
+      if (tokenExpiry && new Date(tokenExpiry) > new Date()) {
+        console.log("Using saved token:", token);
+        return token;
+      }
+    }
+    token = await hyphaWebsocketClient.login({
+      server_url: serverUrl,
+      login_callback: login_callback,
+    });
+    localStorage.setItem("token", token);
+    localStorage.setItem(
+      "tokenExpiry",
+      new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString()
+    );
+    return token;
+  }
+
+
   const getServerUrl = () => {
     return getUrlParam("server") || window.location.origin;
   }

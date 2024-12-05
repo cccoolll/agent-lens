@@ -7,4 +7,4 @@ cd ../..
 
 # Run backend
 export PYTHONPATH=$(pwd)
-python src/backend/main.py
+python src/backend/main.py --workspace_name "agent-lens"
