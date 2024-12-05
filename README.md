@@ -47,13 +47,12 @@
    cd agent-lens
    ```
 
-### Backend installation
+### Setup for development
 
 1. **Conda environment:**
-
    ```bash
-   conda create -n agent-lens python=3.10.13
-   conda activate agent-lens
+    conda create -n agent-lens python=3.10.13
+    conda activate agent-lens
    ```
 
 2. **Install dependencies:**
@@ -62,113 +61,38 @@
     pip install -e .
     ```
 
-### Frontend installation
+3. **Install VIPS:**
 
-1. **Install dependencies:**
+   - **On Ubuntu/Debian:**
 
-   ```bash
-   npm install
-   ```
+     ```bash
+     sudo apt-get install libvips-tools
+     ```
 
-## Usage
+   - **On macOS using Homebrew:**
 
-## Step 1: Generate Image Tiles from Your Large Image
+     ```bash
+     brew install vips
+     ```
 
-To efficiently display large images in web applications, it's common to break them into smaller tiles. This allows the application to load only the necessary tiles based on the user's viewport and zoom level, improving performance.
+4. **Add the following environment variables to a `.env` file:**
 
-#### 1. Install VIPS
+    ```bash
+    WORKSPACE_TOKEN=<agent-lens_workspace_token>
+    PERSONAL_TOKEN=<personal_workspace_token>
+    ```
 
-- **On Ubuntu/Debian:**
+  You can get the `agent-lens_workspace_token` and `personal_workspace_token` from [Hypha](https://hypha.aicell.io).
 
-  ```bash
-  sudo apt-get install libvips-tools
-  ```
+1. **Run the setup script:**
+    ```bash
+    sh scripts/setup.sh
+    ```
 
-- **On macOS using Homebrew:**
-
-  ```bash
-  brew install vips
-  ```
-
-#### 2. Generate Tiles
-
-Replace `your_large_image.jpg` with the path to your large image file.
-
-```bash
-vips dzsave your_large_image.jpg tiles_output_directory --layout google
-```
-
-- `--layout google`: Generates tiles in XYZ format compatible with OpenLayers.
-
-**Example:**
-
-```bash
-vips dzsave large_image.jpg tiles --layout google
-```
-
-This command will generate tiles in the `tiles` directory.
-
-## Step 2: Set Up a Local Tile Server
-
-Once you have generated the tiles, you need to serve them over HTTP so that your application can access them.
-
-### Option 1: Using Python's Built-in HTTP Server
-
-If you have Python installed, you can use its built-in HTTP server.
-
-#### For Python 3:
-
-```bash
-cd tiles_output_directory
-python3 -m http.server 8000
-```
-
-#### For Python 2:
-
-```bash
-cd tiles_output_directory
-python -m SimpleHTTPServer 8000
-```
-
-This will start a local HTTP server at `http://localhost:8000/`.
-
-
-#### 2. Start the Server
-
-```bash
-cd tiles_output_directory
-http-server -p 8000
-```
-
-This will start a local HTTP server at `http://localhost:8000/`.
-
----
-
-**Note:** Ensure that the port number (`8000` in these examples) does not conflict with any other services running on your machine.
-
-You can now access your tiles via the local server. Ensure that your OpenLayers application is configured to load tiles from `http://localhost:8000/{z}/{x}/{y}.png` (or `.jpeg` if you generated JPEG tiles).
-
----
-
-### Start the Development Server
-
-```bash
-npm run start
-```
-
-This will start the application at [http://localhost:5173](http://localhost:5173) (default Vite port).
-
-### Build for Production
-
-```bash
-npm run build
-```
-
-### Preview the Production Build
-
-```bash
-npm run serve
-```
+2. **Start development services:**
+    ```bash
+    sh scripts/run_dev.sh
+    ```
 
 ## Configuration
 
@@ -180,22 +104,30 @@ npm run serve
 
 ```
 agent-lens/
-├── index.html
-├── node_modules/
-├── package.json
-├── README.md
 ├── src/
-│   ├── main.jsx
-│   └── style.css
-├── scripts/
-│   ├── embed-image-vectors.py
-│   ├── rebuild_cell_db_512.py
-│   ├── register-sam-service.py
-│   └── register-similarity-search-service.py
-├── test/
-│   └── test_sam_service.py
-├── tiles_output/
-└── vite.config.mjs
+│   ├── backend/
+│   │   ├── test/
+│   │   │   └── test_sam_service.py
+│   │   ├── embed_image_vectors.py
+│   │   ├── main.py
+│   │   ├── rebuild_cell_db_512.py
+│   │   ├── register_frontend_service.py
+│   │   ├── register-sam-service.py
+│   │   └── register-similarity-search-service.py
+│   └── frontend/
+│       ├── img/
+│       │   └── example_image.png
+│       ├── tiles_output/
+│       ├── index.html
+│       ├── main.jsx
+│       ├── package.json
+│       ├── style.css
+│       └── vite.config.mjs
+├── .env
+├── .gitignore
+├── pyproject.toml
+├── README.md
+└── requirements.txt
 ```
 
 - **index.html**: The main HTML file where the React app is rendered.
