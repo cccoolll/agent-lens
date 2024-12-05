@@ -181,7 +181,7 @@ const initializeServices = async (token) => {
         appendLog('Microscope Control service acquired.');
 
         appendLog('Acquiring Similarity Search service...');
-        const similarityService = await getService("agent-lens/image-embedding-similarity-search", "image-embedding-similarity-search");
+        const similarityService = await getService(server, "agent-lens/image-embedding-similarity-search", "image-embedding-similarity-search");
         setSimilarityService(similarityService);
         appendLog('Similarity Search service acquired.');
 

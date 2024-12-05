@@ -57,12 +57,7 @@
    ```
 
 2. **Install dependencies:**
-
-<<<<<<< HEAD
-  ```bash
-=======
     ```bash
->>>>>>> origin
     pip install -r requirements.txt
     pip install -e .
     ```
