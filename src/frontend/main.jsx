@@ -89,39 +89,25 @@ const appendLog = (message) => {
 };
 
 const initializeServices = async (token) => {
-    try {
-        const server_url = "https://hypha.aicell.io";
-        appendLog('Initializing connection to server...');
+    const server_url = "https://hypha.aicell.io";
+    appendLog('Initializing connection to server...');
 
-        const server = await hyphaWebsocketClient.connectToServer({
-            name: "js-client",
-            server_url,
-            method_timeout: 10,
-            token,
-        });
-        setServer(server);
-        const workspace = server.config.workspace;
-        setUserId(workspace);
+    const server = await hyphaWebsocketClient.connectToServer({
+        name: "js-client",
+        server_url,
+        method_timeout: 10,
+        token,
+    });
+    setServer(server);
+    const workspace = server.config.workspace;
+    setUserId(workspace);
 
-        appendLog('Acquiring Segmentation service...');
-        const segmentationService = await getService(server, "agent-lens/interactive-segmentation", "interactive-segmentation");
-        setSegmentService(segmentationService);
-        appendLog('Segmentation service acquired.');
-
-        appendLog('Acquiring Microscope Control service...');
-        const microscopeControlService = await getService(server, "agent-lens/microscope-control-squid-test");
-        setMicroscopeControl(microscopeControlService);
-        appendLog('Microscope Control service acquired.');
-
-        appendLog('Acquiring Similarity Search service...');
-        const similarityService = await getService(server, "agent-lens/image-embedding-similarity-search", "image-embedding-similarity-search");
-        setSimilarityService(similarityService);
-        appendLog('Similarity Search service acquired.');
-
-    } catch (error) {
-        appendLog(`Error initializing services: ${error.message}`);
-        console.error("Error initializing services:", error);
-    }
+    const segmentationService = await tryGetService(server, "Acquiring Segmentation", "agent-lens/interactive-segmentation", "interactive-segmentation");
+    setSegmentService(segmentationService);
+    const microscopeControlService = await tryGetService(server, "Microscope Control", "agent-lens/microscope-control-squid-test");
+    setMicroscopeControl(microscopeControlService);
+    const similarityService = await tryGetService(server, "Similarity Search", "agent-lens/image-embedding-similarity-search", "image-embedding-similarity-search");
+    setSimilarityService(similarityService);
 };
 
 useEffect(() => {
@@ -334,6 +320,18 @@ useEffect(() => {
     }
   }, [illuminationChannel, BrightFieldIntensity, BrightFieldCameraExposure, Fluorescence405Intensity, Fluorescence405CameraExposure, Fluorescence488Intensity, Fluorescence488CameraExposure, Fluorescence561Intensity, Fluorescence561CameraExposure, Fluorescence638Intensity, Fluorescence638CameraExposure, Fluorescence730Intensity, Fluorescence730CameraExposure]);
   
+  const tryGetService = async(server, name, remoteId, localId = null) => {
+    try {
+      appendLog(`Acquiring ${name} service...`);
+      const svc = await getService(server, remoteId, localId);
+      appendLog(`${name} service acquired.`);
+      return svc;
+    } catch (error) {
+      appendLog(`Error acquiring ${name} service: ${error.message}`);
+      return null;
+    }
+  };
+
   const login_callback = (context) => {
     window.open(context.login_url);
   }
@@ -453,7 +451,7 @@ useEffect(() => {
   
       const tileLayer = new TileLayer({
         source: new XYZ({
-          url: `${tileUrl}/{z}/{x}/{y}.jpeg`, // Update with your tile server URL
+          url: `${tileUrl}/{z}/{x}/{y}.jpg`, // Update with your tile server URL
           crossOrigin: 'anonymous',
           tileSize: 256,
           maxZoom: 10, // Adjust based on your generated tiles
