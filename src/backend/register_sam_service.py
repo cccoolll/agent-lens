@@ -7,6 +7,7 @@ from typing import Union
 from PIL import Image
 import numpy as np
 import requests
+import dotenv
 import torch
 from dotenv import find_dotenv, load_dotenv
 from hypha_rpc import connect_to_server, login
@@ -14,6 +15,8 @@ from kaibu_utils import mask_to_features
 from segment_anything import SamPredictor, sam_model_registry, SamAutomaticMaskGenerator
 import cv2
 import base64
+
+dotenv.load_dotenv()
 
 
 #Acknowledgement: This script is adapted from the original script provided by the authors: @Nils Mechetel, https://github.com/bioimage-io/bioimageio-colab/blob/main/bioimageio_colab/register_sam_service.py.
@@ -315,13 +318,17 @@ async def register_service(args: dict) -> None:
     """
     Register the SAM annotation service on the BioImageIO Colab workspace.
     """
-    token = await login({"server_url": args.server_url})
-    server = await connect_to_server(
-        {
-            "server_url": args.server_url,
-            "token": token,
-        }
-    )
+
+    token = os.environ.get("WORKSPACE_TOKEN")
+    if token is None or args.workspace_name is None:
+        token = os.environ.get("PERSONAL_TOKEN")
+    
+    server = await connect_to_server({
+        "server_url": args.server_url,
+         "token": token,
+         "method_timeout": 500,
+        **({"workspace": args.workspace_name} if args.workspace_name else {})
+    })
 
     # Register a new service
     service_info = await server.register_service(
@@ -357,20 +364,15 @@ if __name__ == "__main__":
         help="URL of the Hypha server",
     )
     parser.add_argument(
-        "--workspace_name", default="bioimageio-colab", help="Name of the workspace"
-    )
-    parser.add_argument(
-        "--client_id",
-        default="sam-model-server",
-        help="Client ID for registering the service",
+        "--workspace_name", default="agent-lens", help="Name of the workspace"
     )
     parser.add_argument(
         "--service_id",
         default="interactive-segmentation",
         help="Service ID for registering the service",
     )
-    args = parser.parse_args()
+    parser_args = parser.parse_args()
 
     loop = asyncio.get_event_loop()
-    loop.create_task(register_service(args=args))
+    loop.create_task(register_service(parser_args))
     loop.run_forever()

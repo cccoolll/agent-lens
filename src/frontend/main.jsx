@@ -20,9 +20,6 @@ import VectorSource from 'ol/source/Vector';
 import { Circle as CircleStyle, Fill, Stroke, Style } from 'ol/style';
 import { Draw } from 'ol/interaction';
 import { defaults as defaultControls, FullScreen, ZoomSlider } from 'ol/control';
-import { getCenter } from 'ol/extent';
-import * as olExtent from 'ol/extent';
-import * as olProj from 'ol/proj';
 import WinBox from 'winbox/src/js/winbox';
 
 const originalWidth = 2048;
@@ -34,14 +31,7 @@ const MicroscopeControl = () => {
     
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [server, setServer] = useState(null);
-
-  const [loginUrl, setLoginUrl] = useState(null);
-
-  const [sessionId, setSessionId] = useState(null);
   const [userId, setUserId] = useState(null);
-  const [userToken, setUserToken] = useState(null);
-
-  const [manualToken, setManualToken] = useState("");
   
   const mapRef = useRef(null); // Reference to the map container
   const [map, setMap] = useState(null);
@@ -78,141 +68,47 @@ const MicroscopeControl = () => {
   const [isLightOn, setIsLightOn] = useState(false);
   const [isPlateScanRunning, setIsPlateScanRunning] = useState(false);
   const [log, setLog] = useState('');
-  const [chatbotUrl, setChatbotUrl] = useState(null);
-  const [svc, setSvc] = useState(null);  // Correctly initialize the similarity search service state
-  const [numSimilarResults, setNumSimilarResults] = useState(5);
-  const [searchResults, setSearchResults] = useState([]);
+  // const [numSimilarResults, setNumSimilarResults] = useState(5);
+  // const [searchResults, setSearchResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isPenActive, setIsPenActive] = useState(false); // State to track if the pen tool is active
   const [isFirstClick, setIsFirstClick] = useState(true); // Track if it's the first click for segmentation
   const [segmentService, setSegmentService] = useState(null);
   const [selectedModel, setSelectedModel] = useState('vit_b_lm'); // Default model
   const [similarityService, setSimilarityService] = useState(null);
-  
-  useEffect(() => {
-    // Generate a unique session ID when the component mounts
-    const generateSessionID = () => `session_${Math.random().toString(36).substr(2, 9)}`;
-    setSessionId(generateSessionID());
-}, []);
 
-const handleLogin = () => {
-  const server_url = "https://hypha.aicell.io";
-  const redirect_uri = encodeURIComponent(window.location.origin);
-
-  const loginUrl = `${server_url}/login?redirect_uri=${redirect_uri}`;
-  window.open(loginUrl, "_blank", "width=500,height=700,top=100,left=100");
-  appendLog("Login window opened. Please copy the token after logging in and paste it below.");
-};
-
-const getTokenFromUrl = () => {
-  const params = new URLSearchParams(window.location.search);
-  const token = params.get("token");
-  if (token) {
-    localStorage.setItem("userToken", token); // Store token for future use
-  }
-  return token || localStorage.getItem("userToken"); // Fallback to stored token
-};
-
-const handleManualTokenSubmit = () => {
-  if (!manualToken) {
-    appendLog("Please paste a valid token.");
-    return;
-  }
-  setUserToken(manualToken);
+const handleLogin = async () => {
+  const token = await login();
+  await initializeServices(token);
+  appendLog("Logged in.");
   setIsAuthenticated(true);
-  initializeServices(manualToken);
-  appendLog("Token submitted successfully. Initializing services...");
 };
-
-useEffect(() => {
-  const token = getTokenFromUrl();
-  if (!isAuthenticated && token) {
-    setUserToken(token);
-    setIsAuthenticated(true);
-    initializeServices(token); // Initialize services once authenticated
-  }
-}, [isAuthenticated]);
 
 const appendLog = (message) => {
     setLog((prevLog) => prevLog + message + '\n');
 };
 
-useEffect(() => {
-  const handleMessage = (event) => {
-    if (event.origin !== window.location.origin) return; // Ensure message is from the same origin
-    const { type, token } = event.data;
-
-    if (type === "LOGIN_SUCCESS" && token) {
-      localStorage.setItem("userToken", token); // Store token
-      setUserToken(token);
-      setIsAuthenticated(true);
-      initializeServices(token);
-    }
-  };
-
-  window.addEventListener("message", handleMessage);
-
-  return () => {
-    window.removeEventListener("message", handleMessage);
-  };
-}, []);
-
 const initializeServices = async (token) => {
-    try {
-        const server_url = "https://hypha.aicell.io";
-        appendLog('Initializing connection to server...');
+    const server_url = "https://hypha.aicell.io";
+    appendLog('Initializing connection to server...');
 
-        const server = await hyphaWebsocketClient.connectToServer({
-            name: "js-client",
-            server_url,
-            method_timeout: 10,
-            token,
-        });
-        setServer(server);
+    const server = await hyphaWebsocketClient.connectToServer({
+        name: "js-client",
+        server_url,
+        method_timeout: 10,
+        token,
+    });
+    setServer(server);
+    const workspace = server.config.workspace;
+    setUserId(workspace);
 
-        appendLog('Acquiring Segmentation service...');
-        const segmentationService = await server.getService("agent-lens/Cuee4bQsHfQA7PaUjDcEjP:interactive-segmentation");
-        setSegmentService(segmentationService);
-        appendLog('Segmentation service acquired.');
-
-        appendLog('Acquiring Microscope Control service...');
-        const microscopeControlService = await server.getService("agent-lens/DTCvivYzXHjkY6zJuvyGGq:microscope-control-squid-test");
-        setMicroscopeControl(microscopeControlService);
-        appendLog('Microscope Control service acquired.');
-
-        appendLog('Acquiring Similarity Search service...');
-        const similarityService = await server.getService("agent-lens/dNDF2zDCi8HpbZUjsRMyci:image-embedding-similarity-search");
-        setSimilarityService(similarityService);
-        appendLog('Similarity Search service acquired.');
-
-        const user = await server.getUser();
-        if (user && user.id) {
-            setUserId(user.id);
-            setIsAuthenticated(true);
-            appendLog('User authenticated successfully.');
-        } else {
-            throw new Error('User authentication failed.');
-        }
-    } catch (error) {
-        appendLog(`Error initializing services: ${error.message}`);
-        console.error("Error initializing services:", error);
-        handleLogin();
-    }
+    const segmentationService = await tryGetService(server, "Acquiring Segmentation", "agent-lens/interactive-segmentation", "interactive-segmentation");
+    setSegmentService(segmentationService);
+    const microscopeControlService = await tryGetService(server, "Microscope Control", "agent-lens/microscope-control-squid-test");
+    setMicroscopeControl(microscopeControlService);
+    const similarityService = await tryGetService(server, "Similarity Search", "agent-lens/image-embedding-similarity-search", "image-embedding-similarity-search");
+    setSimilarityService(similarityService);
 };
-
-const setUrlParams = (newUserId, newSessionId) => {
-  const newUrl = urlPlusParam({
-      userId: newUserId,
-      sessionId: newSessionId,
-  });
-  window.history.replaceState({}, '', newUrl);
-};
-
-useEffect(() => {
-    if (userId && sessionId) {
-        updateUrlParams(userId, sessionId);
-    }
-}, [userId, sessionId]);
 
 useEffect(() => {
     const statusInterval = setInterval(async () => {
@@ -424,6 +320,65 @@ useEffect(() => {
     }
   }, [illuminationChannel, BrightFieldIntensity, BrightFieldCameraExposure, Fluorescence405Intensity, Fluorescence405CameraExposure, Fluorescence488Intensity, Fluorescence488CameraExposure, Fluorescence561Intensity, Fluorescence561CameraExposure, Fluorescence638Intensity, Fluorescence638CameraExposure, Fluorescence730Intensity, Fluorescence730CameraExposure]);
   
+  const tryGetService = async(server, name, remoteId, localId = null) => {
+    try {
+      appendLog(`Acquiring ${name} service...`);
+      const svc = await getService(server, remoteId, localId);
+      appendLog(`${name} service acquired.`);
+      return svc;
+    } catch (error) {
+      appendLog(`Error acquiring ${name} service: ${error.message}`);
+      return null;
+    }
+  };
+
+  const login_callback = (context) => {
+    window.open(context.login_url);
+  }
+  
+  const login = async() => {
+    const serverUrl = "https://hypha.aicell.io";
+    let token = localStorage.getItem("token");
+    if (token) {
+      const tokenExpiry = localStorage.getItem("tokenExpiry");
+      if (tokenExpiry && new Date(tokenExpiry) > new Date()) {
+        console.log("Using saved token:", token);
+        return token;
+      }
+    }
+    token = await hyphaWebsocketClient.login({
+      server_url: serverUrl,
+      login_callback: login_callback,
+    });
+    localStorage.setItem("token", token);
+    localStorage.setItem(
+      "tokenExpiry",
+      new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString()
+    );
+    return token;
+  }
+
+
+  const getServerUrl = () => {
+    return getUrlParam("server") || window.location.origin;
+  }
+
+  const getUrlParam = (param_name) => {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get(param_name);
+  }
+
+  const isLocal = () => {
+    const serverUrl = getServerUrl();
+    return serverUrl.includes("127.0.0.1") || serverUrl.includes("localhost");
+  }
+
+  const getService = async (server, remoteId, localId = null) => {
+    const serviceId = localId && isLocal()? localId : remoteId;
+    const svc = await server.getService(serviceId);
+    return svc;
+  }
+
   const handleImageClick = async (coordinate) => {
     if (!isPenActive || !segmentService || !snapshotImage) return;
   
@@ -484,15 +439,19 @@ useEffect(() => {
   };
 
   useEffect(() => {
-    if (map) {
+    if (map && userId) {
       // Remove existing image layer if any
       if (imageLayer) {
         map.removeLayer(imageLayer);
       }
+
+      const tileUrl = isLocal()?
+        `https://hypha.aicell.io/${userId}/apps/microscope-control/tiles`
+        : "https://hypha.aicell.io/agent-lens/apps/microscope-control/tiles";
   
       const tileLayer = new TileLayer({
         source: new XYZ({
-          url: 'http://localhost:8000/{z}/{x}/{y}.jpeg', // Update with your tile server URL
+          url: `${tileUrl}/{z}/{x}/{y}.jpg`, // Update with your tile server URL
           crossOrigin: 'anonymous',
           tileSize: 256,
           maxZoom: 10, // Adjust based on your generated tiles
@@ -502,7 +461,7 @@ useEffect(() => {
       map.addLayer(tileLayer);
       setImageLayer(tileLayer);
     }
-  }, [map]);
+  }, [map, userId]);
   
   
   useEffect(() => {
@@ -733,40 +692,40 @@ useEffect(() => {
   };
   
 
-  const handleSimilaritySearch = async () => {
-    console.log(
-      snapshotImage,
-      similarityService,
-      numSimilarResults
-    );
+  // const handleSimilaritySearch = async () => {
+  //   console.log(
+  //     snapshotImage,
+  //     similarityService,
+  //     numSimilarResults
+  //   );
 
-    if (!snapshotImage || !similarityService) {
-      appendLog('No image or service available for similarity search.');
-      return;
-    }
-    setIsLoading(true);
-    appendLog('Starting similarity search...');
-    try {
-        // Fetch the image data as a Blob
-        const response = await fetch(snapshotImage);
-        const blob = await response.blob();
-        // Convert Blob to ArrayBuffer
-        const arrayBuffer = await new Response(blob).arrayBuffer();
-        // Convert ArrayBuffer to Uint8Array
-        const uint8Array = new Uint8Array(arrayBuffer);
-        const imageData = {
-            name: 'snapshot'
-        };
-        const results = await similarityService.find_similar_images(uint8Array, imageData, parseInt(numSimilarResults));
-        appendLog(`Found ${results.length} similar images.`);
-        // Save the results to the state
-        setSearchResults(results);
-    } catch (error) {
-        appendLog(`Error searching for similar images: ${error.message}`);
-    } finally {
-        setIsLoading(false);
-    }
-  };
+  //   if (!snapshotImage || !similarityService) {
+  //     appendLog('No image or service available for similarity search.');
+  //     return;
+  //   }
+  //   setIsLoading(true);
+  //   appendLog('Starting similarity search...');
+  //   try {
+  //       // Fetch the image data as a Blob
+  //       const response = await fetch(snapshotImage);
+  //       const blob = await response.blob();
+  //       // Convert Blob to ArrayBuffer
+  //       const arrayBuffer = await new Response(blob).arrayBuffer();
+  //       // Convert ArrayBuffer to Uint8Array
+  //       const uint8Array = new Uint8Array(arrayBuffer);
+  //       const imageData = {
+  //           name: 'snapshot'
+  //       };
+  //       const results = await similarityService.find_similar_images(uint8Array, imageData, parseInt(numSimilarResults));
+  //       appendLog(`Found ${results.length} similar images.`);
+  //       // Save the results to the state
+  //       setSearchResults(results);
+  //   } catch (error) {
+  //       appendLog(`Error searching for similar images: ${error.message}`);
+  //   } finally {
+  //       setIsLoading(false);
+  //   }
+  // };
 
   const autoFocus = async () => {
     if (!microscopeControl) return;
@@ -996,20 +955,6 @@ useEffect(() => {
         <button onClick={handleLogin} className="btn btn-primary">
           Log in to Hypha
         </button>
-        <p>After logging in, copy the access token and paste it below:</p>
-        <input
-          type="text"
-          className="form-control"
-          placeholder="Paste your token here"
-          value={manualToken}
-          onChange={(e) => setManualToken(e.target.value)}
-        />
-        <button onClick={handleManualTokenSubmit} className="btn btn-success mt-2">
-          Submit Token
-        </button>
-        <div className="log-content">
-          <pre id="log-text">{log}</pre>
-        </div>
       </div>
       ) : (
         <>
@@ -1032,14 +977,14 @@ useEffect(() => {
               <i className="fas fa-cog icon"></i>
             </button>
   
-            <button
+            {/* <button
               id="search-similar-images"
               className="search-button"
               onClick={handleSimilaritySearch}
               disabled={!snapshotImage}
             >
               <i className="fas fa-search icon"></i> Search Similar 
-            </button>
+            </button> */}
   
             <select
               id="segmentation-model"
