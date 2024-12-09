@@ -1,5 +1,4 @@
 import asyncio
-from hypha_rpc import connect_to_server, login
 import sqlite3
 import numpy as np
 import clip
@@ -13,6 +12,8 @@ import os
 import base64
 from datetime import datetime
 import uuid
+from src.backend.artifact_manager import ArtifactManager
+from src.backend.utils import make_service
 
 dotenv.load_dotenv()
 
@@ -164,8 +165,8 @@ def save_cell_image(cell_image, mask=None, annotation=""):
         traceback.print_exc()
         return {"status": "error", "message": str(e)}
     
-async def start_hypha_service(server):
-    await server.register_service(
+async def setup_service():
+    await make_service(
         {
             "id": "image-embedding-similarity-search",
             "config":{
@@ -176,25 +177,10 @@ async def start_hypha_service(server):
             "type": "echo",
             "find_similar_cells": find_similar_cells,
             "save_cell_image": save_cell_image,
-        },
+        }
     )
-
-async def setup(workspace=None, server_url="https://hypha.aicell.io"):
-    token = os.environ.get("WORKSPACE_TOKEN")
-    if token is None or workspace is None:
-        token = os.environ.get("PERSONAL_TOKEN")
-    
-    server = await connect_to_server({
-        "server_url": server_url,
-        "token": token,
-        "method_timeout": 500,
-        **({"workspace": workspace} if workspace else {}),
-    })
-    await start_hypha_service(server)
-    print(f"Image embedding and similarity search service registered at workspace: {server.config.workspace}")
-    print(f"Test it with the HTTP proxy: {server_url}/{server.config.workspace}/services/image-embedding-similarity-search")
  
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
-    loop.create_task(setup())
+    loop.create_task(setup_service())
     loop.run_forever()

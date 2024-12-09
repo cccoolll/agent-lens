@@ -4,13 +4,13 @@ import dotenv
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from hypha_rpc import connect_to_server, login
+from src.backend.utils import make_service
 
 dotenv.load_dotenv()
 
 # TODO: change dist/index.html src="assets/..." instead of "/assets/..."
 # Or fix this
-async def start_hypha_server(server, service_id):
+def get_frontend_api():
     app = FastAPI()
     frontend_dir = os.path.join(os.path.dirname(__file__), "../frontend")
     tiles_dir = os.path.join(frontend_dir, "tiles_output")
@@ -26,7 +26,12 @@ async def start_hypha_server(server, service_id):
     async def root():
         return FileResponse(os.path.join(dist_dir, "index.html"))
 
-    await server.register_service(
+    return serve_fastapi
+    
+async def setup(workspace=None, server_url="https://hypha.aicell.io"):
+    serve_fastapi = get_frontend_api()
+    service_id = "microscope-control"
+    await make_service(
         {
             "id": service_id,
             "name": "Microscope Control",
@@ -35,22 +40,6 @@ async def start_hypha_server(server, service_id):
             "config": {"visibility": "public"},
         }
     )
-    
-async def setup(workspace=None, server_url="https://hypha.aicell.io"):
-    token = os.environ.get("WORKSPACE_TOKEN")
-    if token is None or workspace is None:
-        token = os.environ.get("PERSONAL_TOKEN")
-    
-    server = await connect_to_server({
-        "server_url": server_url,
-         "method_timeout": 500,
-         "token": token,
-         **({"workspace": workspace} if workspace else {}),
-    })
-    
-    await start_hypha_server(server, "microscope-control")
-    print(f"Frontend service registered at workspace: {server.config.workspace}")
-    print(f"Test it with the HTTP proxy: {server_url}/{server.config.workspace}/apps/microscope-control")
  
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
