@@ -3,6 +3,7 @@ import sqlite3
 import clip
 import torch
 from PIL import Image
+# from artifact_manager import ArtifactManager
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import shutil
@@ -49,6 +50,17 @@ c.execute('''
     )
 ''')
 conn.commit()
+
+# artifact_manager = ArtifactManager()
+# artifact_manager.setup(0, 0)
+# artifact_manager.create_vector_collection(
+#     "images", {
+#       "name": "Images",
+#       "description": "Collection of images",
+#    },
+#   overwrite=True
+# )
+
 
 def process_image(image_path, datatype):
     """Processes a single image to generate an embedding and extract metadata.
@@ -115,12 +127,19 @@ def store_images(image_folder, datatype, max_workers=10):
                     INSERT OR REPLACE INTO images (id, vector, image_path, fluorescent_channel)
                     VALUES (?, ?, ?, ?)
                 ''', (image_id, image_features.astype(np.float32).tobytes(), absolute_path, fluorescent_channel))
+                # artifact_manager.add_vectors("images", {
+                #    "id": image_id,
+                #    "vector": image_features.astype(np.float32).tolist(),
+                #    "image_path": absolute_path,
+                #    "fluorescent_channel": fluorescent_channel
+                # })
                 conn.commit()
                 print(f"Stored {image_id} with fluorescent channel: {fluorescent_channel}")
 
 def verify_images():
     """Retrieves and prints stored image metadata for verification."""
     c.execute('SELECT id, vector, image_path, fluorescent_channel FROM images')
+    # rows = await artifact_manager.list_vectors("images")
     rows = c.fetchall()
     for row in rows:
         img_id, img_vector, img_path, fluorescent_channel = row

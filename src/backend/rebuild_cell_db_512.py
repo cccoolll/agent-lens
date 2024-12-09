@@ -25,9 +25,20 @@ def rebuild_cell_database():
         )
     ''')
     
+    # artifact_manager = ArtifactManager()
+    # artifact_manager.setup(0, 0)
+    # artifact_manager.create_vector_collection(
+    #     "cell-images", {
+    #       "name": "Cell Images",
+    #       "description": "Collection of cell images",
+    #    },
+    #   overwrite=True
+    # )
+    
     try:
         # Get existing records
         c.execute('SELECT id, file_name, annotation FROM cell_images')
+        # rows = await artifact_manager.list_vectors("cell-images")
         rows = c.fetchall()
         print(f"Found {len(rows)} existing records")
         
@@ -43,6 +54,7 @@ def rebuild_cell_database():
             )
         ''')
         
+        # new_rows = []
         # Process each record
         for row in rows:
             cell_id, file_name, annotation = row
@@ -65,6 +77,7 @@ def rebuild_cell_database():
                     'INSERT INTO cell_images_new (file_name, vector, annotation) VALUES (?, ?, ?)',
                     (file_name, vector.tobytes(), annotation)
                 )
+                # new_rows.append((cell_id, file_name, vector, annotation))
             else:
                 print(f"Warning: File not found: {file_path}")
         
@@ -72,10 +85,13 @@ def rebuild_cell_database():
         c.execute('DROP TABLE IF EXISTS cell_images')
         c.execute('ALTER TABLE cell_images_new RENAME TO cell_images')
         conn.commit()
+        # await artifact_manager.delete_all_vectors("cell-images")
+        # await artifact_manager.add_vectors("cell-images", *new_rows)
         
         # Verify the rebuild
         c.execute('SELECT COUNT(*) FROM cell_images')
         final_count = c.fetchone()[0]
+        # final_count = len(await artifact_manager.list_vectors("cell-images"))
         print(f"Database rebuilt successfully with {final_count} records")
         
     except Exception as e:
@@ -91,7 +107,7 @@ def verify_vectors():
     
     c.execute('SELECT id, vector FROM cell_images')
     rows = c.fetchall()
-    
+    # rows = await artifact_manager.list_vectors("cell-images")
     print(f"Verifying {len(rows)} vectors...")
     for row in rows:
         vector = np.frombuffer(row[1], dtype=np.float32)
