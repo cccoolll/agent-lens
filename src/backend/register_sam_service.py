@@ -312,12 +312,12 @@ def segment_all_cells(model_name: str, image_bytes: bytes) -> dict:
     logger.info(f"Segmented {len(bounding_boxes)} cells.")
     return {"bounding_boxes": bounding_boxes, "masks": mask_data}
 
-async def setup_service() -> None:
+async def setup_service(server=None) -> None:
     """
     Register the SAM annotation service on the BioImageIO Colab workspace.
     """
     await make_service(
-        {
+        service={
             "name": "Interactive Segmentation",
             "id": "interactive-segmentation",
             "config": {
@@ -331,7 +331,8 @@ async def setup_service() -> None:
             "segment_with_existing_embedding": segment_with_existing_embedding,
             "reset_embedding": reset_embedding,
             "segment_all_cells": segment_all_cells,
-        }
+        },
+        server=server,
     )
 
 if __name__ == "__main__":

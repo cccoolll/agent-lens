@@ -28,17 +28,18 @@ def get_frontend_api():
 
     return serve_fastapi
     
-async def setup(workspace=None, server_url="https://hypha.aicell.io"):
+async def setup_service(server=None):
     serve_fastapi = get_frontend_api()
     service_id = "microscope-control"
     await make_service(
-        {
+        service={
             "id": service_id,
             "name": "Microscope Control",
             "type": "asgi",
             "serve": serve_fastapi,
             "config": {"visibility": "public"},
-        }
+        },
+        server=server
     )
  
 if __name__ == "__main__":

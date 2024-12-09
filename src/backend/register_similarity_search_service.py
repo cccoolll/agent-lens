@@ -165,9 +165,9 @@ def save_cell_image(cell_image, mask=None, annotation=""):
         traceback.print_exc()
         return {"status": "error", "message": str(e)}
     
-async def setup_service():
+async def setup_service(server=None):
     await make_service(
-        {
+        service={
             "id": "image-embedding-similarity-search",
             "config":{
                 "visibility": "public",
@@ -177,7 +177,8 @@ async def setup_service():
             "type": "echo",
             "find_similar_cells": find_similar_cells,
             "save_cell_image": save_cell_image,
-        }
+        },
+        server=server
     )
  
 if __name__ == "__main__":

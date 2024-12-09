@@ -12,7 +12,7 @@ import XYZ from 'ol/source/XYZ';
 import 'ol/ol.css';
 import Map from 'ol/Map';
 import View from 'ol/View';
-import Projection from 'ol/proj/Projection';
+import { Projection, addProjection } from 'ol/proj';
 import ImageLayer from 'ol/layer/Image';
 import ImageStatic from 'ol/source/ImageStatic';
 import VectorLayer from 'ol/layer/Vector';
@@ -187,12 +187,14 @@ useEffect(() => {
         extent: extent,
       });
 
+      addProjection(projection);
+
       // Initialize the map
       const initialMap = new Map({
-        target: mapRef.current,
+        target: "map",
         layers: [],
         view: new View({
-          projection: projection,
+          projection: "deepzoom-image",
           center: [imageWidth / 2, imageHeight / 2],
           zoom: 2,
           minZoom: 0,
@@ -203,53 +205,38 @@ useEffect(() => {
 
       setMap(initialMap);
     }
-
-    // Clean up on unmount
-    return () => {
-      if (map) {
-        map.setTarget(null);
-      }
-    };
-  }, [mapRef.current]);
+  }, [isAuthenticated]);
 
   useEffect(() => {
-    if (map && snapshotImage) {
+    if (map && userId) {
       // Remove existing image layer if any
       if (imageLayer) {
         map.removeLayer(imageLayer);
       }
-  
-      const img = new Image();
-      img.onload = () => {
-        const imgWidth = img.naturalWidth;
-        const imgHeight = img.naturalHeight;
-        const extent = [0, 0, imgWidth, imgHeight];
-  
-        const imageSource = new ImageStatic({
-          url: snapshotImage,
-          imageExtent: extent,
-          projection: map.getView().getProjection(),
-        });
-  
-        const newImageLayer = new ImageLayer({
-          source: imageSource,
-        });
-  
-        map.addLayer(newImageLayer);
-        setImageLayer(newImageLayer);
-  
-        // Fit the map view to the image extent
-        map.getView().fit(extent, { size: map.getSize() });
-      };
-  
-      img.onerror = (error) => {
-        appendLog(`Failed to load image: ${error.message || error}`);
-        console.error('Failed to load image', error);
-      };
-  
-      img.src = snapshotImage;
+      const extent = [0, 0, 2048, 2048];
+
+      const tileUrl = isLocal()?
+      `https://hypha.aicell.io/${userId}/apps/microscope-control/tiles`
+      : "https://hypha.aicell.io/agent-lens/apps/microscope-control/tiles";
+
+
+      const tileLayer = new TileLayer({
+        source: new XYZ({
+          url: `${tileUrl}/{z}/{x}/{y}.jpg`, // Update with your tile server URL
+          crossOrigin: 'anonymous',
+          tileSize: 256,
+          maxZoom: 10, // Adjust based on your generated tiles
+          projection: "deepzoom-image",
+        }),
+      });
+
+      map.addLayer(tileLayer);
+      setImageLayer(tileLayer);
+
+      // Fit the map view to the image extent
+      map.getView().fit(extent, { size: map.getSize() });
     }
-  }, [map, snapshotImage]);
+  }, [map, isAuthenticated, userId]);
   
   useEffect(() => {
     return () => {
@@ -437,32 +424,6 @@ useEffect(() => {
         appendLog(`Error in segmentation: ${error.message}`);
     }
   };
-
-  useEffect(() => {
-    if (map && userId) {
-      // Remove existing image layer if any
-      if (imageLayer) {
-        map.removeLayer(imageLayer);
-      }
-
-      const tileUrl = isLocal()?
-        `https://hypha.aicell.io/${userId}/apps/microscope-control/tiles`
-        : "https://hypha.aicell.io/agent-lens/apps/microscope-control/tiles";
-  
-      const tileLayer = new TileLayer({
-        source: new XYZ({
-          url: `${tileUrl}/{z}/{x}/{y}.jpg`, // Update with your tile server URL
-          crossOrigin: 'anonymous',
-          tileSize: 256,
-          maxZoom: 10, // Adjust based on your generated tiles
-        }),
-      });
-  
-      map.addLayer(tileLayer);
-      setImageLayer(tileLayer);
-    }
-  }, [map, userId]);
-  
   
   useEffect(() => {
     if (map) {
@@ -960,14 +921,11 @@ useEffect(() => {
         <>
           <div id="image-display">
             {/* Image Display Window */}
-            {snapshotImage ? (
-              <div
-                ref={mapRef}
-                style={{ width: '100%', height: '100%' }}
-              ></div>
-            ) : (
-              <p className="placeholder-text">Image Display</p>
-            )}
+            <div
+              id='map'
+              ref={mapRef}
+              style={{ width: '100%', height: '100%' }}
+            ></div>
   
             {/* Toggle Control Section Button */}
             <button
