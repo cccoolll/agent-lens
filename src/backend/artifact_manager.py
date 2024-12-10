@@ -11,13 +11,14 @@ class ArtifactManager:
     def _artifact_id(self, name):
         return f"ws-user-{self.user_id}/agent-lens-{name}"
         
-    async def create_vector_collection(self, name, manifest, overwrite=False):
+    async def create_vector_collection(self, name, manifest, config, overwrite=False):
         art_id = self._artifact_id(name)
         try:
             await self._svc.create(
                 alias=name,
                 type="vector-collection",
-                manifest=manifest
+                manifest=manifest,
+                config=config,
             )
         except Exception:
             if overwrite:

@@ -44,5 +44,5 @@ async def setup_service(server=None):
  
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
-    loop.create_task(setup())
+    loop.create_task(setup_service())
     loop.run_forever()

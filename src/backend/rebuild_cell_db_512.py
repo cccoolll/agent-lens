@@ -5,35 +5,14 @@ import sqlite3
 import os
 from PIL import Image
 import numpy as np
+from src.backend.register_similarity_search_service import get_artifacts
 
 # Load the CLIP model
 device = "cuda" if torch.cuda.is_available() else "cpu"
 model, preprocess = clip.load("ViT-B/32", device=device)  # Use ViT-B/32 for 512-dim vectors
 
-def rebuild_cell_database():
-    conn = sqlite3.connect('cell_vectors_db.db')
-    c = conn.cursor()
-    
-    # Create table if it doesn't exist
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS cell_images (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            file_name TEXT NOT NULL,
-            vector BLOB NOT NULL,
-            annotation TEXT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # artifact_manager = ArtifactManager()
-    # artifact_manager.setup(0, 0)
-    # artifact_manager.create_vector_collection(
-    #     "cell-images", {
-    #       "name": "Cell Images",
-    #       "description": "Collection of cell images",
-    #    },
-    #   overwrite=True
-    # )
+def rebuild_cell_database():    
+    artifact_manager = get_artifacts()
     
     try:
         # Get existing records

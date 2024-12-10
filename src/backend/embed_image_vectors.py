@@ -3,7 +3,7 @@ import sqlite3
 import clip
 import torch
 from PIL import Image
-# from artifact_manager import ArtifactManager
+from artifact_manager import ArtifactManager
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import shutil
@@ -51,15 +51,14 @@ c.execute('''
 ''')
 conn.commit()
 
-# artifact_manager = ArtifactManager()
-# artifact_manager.setup(0, 0)
-# artifact_manager.create_vector_collection(
-#     "images", {
-#       "name": "Images",
-#       "description": "Collection of images",
-#    },
-#   overwrite=True
-# )
+artifact_manager = ArtifactManager()
+artifact_manager.create_vector_collection(
+    "images", {
+      "name": "Images",
+      "description": "Collection of images",
+   },
+  overwrite=True
+)
 
 
 def process_image(image_path, datatype):

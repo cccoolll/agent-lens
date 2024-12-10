@@ -24,45 +24,53 @@ dotenv.load_dotenv()
 device = "cuda" if torch.cuda.is_available() else "cpu"
 model, preprocess = clip.load("ViT-B/32", device=device)
 
-def get_cell_db_connection():
-    conn = sqlite3.connect('cell_vectors_db.db')
-  # Create table if it doesn't exist
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS cell_images (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            file_name TEXT NOT NULL,
-            vector BLOB NOT NULL,
-            annotation TEXT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    # artifact_manager = ArtifactManager()
-    # artifact_manager.setup(0, 0)
-    # artifact_manager.create_vector_collection(
-    #     "cell-images", {
-    #       "name": "Cell Images",
-    #       "description": "Collection of cell images",
-    #    }    # )
-    return conn, conn.cursor()
+async def get_artifacts():
+    artifact_manager = ArtifactManager()
+    await artifact_manager.create_vector_collection(
+        name="cell-images",
+        manifest={
+          "name": "Cell Images",
+          "description": "Collection of cell images",
+       },
+       config={
+            "vector_fields": [
+                {
+                    "type": "VECTOR",
+                    "name": "vector",
+                    "algorithm": "FLAT",
+                    "attributes": {
+                        "TYPE": "FLOAT32",
+                        "DIM": 384,
+                        "DISTANCE_METRIC": "COSINE",
+                    },
+                },
+                {"type": "TEXT", "name": "file_name"},
+                {"type": "TEXT", "name": "annotation"},
+                {"type": "DATE", "name": "timestamp"},
+            ],
+            "embedding_models": {
+                "vector": "fastembed:BAAI/bge-small-en-v1.5",
+            },
+       },
+    )
+    return artifact_manager
 
-def load_cell_vectors_from_db():
-    conn, c = get_cell_db_connection()
-    c.execute('SELECT id, vector, file_name, annotation FROM cell_images')
-    rows = c.fetchall()
-    conn.close()
-
+async def load_cell_vectors_from_db():
+    artifact_manager = await get_artifacts()
+    
     cell_ids = []
     cell_vectors = []
     cell_paths = {}
     cell_annotations = {}
+    
+    vectors = artifact_manager.list_vectors("cell-images")
 
-    for row in rows:
-        cell_id, cell_vector, file_name, annotation = row
-        cell_vector = np.frombuffer(cell_vector, dtype=np.float32)
-        cell_ids.append(cell_id)
+    for vector in vectors:
+        cell_vector = np.frombuffer(vector["vector"], dtype=np.float32)
+        cell_ids.append(vector["id"])
         cell_vectors.append(cell_vector)
-        cell_paths[cell_id] = os.path.join('cell_vectors_db', file_name)
-        cell_annotations[cell_id] = annotation
+        cell_paths[vector["id"]] = vector["file_name"]
+        cell_annotations[vector["id"]] = vector["annotation"]
     print(f"Loaded {len(cell_ids)} cell vectors")
     print(f"Cell vector shape: {cell_vectors[0].shape}")
     return cell_ids, np.array(cell_vectors) if cell_vectors else None, cell_paths, cell_annotations
@@ -74,9 +82,9 @@ def build_faiss_index(vectors):
     faiss_index.add(vectors.astype(np.float32))
     return faiss_index
   
-def find_similar_cells(input_cell_image, original_filename=None, top_k=5):
+async def find_similar_cells(input_cell_image, original_filename=None, top_k=5):
     try:
-        cell_ids, cell_vectors, cell_paths, cell_annotations = load_cell_vectors_from_db()
+        cell_ids, cell_vectors, cell_paths, cell_annotations = await load_cell_vectors_from_db()
         
         if cell_vectors is None:
             return {"status": "error", "message": "No cells in database yet"}
@@ -129,34 +137,27 @@ def find_similar_cells(input_cell_image, original_filename=None, top_k=5):
         traceback.print_exc()
         return {"status": "error", "message": str(e)}
 
-def save_cell_image(cell_image, mask=None, annotation=""):
+def save_cell_image(cell_image, artifact_manager, annotation=""):
     try:
 
         # Generate unique filename with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         unique_id = str(uuid.uuid4())[:8]
         filename = f"cell_{timestamp}_{unique_id}.png"
-
-        # Save image file
-        os.makedirs('cell_vectors_db', exist_ok=True)
-        file_path = os.path.join('cell_vectors_db', filename)
-        with open(file_path, 'wb') as f:
-            f.write(cell_image)
-
         # Generate vector from image
         image = Image.open(io.BytesIO(cell_image)).convert("RGB")
         image_input = preprocess(image).unsqueeze(0).to(device)
         with torch.no_grad():
             vector = model.encode_image(image_input).cpu().numpy().flatten()
-
-        # Save to database
-        conn, c = get_cell_db_connection()
-        c.execute(
-            'INSERT INTO cell_images (file_name, vector, annotation) VALUES (?, ?, ?)',
-            (filename, vector.astype(np.float32).tobytes(), annotation)
-        )
-        conn.commit()
-        conn.close()
+        
+        vector_to_add = {
+            "file_name": filename,
+            "vector": vector.astype(np.float32).tolist(),
+            "annotation": annotation,
+            "timestamp": timestamp,
+        }
+        artifact_manager.add_vectors("cell-images", vector_to_add)
+        artifact_manager.add_file("cell-images", filename, cell_image)
 
         return {"status": "success", "filename": filename}
 
