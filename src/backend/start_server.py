@@ -1,7 +1,6 @@
 import sys
 import subprocess
 import argparse
-import hypha_rpc
 
 def main():
     parser = argparse.ArgumentParser(description="Start the Hypha server")

@@ -94,6 +94,13 @@
     sh scripts/run_dev.sh
     ```
 
+3. **Access the application:**
+
+   Open the browser and navigate to one of the following URLs:
+   - localhost:9000/public/apps/microscope-control
+   - 0.0.0.0:9000/public/apps/microscope-control
+   - 127.0.0.1:9000/public/apps/microscope-control
+
 ## Configuration
 
 - **Microscope Control Service**: Ensure that the microscope control backend service (`microscope-control-squid-test`) is running and accessible.

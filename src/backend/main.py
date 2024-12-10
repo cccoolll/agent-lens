@@ -5,12 +5,10 @@ from src.backend import (
     register_similarity_search_service,
 )
 
-def setup(server=None):
-    loop = asyncio.get_event_loop()
-    loop.create_task(register_frontend_service.setup_service(server))
-    loop.create_task(register_sam_service.setup_service(server))
-    loop.create_task(register_similarity_search_service.setup_service(server))
-    loop.run_forever()
+async def setup(server=None):
+    await register_frontend_service.setup_service(server)
+    await register_sam_service.setup_service(server)
+    await register_similarity_search_service.setup_service(server)
 
 if __name__ == "__main__":
-    setup()    
+    asyncio.run(setup())

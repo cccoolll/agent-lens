@@ -22,16 +22,17 @@ async def get_server(token, workspace=None, server_url="https://hypha.aicell.io"
     
     return server
 
-async def register_service(service, workspace=None, server_url=None, server=None):
+async def register_service(service, workspace=None, server_url="https://hypha.aicell.io", server=None):
     if server is None:
         token = get_token(workspace)
         server = await get_server(token, workspace, server_url)
-    await server.register_service(service)
+    else:
+        await server.register_service(service)
+        server_url = "0.0.0.0:9000"
     
-    print(f"Service registered at workspace: {server.config.workspace}")
-    print(f"Test it with the HTTP proxy: {server.config.server_url}/{server.config.workspace}/services/{service['id']}")
+    print(f"Service registered at: {server_url}/{server.config.workspace}/services/{service['id']}")
     
-def get_service_args(service_id, default_server_url="https://hypha.aicell.io", default_workspace="agent-lens"):
+def get_service_args(service_id, default_server_url="https://hypha.aicell.io", default_workspace=None):
     parser = argparse.ArgumentParser(
         description=f"Register {service_id} service on given workspace."
     )
@@ -48,7 +49,7 @@ def get_service_args(service_id, default_server_url="https://hypha.aicell.io", d
     
     return parser.parse_args()
 
-async def make_service(service, default_workspace=None, default_server_url=None, server=None):
+async def make_service(service, default_workspace=None, default_server_url="https://hypha.aicell.io", server=None):
     if server is None:
         service_args = get_service_args(service["id"], default_server_url, default_workspace)
         await register_service(service, service_args.workspace_name, service_args.server_url, server)

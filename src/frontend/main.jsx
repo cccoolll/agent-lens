@@ -216,7 +216,7 @@ useEffect(() => {
       const extent = [0, 0, 2048, 2048];
 
       const tileUrl = isLocal()?
-      `https://hypha.aicell.io/${userId}/apps/microscope-control/tiles`
+      `${window.location.protocol}//${window.location.hostname}:9000/public/apps/microscope-control/tiles`
       : "https://hypha.aicell.io/agent-lens/apps/microscope-control/tiles";
 
 
@@ -357,7 +357,8 @@ useEffect(() => {
 
   const isLocal = () => {
     const serverUrl = getServerUrl();
-    return serverUrl.includes("127.0.0.1") || serverUrl.includes("localhost");
+    const localHosts = ["127.0.0.1", "localhost", "0.0.0.0"];
+    return localHosts.includes(new URL(serverUrl).hostname);
   }
 
   const getService = async (server, remoteId, localId = null) => {
