@@ -80,9 +80,10 @@
     ```bash
     WORKSPACE_TOKEN=<agent-lens_workspace_token>
     PERSONAL_TOKEN=<personal_workspace_token>
+    JWT_SECRET=<any-integer>
     ```
 
-  You can get the `agent-lens_workspace_token` and `personal_workspace_token` from [Hypha](https://hypha.aicell.io).
+  You can get the `agent-lens_workspace_token` and `personal_workspace_token` from [Hypha](https://hypha.aicell.io). The `JWT_SECRET` can be any integer, e.g. 1337.
 
 1. **Run the setup script:**
     ```bash

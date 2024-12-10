@@ -9,5 +9,5 @@ kaibu_utils==0.1.14
 requests==2.32.3
 python-dotenv==1.0.1
 opencv-python==4.10.0.84
-fastapi==0.115.5
+fastapi==0.106.0
 clip @ git+https://github.com/openai/CLIP.git
