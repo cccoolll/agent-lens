@@ -1,3 +1,5 @@
+import requests
+
 class ArtifactManager:
     def __init__(self):
         self._svc = None
@@ -33,7 +35,25 @@ class ArtifactManager:
         )
         await self._svc.commit(art_id)
         
+    async def clear_vectors(self, coll_name):
+        # TODO: Fix
+        art_id = self._artifact_id(coll_name)
+        vectors = await self._svc.list_vectors(art_id)
+        for vector in vectors:
+            await self._svc.delete_vector(art_id, vector["id"])
+        await self._svc.commit(art_id)
+        
     async def list_vectors(self, coll_name):
         art_id = self._artifact_id(coll_name)
         return await self._svc.list_vectors(art_id)
         
+    async def search_vectors(self, coll_name, vector, top_k=None):
+        art_id = self._artifact_id(coll_name)
+        return await self._svc.search_vectors(artifact_id=art_id, query={"vector": vector}, limit=top_k)
+    
+    async def add_file(self, coll_name, file_content, file_path):
+        art_id = self._artifact_id(coll_name)
+        put_url = await self._svc.put_file(art_id, file_path, download_weight=1.0)
+        response = requests.put(put_url, data=file_content, timeout=500)
+        assert response.ok, "File upload failed"
+        await self._svc.commit(art_id)

@@ -1,4 +1,5 @@
 import asyncio
+from backend import register_tiling_service
 from src.backend import (
     register_frontend_service,
     register_sam_service,

@@ -1,103 +1,41 @@
-# save as rebuild_db_512.py
-import clip
-import torch
-import sqlite3
-import os
-from PIL import Image
-import numpy as np
-from src.backend.register_similarity_search_service import get_artifacts
+from src.backend.utils import process_image_tensor, create_collection
 
-# Load the CLIP model
-device = "cuda" if torch.cuda.is_available() else "cpu"
-model, preprocess = clip.load("ViT-B/32", device=device)  # Use ViT-B/32 for 512-dim vectors
+def get_vector_fields():
+    return [{
+            "type": "VECTOR",
+            "name": "image_features",
+            "algorithm": "FLAT",
+            "attributes": {
+                "TYPE": "FLOAT32",
+                "DIM": 512,
+                "DISTANCE_METRIC": "COSINE",
+            },
+        },
+        {
+            "type": "VECTOR",
+            "name": "image_tensor",
+            "algorithm": "FLAT",
+            "attributes": {
+                "TYPE": "FLOAT32",
+                "DIM": 512,
+                "DISTANCE_METRIC": "COSINE",
+            },
+        },
+        {"type": "TAG", "name": "annotation"},
+        {"type": "STRING", "name": "timestamp"},
+    ]
 
-def rebuild_cell_database():    
-    artifact_manager = get_artifacts()
-    
-    try:
-        # Get existing records
-        c.execute('SELECT id, file_name, annotation FROM cell_images')
-        # rows = await artifact_manager.list_vectors("cell-images")
-        rows = c.fetchall()
-        print(f"Found {len(rows)} existing records")
-        
-        # Create new table
-        c.execute('DROP TABLE IF EXISTS cell_images_new')
-        c.execute('''
-            CREATE TABLE cell_images_new (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                file_name TEXT NOT NULL,
-                vector BLOB NOT NULL,
-                annotation TEXT,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # new_rows = []
-        # Process each record
-        for row in rows:
-            cell_id, file_name, annotation = row
-            file_path = os.path.join('cell_vectors_db', file_name)
+async def run(artifact_manager):
+    await create_collection(
+        artifact_manager,
+        "cell-images",
+        "Collection of cell images",
+        get_vector_fields()
+    )
+    cell_vectors = await artifact_manager.list_vectors("cell-images")
             
-            if os.path.exists(file_path):
-                print(f"Processing {file_path}")
-                # Regenerate vector with ViT-B/32 model
-                with Image.open(file_path) as img:
-                    image_input = preprocess(img.convert("RGB")).unsqueeze(0).to(device)
-                    with torch.no_grad():
-                        vector = model.encode_image(image_input).cpu().numpy().flatten()
-                
-                # Verify vector dimension
-                if vector.shape[0] != 512:
-                    print(f"Warning: Vector dimension is {vector.shape[0]}, expected 512")
-                    continue
-                
-                c.execute(
-                    'INSERT INTO cell_images_new (file_name, vector, annotation) VALUES (?, ?, ?)',
-                    (file_name, vector.tobytes(), annotation)
-                )
-                # new_rows.append((cell_id, file_name, vector, annotation))
-            else:
-                print(f"Warning: File not found: {file_path}")
+    for cell_vector in cell_vectors:
+        cell_vector["vector"] = process_image_tensor(cell_vector["image_tensor"])
         
-        # Replace old table with new one
-        c.execute('DROP TABLE IF EXISTS cell_images')
-        c.execute('ALTER TABLE cell_images_new RENAME TO cell_images')
-        conn.commit()
-        # await artifact_manager.delete_all_vectors("cell-images")
-        # await artifact_manager.add_vectors("cell-images", *new_rows)
-        
-        # Verify the rebuild
-        c.execute('SELECT COUNT(*) FROM cell_images')
-        final_count = c.fetchone()[0]
-        # final_count = len(await artifact_manager.list_vectors("cell-images"))
-        print(f"Database rebuilt successfully with {final_count} records")
-        
-    except Exception as e:
-        print(f"Error during rebuild: {e}")
-        conn.rollback()
-    finally:
-        conn.close()
-
-def verify_vectors():
-    """Verify vector dimensions in the database"""
-    conn = sqlite3.connect('cell_vectors_db.db')
-    c = conn.cursor()
-    
-    c.execute('SELECT id, vector FROM cell_images')
-    rows = c.fetchall()
-    # rows = await artifact_manager.list_vectors("cell-images")
-    print(f"Verifying {len(rows)} vectors...")
-    for row in rows:
-        vector = np.frombuffer(row[1], dtype=np.float32)
-        if vector.shape[0] != 512:
-            print(f"Warning: Vector {row[0]} has dimension {vector.shape[0]}")
-    
-    conn.close()
-
-if __name__ == "__main__":
-    print("Starting database rebuild...")
-    rebuild_cell_database()
-    print("\nVerifying vector dimensions...")
-    verify_vectors()
-    print("Done!")
+    await artifact_manager.clear_vectors("cell-images")
+    await artifact_manager.add_vectors("cell-images", cell_vectors)

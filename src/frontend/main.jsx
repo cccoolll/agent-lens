@@ -76,6 +76,7 @@ const MicroscopeControl = () => {
   const [segmentService, setSegmentService] = useState(null);
   const [selectedModel, setSelectedModel] = useState('vit_b_lm'); // Default model
   const [similarityService, setSimilarityService] = useState(null);
+  const [setupService, setSetupService] = useState(null);
 
 const handleLogin = async () => {
   const token = await login();
@@ -108,6 +109,9 @@ const initializeServices = async (token) => {
     setMicroscopeControl(microscopeControlService);
     const similarityService = await tryGetService(server, "Similarity Search", "agent-lens/image-embedding-similarity-search", "image-embedding-similarity-search");
     setSimilarityService(similarityService);
+    const setupService = await tryGetService(server, "Setup", "agent-lens/setup");
+    setSetupService(setupService);
+    setupService.setup();
 };
 
 useEffect(() => {

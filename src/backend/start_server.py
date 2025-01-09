@@ -18,7 +18,7 @@ def main():
         f"--public-base-url={args.public_base_url}",
         "--startup-functions=src.backend.main:setup"
     ]
-    subprocess.run(command)
+    subprocess.run(command, check=True)
     
 if __name__ == "__main__":
     main()

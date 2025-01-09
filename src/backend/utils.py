@@ -2,6 +2,12 @@ import os
 import dotenv
 import argparse
 from hypha_rpc import connect_to_server
+import torch
+import clip
+from PIL import Image
+
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+MODEL, PREPROCESS = clip.load("ViT-B/32", device=DEVICE)
 
 def get_token(workspace=None):
     dotenv.load_dotenv()
@@ -55,3 +61,54 @@ async def make_service(service, default_workspace=None, default_server_url="http
         await register_service(service, service_args.workspace_name, service_args.server_url, server)
     else:
         await register_service(service, server=server)
+
+def open_image(image_path):
+    return Image.open(image_path)
+
+def get_image_tensor(image_path):
+    image = open_image(image_path).convert("RGB")
+    return PREPROCESS(image).unsqueeze(0).to(DEVICE)
+
+def process_image_tensor(image_tensor):
+    """Process image tensor with CLIP model and return image features.
+    
+    Args:
+        image_tensor (torch.Tensor): Image tensor.
+        model (CLIP): CLIP model.
+        
+    Returns:
+        np.ndarray: Image features.
+    """
+    with torch.no_grad():
+        image_features = MODEL.encode_image(image_tensor).cpu().numpy().flatten()
+        
+    return image_features
+
+async def create_collection(artifact_manager, name, desc, vector_fields):
+    """Creates a vector collection in the artifact manager for storing image embeddings.
+    
+    Args:
+        artifact_manager (ArtifactManager): The artifact manager instance.
+    """
+    await artifact_manager.create_vector_collection(
+        name=name,
+        manifest={
+            "name": name,
+            "description": desc,
+        },
+        config={
+            "vector_fields": vector_fields,
+            "embedding_models": {
+                "vector": "fastembed:BAAI/bge-small-en-v1.5",
+            },
+        },
+        overwrite=True
+    )
+
+def get_bmp_paths(image_folder):
+    return [
+        os.path.join(dp, f)
+        for dp, dn, filenames in os.walk(image_folder)
+        for f in filenames
+        if os.path.splitext(f)[1].lower() == '.bmp'
+    ]

@@ -1,15 +1,10 @@
 import os
 import asyncio
-import dotenv
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from src.backend.utils import make_service
 
-dotenv.load_dotenv()
-
-# TODO: change dist/index.html src="assets/..." instead of "/assets/..."
-# Or fix this
 def get_frontend_api():
     app = FastAPI()
     frontend_dir = os.path.join(os.path.dirname(__file__), "../frontend")
