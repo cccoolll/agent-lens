@@ -4,13 +4,11 @@ cleanup() {
     kill $PYTHON_PID
 }
 
-npm run build --prefix src/frontend
-
 trap cleanup SIGINT
 export PYTHONPATH=$(pwd)
 python src/backend/start_server.py &
 PYTHON_PID=$!
 
-# npm run start --prefix src/frontend # TODO: make this work
+npm run start --prefix src/frontend
 
 wait $PYTHON_PID

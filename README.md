@@ -55,13 +55,7 @@
     conda activate agent-lens
    ```
 
-2. **Install dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    pip install -e .
-    ```
-
-3. **Install VIPS:**
+2. **Install VIPS:**
 
    - **On Ubuntu/Debian:**
 
@@ -75,6 +69,12 @@
      brew install vips
      ```
 
+3. **Install dependencies:**
+    ```bash
+    pip install --use-pep517 -r requirements.txt
+    pip install -e .
+    ```
+
 4. **Add the following environment variables to a `.env` file:**
 
     ```bash
@@ -83,14 +83,14 @@
     JWT_SECRET=<any-integer>
     ```
 
-  You can get the `agent-lens_workspace_token` and `personal_workspace_token` from [Hypha](https://hypha.aicell.io). The `JWT_SECRET` can be any integer, e.g. 1337.
+  You can get the `agent-lens_workspace_token` and `personal_workspace_token` from [Hypha](https://hypha.aicell.io). The `JWT_SECRET` can be any integer, e.g. `1337`.
 
-1. **Run the setup script:**
+1. **Install npm dependencies:**
     ```bash
-    sh scripts/setup.sh
+    npm install --prefix src/frontend
     ```
 
-2. **Start development services:**
+2. **Start application:**
     ```bash
     sh scripts/run_dev.sh
     ```
@@ -116,12 +116,13 @@ agent-lens/
 │   ├── backend/
 │   │   ├── test/
 │   │   │   └── test_sam_service.py
-│   │   ├── embed_image_vectors.py
+│   │   ├── artifact_manager.py
 │   │   ├── main.py
-│   │   ├── rebuild_cell_db_512.py
 │   │   ├── register_frontend_service.py
-│   │   ├── register-sam-service.py
-│   │   └── register-similarity-search-service.py
+│   │   ├── register_sam_service.py
+│   │   ├── register_similarity_search_service.py
+│   │   ├── service_utils.py
+│   │   └── start_server.py
 │   └── frontend/
 │       ├── img/
 │       │   └── example_image.png
