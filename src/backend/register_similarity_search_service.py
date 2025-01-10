@@ -1,33 +1,24 @@
 import asyncio
 import numpy as np
-from datetime import datetime
 import pyvips
-import uuid
 import io
 import base64
 import torch
 import clip
 from PIL import Image
-from src.backend.utils import make_service
+import tempfile
+from backend.service_utils import make_service
 from src.backend.artifact_manager import ArtifactManager
 
 
-async def tile_image(artifact_manager):
-    input_image = "src/frontend/img/example_image.png"
-
-    vips_image = pyvips.Image.new_from_file(input_image)
-    
-    dz_buffer = vips_image.dzsave_buffer(layout="google")
-    artifact_manager.upload_file("example_image.dzi", dz_buffer)
-
-
-async def create_collection(artifact_manager):
+async def create_collection(artifact_manager, user_id):
     """Creates a vector collection in the artifact manager for storing image embeddings.
     
     Args:
         artifact_manager (ArtifactManager): The artifact manager instance.
     """
     await artifact_manager.create_vector_collection(
+        user_id=user_id,
         name="cell-images",
         manifest={
             "name": "Cell images",
@@ -37,7 +28,7 @@ async def create_collection(artifact_manager):
             "vector_fields": [
                 {
                     "type": "VECTOR",
-                    "name": "image_features",
+                    "name": "vector",
                     "algorithm": "FLAT",
                     "attributes": {
                         "TYPE": "FLOAT32",
@@ -45,9 +36,7 @@ async def create_collection(artifact_manager):
                         "DISTANCE_METRIC": "COSINE",
                     },
                 },
-                {"type": "STRING", "name": "image_id"},
                 {"type": "TAG", "name": "annotation"},
-                {"type": "STRING", "name": "timestamp"},
                 {"type": "STRING", "name": "thumbnail"},
             ],
             "embedding_models": {
@@ -76,6 +65,7 @@ def image_to_vector(input_image, model, preprocess, device, length=512):
     
     return query_vector
 
+
 def make_thumbnail(image, size=(256, 256)):
     image.thumbnail(size)
     buffered = io.BytesIO()
@@ -83,31 +73,39 @@ def make_thumbnail(image, size=(256, 256)):
     img_str = base64.b64encode(buffered.getvalue()).decode()
     return img_str
 
-def get_partial_methods(server):
+
+def init_methods(server):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model, preprocess = clip.load("ViT-B/32", device=device)
     artifact_manager = ArtifactManager()
     artifact_manager.server = server
     
-    def partial_find_similar_cells(cell_image, user_id, top_k=5):
-        query_vector = image_to_vector(cell_image, model, preprocess, device)
-        artifact_manager.user_id = user_id
-        return artifact_manager.search_vectors("cell-images", query_vector, top_k)
+    async def find_similar_cells(search_cell_image, user_id, top_k=5):
+        query_vector = image_to_vector(search_cell_image, model, preprocess, device)
+        return await artifact_manager.search_vectors(user_id, "cell-images", query_vector, top_k)
     
-    def partial_save_cell_image(cell_image, user_id, annotation=""):
+    async def save_cell_image(cell_image, user_id, annotation=""):
         image_vector = image_to_vector(cell_image, model, preprocess, device)
-        artifact_manager.user_id = user_id
-        artifact_manager.add_vectors("cell-images", {
+        await artifact_manager.add_vectors(user_id, "cell-images", {
             "vector": image_vector,
             "annotation": annotation,
             "thumbnail": make_thumbnail(cell_image),
-        })
+        });
+
+    async def tile_image(microscope_image, user_id):
+        # TODO: fix using https://docs.amun.ai/#/artifact-manager?id=dynamic-zip-file-creation-endpoint
+        vips_image = pyvips.Image.new_from_image(microscope_image, 0)
+        with tempfile.NamedTemporaryFile(suffix=".zip") as temp_zip:
+            vips_image.dzsave(basename=temp_zip.name, layout="google", container="zip")
+            temp_zip.seek(0)
+            zip_content = temp_zip.read()
+            await artifact_manager.add_file(user_id, "cell-images", zip_content, "tiles.zip")
     
-    return partial_find_similar_cells, partial_save_cell_image
+    return find_similar_cells, save_cell_image, tile_image
 
 
 async def setup_service(server=None):
-    partial_find_similar_cells, partial_save_cell_image = get_partial_methods(server)
+    find_similar_cells, save_cell_image, tile_image = init_methods(server)
     
     await make_service(
         service={
@@ -118,8 +116,8 @@ async def setup_service(server=None):
                 "require_context": False,   
             },
             "type": "echo",
-            "find_similar_cells": partial_find_similar_cells,
-            "save_cell_image": partial_save_cell_image,
+            "find_similar_cells": find_similar_cells,
+            "save_cell_image": save_cell_image,
             "setup": create_collection,
             "tile_image": tile_image,
         },

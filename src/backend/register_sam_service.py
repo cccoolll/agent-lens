@@ -11,7 +11,7 @@ import torch
 from dotenv import find_dotenv, load_dotenv
 from kaibu_utils import mask_to_features
 from segment_anything import SamPredictor, sam_model_registry, SamAutomaticMaskGenerator
-from src.backend.utils import make_service
+from backend.service_utils import make_service
 import base64
 
 dotenv.load_dotenv()

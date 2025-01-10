@@ -1,14 +1,16 @@
 import os
 import asyncio
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from src.backend.utils import make_service
+from backend.service_utils import make_service
+from src.backend.artifact_manager import ArtifactManager
 
-def get_frontend_api():
+def get_frontend_api(server):
     app = FastAPI()
+    artifact_manager = ArtifactManager()
+    artifact_manager.server = server
     frontend_dir = os.path.join(os.path.dirname(__file__), "../frontend")
-    tiles_dir = os.path.join(frontend_dir, "tiles_output")
     dist_dir = os.path.join(frontend_dir, "dist")
     assets_dir = os.path.join(dist_dir, "assets")
     app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
@@ -21,25 +23,24 @@ def get_frontend_api():
         return FileResponse(os.path.join(dist_dir, "index.html"))
 
     @app.get("/tiles")
-    async def get_tile(tile):
-        """
-        Fetch the tile using the artifact_manager.get_tile function.
-        The tile name is passed as a query parameter.
-        """
+    async def get_tile(user_id, tile):
         try:
-            # Get the tile using the artifact_manager's get_tile function.
-            tile_file = artifact_manager.get_file(tile)
-            if tile_file:
-                return FileResponse(tile_file)
-            else:
-                raise HTTPException(status_code=404, detail="Tile not found")
+            # TODO: fix using https://docs.amun.ai/#/artifact-manager?id=zip-file-access-endpoints
+            zip_file_path = artifact_manager.get_file(user_id, "cell-images", "tiles.zip")
+
+            with zipfile.ZipFile(zip_file_path, "r") as zf:
+                if tile_path in zf.namelist():
+                    tile_data = zf.open(tile_path)
+                    return StreamingResponse(tile_data, media_type="image/png")
+
+            raise HTTPException(status_code=404, detail="Tile not found")
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error retrieving tile: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error retrieving tile: {str(e)}") from e
 
     return serve_fastapi
     
 async def setup_service(server=None):
-    serve_fastapi = get_frontend_api()
+    serve_fastapi = get_frontend_api(server)
     service_id = "microscope-control"
     await make_service(
         service={
