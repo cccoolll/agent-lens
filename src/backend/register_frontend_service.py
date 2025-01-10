@@ -12,7 +12,6 @@ def get_frontend_api():
     dist_dir = os.path.join(frontend_dir, "dist")
     assets_dir = os.path.join(dist_dir, "assets")
     app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
-    app.mount("/tiles", StaticFiles(directory=tiles_dir), name="tiles_output")
 
     async def serve_fastapi(args, context=None):
         await app(args["scope"], args["receive"], args["send"])
@@ -20,6 +19,22 @@ def get_frontend_api():
     @app.get("/", response_class=HTMLResponse)
     async def root():
         return FileResponse(os.path.join(dist_dir, "index.html"))
+
+    @app.get("/tiles")
+    async def get_tile(tile):
+        """
+        Fetch the tile using the artifact_manager.get_tile function.
+        The tile name is passed as a query parameter.
+        """
+        try:
+            # Get the tile using the artifact_manager's get_tile function.
+            tile_file = artifact_manager.get_file(tile)
+            if tile_file:
+                return FileResponse(tile_file)
+            else:
+                raise HTTPException(status_code=404, detail="Tile not found")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error retrieving tile: {str(e)}")
 
     return serve_fastapi
     
