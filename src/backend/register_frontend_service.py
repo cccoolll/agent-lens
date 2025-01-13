@@ -33,7 +33,7 @@ async def get_frontend_api(artifact_manager):
         return FileResponse(os.path.join(dist_dir, "index.html"))
 
     @app.get("/tiles")
-    async def get_tile(user_id, tile):
+    async def get_tile(user_id, tile): # TODO: move to frontend
         try:
             zip_file = await artifact_manager.get_zip_file(
                 user_id,

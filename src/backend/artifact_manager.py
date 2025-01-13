@@ -5,15 +5,16 @@ and handling file uploads and downloads.
 """
 
 import io
-import requests
+import requests # TODO: httpxrequests
 
-class ArtifactManager:
+class AgentLensArtifactManager:
     """
     Manages artifacts for the application.
     """
 
     def __init__(self):
         self._svc = None
+        self.server = None
 
     async def connect_server(self, server):
         """
@@ -22,6 +23,7 @@ class ArtifactManager:
         Args:
             server (Server): The server instance.
         """
+        self.server = server
         self._svc = await server.get_service("public/artifact-manager")
 
     def _artifact_alias(self, name):
@@ -155,6 +157,7 @@ class ArtifactManager:
         assert response.ok, "File download failed"
         return response.content
 
+    # TODO: move to frontend
     async def get_zip_file(self, user_id, coll_name, zip_file_path, file_path):
         """
         Retrieve a file from a zip archive in the collection.
@@ -170,7 +173,7 @@ class ArtifactManager:
         """
         workspace = self._workspace_id(user_id)
         artifact_alias = self._artifact_alias(coll_name)
-        server_url = "hypha.aicell.io" # TODO: something like self._svc.server.config.server_url
+        server_url = self.server.config.public_base_url
         response = requests.get(
             f"{server_url}/{workspace}/artifacts/{artifact_alias}/zip-files/{zip_file_path}",
             params={"path": file_path},

@@ -150,7 +150,7 @@ async def init_methods(artifact_manager):
     async def tile_image(microscope_image, user_id):
         vips_image = pyvips.Image.new_from_image(microscope_image, 0)
         with tempfile.NamedTemporaryFile(suffix=".zip") as temp_zip:
-            vips_image.dzsave(basename=temp_zip.name, layout="google", container="zip")
+            vips_image.dzsave(basename=temp_zip.name, layout="google", container="zip") # TODO: save as PNG tiles
             temp_zip.seek(0)
             zip_content = temp_zip.read()
             await artifact_manager.add_file(user_id, "cell-images", zip_content, "tiles.zip")
