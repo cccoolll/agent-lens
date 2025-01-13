@@ -1,15 +1,12 @@
-import asyncio
-import numpy as np
-import pyvips
 import io
 import base64
+import tempfile
+import numpy as np
+import pyvips
 import torch
 import clip
 from PIL import Image
-import tempfile
 from backend.service_utils import make_service
-from src.backend.artifact_manager import ArtifactManager
-
 
 async def create_collection(artifact_manager, user_id):
     """Creates a vector collection in the artifact manager for storing image embeddings.
@@ -55,14 +52,14 @@ def get_image_tensor(image_path, preprocess, device):
 def process_image_tensor(image_tensor, model):
     with torch.no_grad():
         image_features = model.encode_image(image_tensor).cpu().numpy().flatten()
-        
+
     return image_features
 
 
 def image_to_vector(input_image, model, preprocess, device, length=512):
     image_tensor = get_image_tensor(input_image, preprocess, device)
     query_vector = process_image_tensor(image_tensor, model).reshape(1, length).astype(np.float32)
-    
+
     return query_vector
 
 
@@ -74,39 +71,36 @@ def make_thumbnail(image, size=(256, 256)):
     return img_str
 
 
-def init_methods(server):
+async def init_methods(artifact_manager):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model, preprocess = clip.load("ViT-B/32", device=device)
-    artifact_manager = ArtifactManager()
-    artifact_manager.server = server
-    
+
     async def find_similar_cells(search_cell_image, user_id, top_k=5):
         query_vector = image_to_vector(search_cell_image, model, preprocess, device)
         return await artifact_manager.search_vectors(user_id, "cell-images", query_vector, top_k)
-    
+
     async def save_cell_image(cell_image, user_id, annotation=""):
         image_vector = image_to_vector(cell_image, model, preprocess, device)
         await artifact_manager.add_vectors(user_id, "cell-images", {
             "vector": image_vector,
             "annotation": annotation,
             "thumbnail": make_thumbnail(cell_image),
-        });
+        })
 
     async def tile_image(microscope_image, user_id):
-        # TODO: fix using https://docs.amun.ai/#/artifact-manager?id=dynamic-zip-file-creation-endpoint
         vips_image = pyvips.Image.new_from_image(microscope_image, 0)
         with tempfile.NamedTemporaryFile(suffix=".zip") as temp_zip:
             vips_image.dzsave(basename=temp_zip.name, layout="google", container="zip")
             temp_zip.seek(0)
             zip_content = temp_zip.read()
             await artifact_manager.add_file(user_id, "cell-images", zip_content, "tiles.zip")
-    
+
     return find_similar_cells, save_cell_image, tile_image
 
 
-async def setup_service(server=None):
-    find_similar_cells, save_cell_image, tile_image = init_methods(server)
-    
+async def setup_service(server, artifact_manager):
+    find_similar_cells, save_cell_image, tile_image = await init_methods(artifact_manager)
+
     await make_service(
         service={
             "id": "image-embedding-similarity-search",
@@ -123,9 +117,3 @@ async def setup_service(server=None):
         },
         server=server
     )
-
-
-if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.create_task(setup_service())
-    loop.run_forever()

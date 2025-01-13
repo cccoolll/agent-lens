@@ -8,7 +8,7 @@ def main():
     parser.add_argument("--port", type=int, default=9000)
     parser.add_argument("--public-base-url", type=str, default="")
     args = parser.parse_args()
-    
+
     command = [
         sys.executable,
         "-m",
@@ -19,6 +19,6 @@ def main():
         "--startup-functions=src.backend.main:setup"
     ]
     subprocess.run(command, check=True)
-    
+
 if __name__ == "__main__":
     main()

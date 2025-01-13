@@ -130,7 +130,6 @@ agent-lens/
 │       ├── index.html
 │       ├── main.jsx
 │       ├── package.json
-│       ├── style.css
 │       └── vite.config.mjs
 ├── .env
 ├── .gitignore
@@ -141,7 +140,6 @@ agent-lens/
 
 - **index.html**: The main HTML file where the React app is rendered.
 - **main.jsx**: The main JavaScript file containing the React code, including the `MicroscopeControl` component.
-- **style.css**: Contains all the CSS styles for the application.
 - **tiles_output/**: Directory containing image tiles used by OpenLayers.
 - **vite.config.mjs**: Configuration file for Vite.
 

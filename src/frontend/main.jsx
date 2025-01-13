@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom/client';
-import './style.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 import LogSection from './components/LogSection';
@@ -21,7 +20,6 @@ import ImageStatic from 'ol/source/ImageStatic';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import { Circle as CircleStyle, Fill, Stroke, Style } from 'ol/style';
-import { Draw } from 'ol/interaction';
 import { defaults as defaultControls, FullScreen, ZoomSlider } from 'ol/control';
 import WinBox from 'winbox/src/js/winbox';
 
