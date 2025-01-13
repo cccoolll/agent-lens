@@ -44,7 +44,7 @@ const ImageDisplay = ({ mapRef, isAuthenticated, userId, snapshotImage, handleIm
 
       const tileLayer = new TileLayer({
         source: new XYZ({
-          url: `${tileUrl}/{z}/{x}/{y}.jpg`,
+          url: `${tileUrl}?tile={z}/{x}/{y}.jpg`,
           crossOrigin: 'anonymous',
           tileSize: 256,
           maxZoom: 10,
