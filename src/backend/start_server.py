@@ -3,6 +3,9 @@ import subprocess
 import argparse
 
 def main():
+    """
+    Parse command-line arguments and start the Hypha server.
+    """
     parser = argparse.ArgumentParser(description="Start the Hypha server")
     parser.add_argument("--host", type=str, default="0.0.0.0")
     parser.add_argument("--port", type=int, default=9000)
