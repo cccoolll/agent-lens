@@ -6,7 +6,7 @@ cleanup() {
 
 trap cleanup SIGINT
 export PYTHONPATH=$(pwd)
-python src/backend/start_server.py &
+python src/backend/main.py &
 PYTHON_PID=$!
 
 npm run start --prefix src/frontend

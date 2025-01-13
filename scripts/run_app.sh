@@ -1,7 +1,9 @@
 #!/bin/bash
 
 # Build the frontend
-npm run build --prefix src/frontend
+cd src/frontend
+npm run build
+cd ../..
 
 # Run backend
 export PYTHONPATH=$(pwd)

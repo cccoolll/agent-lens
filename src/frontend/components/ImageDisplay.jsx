@@ -37,7 +37,7 @@ const ImageDisplay = ({ mapRef, isAuthenticated, userId, snapshotImage, handleIm
   }, [mapRef]);
 
   useEffect(() => {
-    if (map.current && userId) { // Test
+    if (map.current && userId) {
       const tileUrl = isLocal()
         ? `${window.location.protocol}//${window.location.hostname}:9000/public/apps/microscope-control/tiles`
         : "https://hypha.aicell.io/agent-lens/apps/microscope-control/tiles";
