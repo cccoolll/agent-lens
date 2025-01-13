@@ -46,27 +46,23 @@ const MicroscopeControl = () => {
   
   const [BrightFieldIntensity, setBrightFieldIntensity] = useState(50);
   const [BrightFieldCameraExposure, setBrightFieldCameraExposure] = useState(100);
-  const [Fluorescence405Intensity, setFluorescence405Intensity] = useState(50);
-  const [Fluorescence405CameraExposure, setFluorescence405CameraExposure] = useState(100);
-  const [Fluorescence488Intensity, setFluorescence488Intensity] = useState(50);
-  const [Fluorescence488CameraExposure, setFluorescence488CameraExposure] = useState(100);
-  const [Fluorescence561Intensity, setFluorescence561Intensity] = useState(50);
-  const [Fluorescence561CameraExposure, setFluorescence561CameraExposure] = useState(100);
-  const [Fluorescence638Intensity, setFluorescence638Intensity] = useState(50);
-  const [Fluorescence638CameraExposure, setFluorescence638CameraExposure] = useState(100);
-  const [Fluorescence730Intensity, setFluorescence730Intensity] = useState(50);
-  const [Fluorescence730CameraExposure, setFluorescence730CameraExposure] = useState(100);
+  // const [Fluorescence405Intensity, setFluorescence405Intensity] = useState(50);
+  // const [Fluorescence405CameraExposure, setFluorescence405CameraExposure] = useState(100);
+  // const [Fluorescence488Intensity, setFluorescence488Intensity] = useState(50);
+  // const [Fluorescence488CameraExposure, setFluorescence488CameraExposure] = useState(100);
+  // const [Fluorescence561Intensity, setFluorescence561Intensity] = useState(50);
+  // const [Fluorescence561CameraExposure, setFluorescence561CameraExposure] = useState(100);
+  // const [Fluorescence638Intensity, setFluorescence638Intensity] = useState(50);
+  // const [Fluorescence638CameraExposure, setFluorescence638CameraExposure] = useState(100);
+  // const [Fluorescence730Intensity, setFluorescence730Intensity] = useState(50);
+  // const [Fluorescence730CameraExposure, setFluorescence730CameraExposure] = useState(100);
   const [illuminationIntensity, setIlluminationIntensity] = useState(50);
   const [illuminationChannel, setIlluminationChannel] = useState("0");
   const [cameraExposure, setCameraExposure] = useState(100);
   const [isDrawingActive, setIsDrawingActive] = useState(false);
   const [isPenActive, setIsPenActive] = useState(false); // State to track if the pen tool is active
   const [selectedModel, setSelectedModel] = useState('vit_b_lm'); // Default model
-  const [xPosition, setXPosition] = useState(0);
-  const [yPosition, setYPosition] = useState(0);
-  const [zPosition, setZPosition] = useState(0);
   const [similarityService, setSimilarityService] = useState(null);
-  const [setupService, setSetupService] = useState(null);
   const [log, setLog] = useState('');
   const [segmentService, setSegmentService] = useState(null);
   const [isLightOn, setIsLightOn] = useState(false);
@@ -94,8 +90,6 @@ const initializeServices = async (token) => {
         token,
     });
     setServer(server);
-    const workspace = server.config.workspace;
-    setUserId(workspace);
 
     const segmentationService = await tryGetService(server, "Acquiring Segmentation", "agent-lens/interactive-segmentation", "interactive-segmentation");
     setSegmentService(segmentationService);
@@ -103,9 +97,6 @@ const initializeServices = async (token) => {
     setMicroscopeControl(microscopeControlService);
     const similarityService = await tryGetService(server, "Similarity Search", "agent-lens/image-embedding-similarity-search", "image-embedding-similarity-search");
     setSimilarityService(similarityService);
-    const setupService = await tryGetService(server, "Setup", "agent-lens/setup");
-    setSetupService(setupService);
-    setupService.setup();
 };
 
 useEffect(() => {
@@ -444,9 +435,6 @@ useEffect(() => {
   }, [map, handleImageClick, isDrawingActive]);
 
   const updateUIBasedOnStatus = (status) => {
-    setXPosition(status.current_x);
-    setYPosition(status.current_y);
-    setZPosition(status.current_z);
     setIsLightOn(status.is_illumination_on);
     setBrightFieldIntensity(status.BF_intensity_exposure[0]);
     setBrightFieldCameraExposure(status.BF_intensity_exposure[1]);

@@ -16,12 +16,11 @@ const ControlPanel = ({
   segmentService,
 }) => {
   const channelKeyMap = {
-    "0": "BF_intensity_exposure",
-    "11": "F405_intensity_exposure",
-    "12": "F488_intensity_exposure",
-    "14": "F561_intensity_exposure",
-    "13": "F638_intensity_exposure",
-    "15": "F730_intensity_exposure"
+    11: 405,
+    12: 488,
+    14: 561,
+    13: F638,
+    15: 730,
   };
 
   const updateParametersOnServer = async (updatedParams) => {
@@ -30,6 +29,26 @@ const ControlPanel = ({
       await microscopeControl.update_parameters_from_client(updatedParams);
     } catch (error) {
       console.error(`Error updating parameters on server: ${error.message}`);
+    }
+  };
+
+  const updateIntensity = (newIntensity) => {
+    setIlluminationIntensity(newIntensity);
+    const key = channelKeyMap[illuminationChannel];
+    if (key) {
+      updateParametersOnServer({
+        [key]: [newIntensity, cameraExposure],
+      });
+    };
+  };
+
+  const updateExposure = (newExposure) => {
+    setCameraExposure(newExposure);
+    const key = channelKeyMap[illuminationChannel];
+    if (key) {
+      updateParametersOnServer({
+        [key]: [illuminationIntensity, newExposure],
+      });
     }
   };
 
@@ -49,16 +68,7 @@ const ControlPanel = ({
               min="0"
               max="100"
               value={illuminationIntensity}
-              onChange={(e) => {
-                const newIntensity = parseInt(e.target.value, 10);
-                setIlluminationIntensity(newIntensity);
-                const key = channelKeyMap[illuminationChannel];
-                if (key) {
-                  updateParametersOnServer({
-                    [key]: [newIntensity, cameraExposure],
-                  });
-                }
-              }}
+              onChange={(e) => { updateIntensity(parseInt(e.target.value), 10); }}
             />
           </div>
 
@@ -67,9 +77,7 @@ const ControlPanel = ({
             <select
               className="control-input w-full mt-2"
               value={illuminationChannel}
-              onChange={(e) => {
-                setIlluminationChannel(e.target.value);
-              }}
+              onChange={(e) => { setIlluminationChannel(e.target.value); }}
             >
               <option value="0">BF LED matrix full</option>
               <option value="11">Fluorescence 405 nm Ex</option>
@@ -87,16 +95,7 @@ const ControlPanel = ({
             type="number"
             className="control-input w-full mt-2"
             value={cameraExposure}
-            onChange={(e) => {
-              const newExposure = parseInt(e.target.value, 10);
-              setCameraExposure(newExposure);
-              const key = channelKeyMap[illuminationChannel];
-              if (key) {
-                updateParametersOnServer({
-                  [key]: [illuminationIntensity, newExposure],
-                });
-              }
-            }}
+            onChange={(e) => { updateExposure(parseInt(e.target.value, 10)); }}
           />
         </div>
 
