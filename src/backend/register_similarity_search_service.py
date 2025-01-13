@@ -1,3 +1,8 @@
+"""
+This module provides functionality for registering a similarity search service
+that processes and stores image embeddings, and allows for searching similar images.
+"""
+
 import io
 import base64
 import tempfile
@@ -9,10 +14,12 @@ from PIL import Image
 from backend.service_utils import make_service
 
 async def create_collection(artifact_manager, user_id):
-    """Creates a vector collection in the artifact manager for storing image embeddings.
-    
+    """
+    Creates a vector collection in the artifact manager for storing image embeddings.
+
     Args:
         artifact_manager (ArtifactManager): The artifact manager instance.
+        user_id (str): The user ID.
     """
     await artifact_manager.create_vector_collection(
         user_id=user_id,
@@ -45,11 +52,32 @@ async def create_collection(artifact_manager, user_id):
 
 
 def get_image_tensor(image_path, preprocess, device):
+    """
+    Convert an image to a tensor.
+
+    Args:
+        image_path (str): The path to the image.
+        preprocess (function): The preprocessing function.
+        device (str): The device to use.
+
+    Returns:
+        Tensor: The image tensor.
+    """
     image = Image.open(image_path).convert("RGB")
     return preprocess(image).unsqueeze(0).to(device)
 
 
 def process_image_tensor(image_tensor, model):
+    """
+    Process an image tensor to extract features.
+
+    Args:
+        image_tensor (Tensor): The image tensor.
+        model (Model): The model to use.
+
+    Returns:
+        ndarray: The image features.
+    """
     with torch.no_grad():
         image_features = model.encode_image(image_tensor).cpu().numpy().flatten()
 
@@ -57,6 +85,19 @@ def process_image_tensor(image_tensor, model):
 
 
 def image_to_vector(input_image, model, preprocess, device, length=512):
+    """
+    Convert an image to a vector.
+
+    Args:
+        input_image (str): The path to the input image.
+        model (Model): The model to use.
+        preprocess (function): The preprocessing function.
+        device (str): The device to use.
+        length (int): The length of the vector.
+
+    Returns:
+        ndarray: The image vector.
+    """
     image_tensor = get_image_tensor(input_image, preprocess, device)
     query_vector = process_image_tensor(image_tensor, model).reshape(1, length).astype(np.float32)
 
@@ -64,6 +105,16 @@ def image_to_vector(input_image, model, preprocess, device, length=512):
 
 
 def make_thumbnail(image, size=(256, 256)):
+    """
+    Create a thumbnail from an image.
+
+    Args:
+        image (Image): The input image.
+        size (tuple): The size of the thumbnail.
+
+    Returns:
+        str: The base64-encoded thumbnail.
+    """
     image.thumbnail(size)
     buffered = io.BytesIO()
     image.save(buffered, format="PNG")
@@ -72,6 +123,15 @@ def make_thumbnail(image, size=(256, 256)):
 
 
 async def init_methods(artifact_manager):
+    """
+    Initialize the methods for the service.
+
+    Args:
+        artifact_manager (ArtifactManager): The artifact manager instance.
+
+    Returns:
+        tuple: The initialized methods.
+    """
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model, preprocess = clip.load("ViT-B/32", device=device)
 
@@ -99,6 +159,13 @@ async def init_methods(artifact_manager):
 
 
 async def setup_service(server, artifact_manager):
+    """
+    Set up the similarity search service.
+
+    Args:
+        server (Server): The server instance.
+        artifact_manager (ArtifactManager): The artifact manager instance.
+    """
     find_similar_cells, save_cell_image, tile_image = await init_methods(artifact_manager)
 
     await make_service(

@@ -1,3 +1,8 @@
+"""
+This module provides functionality for registering a frontend service
+that serves the frontend application and handles requests for image tiles.
+"""
+
 import os
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
@@ -5,6 +10,15 @@ from fastapi.staticfiles import StaticFiles
 from backend.service_utils import make_service
 
 async def get_frontend_api(artifact_manager):
+    """
+    Create the FastAPI application for serving the frontend.
+
+    Args:
+        artifact_manager (ArtifactManager): The artifact manager instance.
+
+    Returns:
+        function: The FastAPI application.
+    """
     app = FastAPI()
     frontend_dir = os.path.join(os.path.dirname(__file__), "../frontend")
     dist_dir = os.path.join(frontend_dir, "dist")
@@ -35,6 +49,13 @@ async def get_frontend_api(artifact_manager):
 
 
 async def setup_service(server, artifact_manager):
+    """
+    Set up the frontend service.
+
+    Args:
+        server (Server): The server instance.
+        artifact_manager (ArtifactManager): The artifact manager instance.
+    """
     serve_fastapi = get_frontend_api(artifact_manager)
     service_id = "microscope-control"
     await make_service(
