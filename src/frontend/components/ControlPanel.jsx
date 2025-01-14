@@ -1,32 +1,57 @@
-import React from 'react';
+import React, { useState } from 'react';
+import PropTypes from 'prop-types';
+// import WinBox from 'winbox/src/js/winbox';
 
 const ControlPanel = ({
-  illuminationIntensity,
-  setIlluminationIntensity,
-  illuminationChannel,
-  setIlluminationChannel,
-  cameraExposure,
-  setCameraExposure,
-  toggleLight,
-  autoFocus,
-  snapImage,
-  handleResetEmbedding,
-  isLightOn,
-  microscopeControl,
+  microscopeControlService,
   segmentService,
+  setSnapshotImage,
+  appendLog
 }) => {
+  const [isLightOn, setIsLightOn] = useState(false);
+  const [cameraExposure, setCameraExposure] = useState(100);
+  const [illuminationIntensity, setIlluminationIntensity] = useState(50);
+  const [illuminationChannel, setIlluminationChannel] = useState("0");
+
   const channelKeyMap = {
+    0: "BF",
     11: 405,
     12: 488,
     14: 561,
-    13: F638,
+    13: 638,
     15: 730,
   };
 
+  const snapImage = async () => {
+    appendLog('Snapping image...');
+    let imageUrl = await microscopeControlService.snap(
+      parseInt(cameraExposure),
+      parseInt(illuminationChannel),
+      parseInt(illuminationIntensity)
+    );
+    await updateMicroscopeStatus();
+    if (!imageUrl) {
+      throw new Error('Received empty image URL');
+    }
+
+    imageUrl = encodeURI(imageUrl);
+    const response = await fetch(imageUrl, { credentials: 'include' });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image: ${response.statusText}`);
+    }
+
+    const blob = await response.blob();
+    const imageObjectURL = URL.createObjectURL(blob);
+
+    setSnapshotImage(imageObjectURL);
+    appendLog('Image snapped and fetched successfully.');
+  };
+
   const updateParametersOnServer = async (updatedParams) => {
-    if (!microscopeControl) return;
+    if (!microscopeControlService) return;
     try {
-      await microscopeControl.update_parameters_from_client(updatedParams);
+      await microscopeControlService.update_parameters_from_client(updatedParams);
     } catch (error) {
       console.error(`Error updating parameters on server: ${error.message}`);
     }
@@ -52,82 +77,130 @@ const ControlPanel = ({
     }
   };
 
+  const handleResetEmbedding = async () => {
+    // map.getLayers()
+    //     .getArray()
+    //     .slice()
+    //     .filter((layer) => layer.get('isSegmentationLayer'))
+    //     .forEach((layer) => {
+    //       map.removeLayer(layer);
+    //     });
+
+    // if (vectorLayer && vectorLayer.getSource()) {
+    //   vectorLayer.getSource().clear();
+    // }
+  };
+
+  const updateMicroscopeStatus = async () => {
+    const status = await microscopeControlService.get_status();
+    updateUIBasedOnStatus(status);
+  };
+
+  const fluorescenceOptions = channelKeyMap.map((key, value) => (
+    key == 0?
+      <option key={key} value={key}>BF LED matrix full</option>
+      : <option key={key} value={key}>Fluorescence {value} nm Ex</option>
+  ));
+
+  const updateUIBasedOnStatus = (status) => {
+    setIsLightOn(status.is_illumination_on);
+    const channelName = channelKeyMap[illuminationChannel];
+    const { intensity, exposure } = status[`${channelName}_intensity_exposure`];
+    setIlluminationIntensity(intensity);
+    setCameraExposure(exposure);
+  };
+
+
+  const autoFocus = async () => {
+    await microscopeControlService.auto_focus();
+    await updateMicroscopeStatus();
+  };
+  
+
+  const toggleLight = async () => {
+      if (!isLightOn) {
+          await microscopeControlService.on_illumination();
+          appendLog('Light turned on.');
+      } else {
+          await microscopeControlService.off_illumination();
+          appendLog('Light turned off.');
+      }
+      await updateMicroscopeStatus();
+      setIsLightOn(!isLightOn);
+  };
+
   return (
-    <div id="control-chat-section" className="absolute top-0 right-0 w-1/4 h-full bg-white bg-opacity-95 p-4 rounded-lg shadow-lg z-50">
-      <h3 className="section-title text-xl font-semibold mb-4">Manual Control</h3>
-      <div id="manual-control-content">
-        <div className="illumination-settings mb-4">
-          <div className="illumination-intensity mb-4">
-            <div className="intensity-label-row flex justify-between items-center mb-2">
-              <label className="font-medium">Illumination Intensity:</label>
-              <span>{illuminationIntensity}%</span>
+    <div className="absolute top-[300px] right-0 w-[23%] h-[40%] bg-white bg-opacity-95 p-4 rounded-lg shadow-lg z-50 border-l border-gray-300 box-border overflow-y-auto">
+      <h3 className="text-xl font-medium mb-5 mt-4">Manual Control</h3>
+      <div>
+        <div className="mb-4 flex flex-col flex-wrap justify-between">
+          <div className="mb-4 w-full box-border">
+            <div className="flex items-center mb-2">
+              <label className="font-medium inline m-2">Illumination Intensity:</label>
+              <span className="inline m-2">{illuminationIntensity}%</span>
             </div>
             <input
               type="range"
-              className="control-input w-full"
+              className="w-full rounded-lg mt-1"
               min="0"
               max="100"
               value={illuminationIntensity}
               onChange={(e) => { updateIntensity(parseInt(e.target.value), 10); }}
             />
           </div>
-
-          <div className="illumination-channel mb-4">
-            <label className="font-medium">Illumination Channel:</label>
+  
+          <div className="mb-4 w-full box-border">
+            <label className="font-medium block mb-2 mt-1">Illumination Channel:</label>
             <select
-              className="control-input w-full mt-2"
+              className="w-full mt-2 rounded-lg mb-1"
               value={illuminationChannel}
               onChange={(e) => { setIlluminationChannel(e.target.value); }}
             >
               <option value="0">BF LED matrix full</option>
-              <option value="11">Fluorescence 405 nm Ex</option>
-              <option value="12">Fluorescence 488 nm Ex</option>
-              <option value="13">Fluorescence 638 nm Ex</option>
-              <option value="14">Fluorescence 561 nm Ex</option>
-              <option value="15">Fluorescence 730 nm Ex</option>
+              {fluorescenceOptions}
             </select>
           </div>
         </div>
-
-        <div className="camera-exposure-settings mb-4">
-          <label className="font-medium">Camera Exposure:</label>
+  
+        <div className="mb-4 flex flex-col items-start">
+          <label className="font-medium block mt-1">Camera Exposure:</label>
           <input
             type="number"
-            className="control-input w-full mt-2"
+            className="w-full mt-2 rounded-lg"
             value={cameraExposure}
             onChange={(e) => { updateExposure(parseInt(e.target.value, 10)); }}
           />
         </div>
-
-        <div className="control-group">
-          <div className="horizontal-buttons flex justify-between mb-4">
+  
+        <div className="flex flex-col items-start mt-4">
+          <div className="flex justify-between mb-4 w-full gap-5">
             <button
-              className="control-button bg-blue-500 text-white px-4 py-2 rounded-lg"
+              className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 hover:shadow-lg transition-all"
               onClick={toggleLight}
-              disabled={!microscopeControl}
+              disabled={!microscopeControlService}
             >
               <i className="fas fa-lightbulb icon mr-2"></i>
               {isLightOn ? 'Turn Light Off' : 'Turn Light On'}
             </button>
             <button
-              className="control-button bg-blue-500 text-white px-4 py-2 rounded-lg"
+              className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 hover:shadow-lg transition-all"
               onClick={autoFocus}
-              disabled={!microscopeControl}
+              disabled={!microscopeControlService}
             >
               <i className="fas fa-crosshairs icon mr-2"></i> Autofocus
             </button>
           </div>
-
-          <div className="horizontal-buttons flex justify-between">
+  
+          <div className="flex justify-between w-full gap-5">
             <button
-              className="control-button snap-button bg-green-500 text-white px-4 py-2 rounded-lg"
+              className="snap-button bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 hover:shadow-lg transition-all"
               onClick={snapImage}
-              disabled={!microscopeControl}
+              disabled={!microscopeControlService}
             >
               <i className="fas fa-camera icon mr-2"></i> Snap Image
             </button>
             <button
-              className="control-button reset-button bg-yellow-500 text-white px-4 py-2 rounded-lg"
+              className="reset-button bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 hover:shadow-lg transition-all"
               onClick={handleResetEmbedding}
               disabled={!segmentService}
             >
@@ -138,6 +211,13 @@ const ControlPanel = ({
       </div>
     </div>
   );
+};
+
+ControlPanel.propTypes = {
+  microscopeControlService: PropTypes.object,
+  segmentService: PropTypes.object,
+  setSnapshotImage: PropTypes.func.isRequired,
+  appendLog: PropTypes.func.isRequired,
 };
 
 export default ControlPanel;

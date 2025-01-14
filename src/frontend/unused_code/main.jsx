@@ -3,7 +3,6 @@
 const [xMove, setXMove] = useState(1);
   const [yMove, setYMove] = useState(1);
   const [zMove, setZMove] = useState(0.1);
-  const [draw, setDraw] = useState(null);
   const [isPlateScanRunning, setIsPlateScanRunning] = useState(false);
   // const [numSimilarResults, setNumSimilarResults] = useState(5);
   // const [searchResults, setSearchResults] = useState([]);
@@ -15,65 +14,6 @@ const overlaySegmentationFeature = (coordinates) => {
   });
 
   vectorLayer.getSource().addFeature(feature);
-};
-
-// Example: Start drawing points
-const startDrawingPoints = () => {
-addInteraction('Point');
-};
-
-// Example: Start drawing polygons
-const startDrawingPolygons = () => {
-addInteraction('Polygon');
-};
-
-const activatePenTool = () => {
-setIsPenActive(!isPenActive);
-setIsFirstClick(true); // Reset to first click whenever the tool is activated
-document.body.style.cursor = isPenActive ? 'default' : 'crosshair';
-appendLog(isPenActive ? 'Pen tool deactivated.' : 'Pen tool activated. Click on the image to segment a cell.');
-};
-
-const handleSegmentAllCells = async () => {
-  if (!segmentService || !snapshotImage || !map) return;
-
-  appendLog('Segmenting all cells in the image...');
-  try {
-    // Fetch the image data as a Blob
-    const response = await fetch(snapshotImage);
-    const blob = await response.blob();
-
-    // Convert Blob to ArrayBuffer
-    const arrayBuffer = await new Response(blob).arrayBuffer();
-
-    // Convert ArrayBuffer to Uint8Array
-    const uint8Array = new Uint8Array(arrayBuffer);
-
-    // Use the segmentation service to segment all cells
-    const segmentedResult = await segmentService.segment_all_cells(selectedModel, uint8Array);
-
-    if (segmentedResult.error) {
-      appendLog(`Segmentation error: ${segmentedResult.error}`);
-      return;
-    }
-
-    // Process the masks from the segmentation result
-    const masks = segmentedResult.masks;
-
-    if (!masks || masks.length === 0) {
-      appendLog("No cells found for segmentation.");
-      return;
-    }
-
-    // Overlay each mask onto the map
-    masks.forEach((maskData) => {
-      overlaySegmentationMask(maskData);
-    });
-
-    appendLog('All cells segmented and displayed.');
-  } catch (error) {
-    appendLog(`Error in segmenting all cells: ${error.message}`);
-  }
 };
 
 const updateParameters = async (updatedParams) => {
@@ -90,38 +30,6 @@ const updateParameters = async (updatedParams) => {
         appendLog(`Error updating parameters: ${error.message}`);
     }
 };
-
-const addInteraction = (type) => {
-    if (!map || !vectorLayer) {
-      console.log('Map or vectorLayer is not available.');
-      return;
-    }
-  
-    // Remove existing interactions
-    if (draw) {
-      map.removeInteraction(draw);
-    }
-  
-    // Create a new draw interaction
-    const newDraw = new Draw({
-      source: vectorLayer.getSource(),
-      type: type, // 'Point', 'LineString', 'Polygon'
-    });
-  
-    map.addInteraction(newDraw);
-    setDraw(newDraw);
-    setIsDrawingActive(true); // Set drawing active
-  
-    newDraw.on('drawend', (event) => {
-      const feature = event.feature;
-      console.log('New feature added:', feature);
-  
-      // After drawing ends, remove the interaction
-      map.removeInteraction(newDraw);
-      setDraw(null);
-      setIsDrawingActive(false); // Reset drawing active state
-    });
-  };
 
 const handleSimilaritySearch = async () => {
   console.log(
@@ -243,40 +151,6 @@ const setCameraExposureTime = async () => {
         appendLog(`Error setting camera exposure: ${error.message}`);
     }
 };
-
-const openChatbot = useCallback(
-  async () => {
-    if (!microscopeControl) return;
-
-    try {
-      // Ensure HyphaCore is initialized
-      if (!window.hyphaCore || !window.hyphaApi) {
-        appendLog('HyphaCore is not initialized.');
-        return;
-      }
-
-      if (window.chatbotWindow && !window.chatbotWindow.closed) {
-        // If the window is minimized, restore it
-        if (window.chatbotWindow.minimized) {
-          window.chatbotWindow.restore();
-        } else {
-          // Bring the window to front
-          window.chatbotWindow.focus();
-        }
-      } else {
-        appendLog('Opening chatbot window...');
-        const url = await microscopeControl.get_chatbot_url();
-        window.chatbotWindow = await window.hyphaApi.createWindow({
-          src: url,
-          name: 'Chatbot',
-        });
-      }
-    } catch (error) {
-      appendLog(`Failed to open chatbot window: ${error.message}`);
-    }
-  },
-  [microscopeControl, appendLog]
-);
 
 const moveMicroscope = useCallback(
 async (direction, multiplier) => {
