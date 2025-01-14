@@ -12,6 +12,7 @@ import 'ol/ol.css';
 import PropTypes from 'prop-types';
 import { Draw } from 'ol/interaction';
 import { isLocal } from '../utils';
+import MapButton from './MapButton';
 
 const ImageDisplay = ({ toggleControls, appendLog, snapshotImage, segmentService, microscopeControlService }) => {
   const map = useRef(null);
@@ -338,14 +339,11 @@ const ImageDisplay = ({ toggleControls, appendLog, snapshotImage, segmentService
     return (
     <div className="relative top-0 left-0 w-full h-screen bg-gray-100 flex items-center justify-center overflow-hidden">
       <div ref={mapRef} className="w-full h-full"></div>
-      <button
-        className="absolute bottom-2.5 right-2.5 w-10 h-10 z-50 rounded bg-green-600 text-white border-none cursor-pointer flex items-center justify-center"
-        onClick={toggleControls}
-      >
-        <i className="fas fa-cog icon text-sm"></i>
-      </button>
+      {/*bottom-2.5 right-2.5 */}
+      <MapButton onClick={toggleControls} icon="fa-cog" top="320" />
       <select
-        className="absolute top-[370px] left-2.5 p-1.5 z-40 bg-blue-600 text-white border-none rounded-md text-base font-medium cursor-pointer shadow-inner shadow-lg transition-all duration-300 ease-in-out hover:bg-blue-800 hover:shadow-xl hover:translate-y-[-2px]"
+        className="absolute left-2.5 p-1.5 z-40 bg-blue-600 text-white border-none rounded-md text-base font-medium cursor-pointer shadow-inner shadow-lg transition-all duration-300 ease-in-out hover:bg-blue-800 hover:shadow-xl hover:translate-y-[-2px]"
+        style={{ top: '370px' }}
         value={selectedModel}
         onChange={(e) => setSelectedModel(e.target.value)}
       >
@@ -354,37 +352,12 @@ const ImageDisplay = ({ toggleControls, appendLog, snapshotImage, segmentService
         <option value="vit_b">ViT-B</option>
         <option value="vit_b_em_organelles">ViT-B EM Organelles</option>
       </select>
-      <button
-        className="absolute top-[420px] left-2.5 p-2.5 z-40 bg-blue-600 text-white border-none rounded-md text-xs font-medium cursor-pointer shadow-inner shadow-lg transition-all duration-300 ease-in-out hover:bg-blue-800 hover:shadow-xl hover:translate-y-[-2px]"
-        onClick={activatePenTool}
-      >
-        <i className={`fas ${isPenActive ? "fa-pencil-alt icon" : "fa-magic icon"} text-sm`}></i>
-      </button>
-      <button
-        className="absolute top-[470px] left-2.5 p-2.5 z-40 bg-blue-600 text-white border-none rounded-md text-xs font-medium cursor-pointer shadow-inner shadow-lg transition-all duration-300 ease-in-out hover:bg-blue-800 hover:shadow-xl hover:translate-y-[-2px]"
-        onClick={handleSegmentAllCells}
-        disabled={!snapshotImage || !segmentService}
-      >
-        <i className="fas fa-layer-group icon text-sm"></i>
-      </button>
-      <button
-        className="absolute top-[520px] left-2.5 p-2.5 z-40 bg-blue-600 text-white border-none rounded-md text-xs font-medium cursor-pointer shadow-inner shadow-lg transition-all duration-300 ease-in-out hover:bg-blue-800 hover:shadow-xl hover:translate-y-[-2px]"
-        onClick={startDrawingPoints}
-      >
-        <i className="fas fa-map-marker-alt icon text-sm"></i>
-      </button>
-      <button
-        className="absolute top-[570px] left-2.5 p-2.5 z-40 bg-blue-600 text-white border-none rounded-md text-xs font-medium cursor-pointer shadow-inner shadow-lg transition-all duration-300 ease-in-out hover:bg-blue-800 hover:shadow-xl hover:translate-y-[-2px]"
-        onClick={startDrawingPolygons}
-      >
-        <i className="fas fa-draw-polygon icon text-sm"></i>
-      </button>
-      <button
-        className="absolute bottom-2.5 left-2.5 p-2.5 z-40 bg-green-600 text-white border-none rounded-md text-xs font-medium cursor-pointer shadow-inner shadow-lg transition-all duration-300 ease-in-out hover:bg-green-800 hover:shadow-xl hover:translate-y-[-2px]"
-        onClick={openChatbot}
-      >
-        <i className="fas fa-comments icon text-sm"></i>
-      </button>
+      <MapButton onClick={activatePenTool} icon={isPenActive ? "fa-pencil-alt" : "fa-magic"} top="420" />
+      <MapButton onClick={handleSegmentAllCells} icon="fa-layer-group" top="470" disabled={!snapshotImage || !segmentService}/>
+      <MapButton onClick={startDrawingPoints} icon="fa-map-marker-alt" top="520" />
+      <MapButton onClick={startDrawingPolygons} icon="fa-draw-polygon" top="570" />
+      {/*bottom-10*/}
+      <MapButton onClick={openChatbot} icon="fa-comments" top="620" />
     </div>
   );
 };

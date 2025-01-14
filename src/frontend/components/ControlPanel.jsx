@@ -96,9 +96,9 @@ const ControlPanel = ({
     updateUIBasedOnStatus(status);
   };
 
-  const fluorescenceOptions = Object.entries(channelKeyMap).map((key, value) => (
+  const fluorescenceOptions = Object.entries(channelKeyMap).map(([key, value]) => (
     key == 0?
-      <option key={key} value={key}>BF LED matrix full</option>
+      <option key={key}>BF LED matrix full</option>
       : <option key={key} value={key}>Fluorescence {value} nm Ex</option>
   ));
 
@@ -130,8 +130,8 @@ const ControlPanel = ({
   };
 
   return (
-    <div className="absolute top-[300px] right-0 w-[23%] h-[40%] bg-white bg-opacity-95 p-4 rounded-lg shadow-lg z-50 border-l border-gray-300 box-border overflow-y-auto">
-      <h3 className="text-xl font-medium mb-5 mt-4">Manual Control</h3>
+    <div className="absolute top-40 right-0 w-[23%] h-[40%] bg-white bg-opacity-95 p-4 rounded-lg shadow-lg z-50 border-l border-gray-300 box-border overflow-y-auto">
+      <h3 className="text-xl font-medium">Manual Control</h3>
       <div>
         <div className="mb-4 flex flex-col flex-wrap justify-between">
           <div className="mb-4 w-full box-border">
@@ -149,24 +149,23 @@ const ControlPanel = ({
             />
           </div>
   
-          <div className="mb-4 w-full box-border">
+          <div className="w-full box-border">
             <label className="font-medium block mb-2 mt-1">Illumination Channel:</label>
             <select
-              className="w-full mt-2 rounded-lg mb-1"
+              className="w-full mt-2 rounded-lg mb-1 p-2"
               value={illuminationChannel}
               onChange={(e) => { setIlluminationChannel(e.target.value); }}
             >
-              <option value="0">BF LED matrix full</option>
               {fluorescenceOptions}
             </select>
           </div>
         </div>
   
-        <div className="mb-4 flex flex-col items-start">
+        <div className="flex flex-col items-start">
           <label className="font-medium block mt-1">Camera Exposure:</label>
           <input
             type="number"
-            className="w-full mt-2 rounded-lg"
+            className="w-80 mt-2 rounded-lg border-gray-300 p-2 border-2"
             value={cameraExposure}
             onChange={(e) => { updateExposure(parseInt(e.target.value, 10)); }}
           />
