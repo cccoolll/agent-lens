@@ -6,7 +6,6 @@ import LogSection from './components/LogSection';
 import LoginPrompt from './components/LoginPrompt';
 import ImageDisplay from './components/ImageDisplay';
 import ControlPanel from './components/ControlPanel';
-// import hyphaWebsocketClient from 'hypha-rpc';
 import { getService } from './utils';
 import 'ol/ol.css';
 
@@ -102,15 +101,17 @@ const MicroscopeControl = () => {
         <>
           <ImageDisplay
             toggleControls={() => setIsControlSectionOpen(!isControlSectionOpen)}
-            setSnapshotImage={setSnapshotImage}
+            snapshotImage={snapshotImage}
             appendLog={appendLog}
             segmentService={segmentService}
             microscopeControlService={microscopeControlService}
           />
           {isControlSectionOpen && (
             <ControlPanel
+              setSnapshotImage={setSnapshotImage}
               microscopeControl={microscopeControlService}
               segmentService={segmentService}
+              appendLog={appendLog}
             />
           )}
         </>

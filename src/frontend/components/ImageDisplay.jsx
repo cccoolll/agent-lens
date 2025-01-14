@@ -85,7 +85,7 @@ const ImageDisplay = ({ toggleControls, appendLog, snapshotImage, segmentService
         map.current.un('click', handleMapClick);
       };
     }
-  }, [map, handleImageClick]);
+  }, [map]);
 
   useEffect(() => {
     if (map && !vectorLayer) {
@@ -110,7 +110,7 @@ const ImageDisplay = ({ toggleControls, appendLog, snapshotImage, segmentService
         }),
       });
   
-      map.addLayer(newVectorLayer);
+      map.current.addLayer(newVectorLayer);
       setVectorLayer(newVectorLayer);
     }
   }, [map, vectorLayer]); // Added vectorLayer to dependency array
@@ -178,7 +178,7 @@ const ImageDisplay = ({ toggleControls, appendLog, snapshotImage, segmentService
     const maskSource = new ImageStatic({
       url: `data:image/png;base64,${maskData}`,
       imageExtent: extent,
-      projection: map.getView().getProjection(),
+      projection: map.current.getView().getProjection(),
     });
   
     const maskLayer = new ImageLayer({
@@ -189,7 +189,7 @@ const ImageDisplay = ({ toggleControls, appendLog, snapshotImage, segmentService
     // Tag the layer so it can be identified later
     maskLayer.set('isSegmentationLayer', true);
 
-    map.addLayer(maskLayer);
+    map.current.addLayer(maskLayer);
   };
   
   useEffect(() => {
@@ -203,14 +203,14 @@ const ImageDisplay = ({ toggleControls, appendLog, snapshotImage, segmentService
         handleImageClick(coordinate);
       };
   
-      map.on('click', handleMapClick);
+      map.current.on('click', handleMapClick);
   
       // Clean up on unmount
       return () => {
-        map.un('click', handleMapClick);
+        map.current.un('click', handleMapClick);
       };
     }
-  }, [map, handleImageClick, isDrawingActive]);
+  }, [map, isDrawingActive]);
 
   const addInteraction = (type) => {
     if (!map || !vectorLayer) {
@@ -220,7 +220,7 @@ const ImageDisplay = ({ toggleControls, appendLog, snapshotImage, segmentService
   
     // Remove existing interactions
     if (draw) {
-      map.removeInteraction(draw);
+      map.current.removeInteraction(draw);
     }
   
     // Create a new draw interaction
@@ -229,7 +229,7 @@ const ImageDisplay = ({ toggleControls, appendLog, snapshotImage, segmentService
       type: type, // 'Point', 'LineString', 'Polygon'
     });
   
-    map.addInteraction(newDraw);
+    map.current.addInteraction(newDraw);
     setDraw(newDraw);
     setIsDrawingActive(true); // Set drawing active
   
@@ -238,7 +238,7 @@ const ImageDisplay = ({ toggleControls, appendLog, snapshotImage, segmentService
       console.log('New feature added:', feature);
   
       // After drawing ends, remove the interaction
-      map.removeInteraction(newDraw);
+      map.current.removeInteraction(newDraw);
       setDraw(null);
       setIsDrawingActive(false); // Reset drawing active state
     });

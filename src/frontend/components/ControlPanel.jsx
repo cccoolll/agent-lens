@@ -96,7 +96,7 @@ const ControlPanel = ({
     updateUIBasedOnStatus(status);
   };
 
-  const fluorescenceOptions = channelKeyMap.map((key, value) => (
+  const fluorescenceOptions = Object.entries(channelKeyMap).map((key, value) => (
     key == 0?
       <option key={key} value={key}>BF LED matrix full</option>
       : <option key={key} value={key}>Fluorescence {value} nm Ex</option>
