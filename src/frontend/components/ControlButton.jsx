@@ -1,23 +1,23 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 
-const LogSection = ({ onClick, disbled }) => {
-  return (
-    <button
-        className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 hover:shadow-lg transition-all"
-        onClick={toggleLight}
-        disabled={!microscopeControlService}
-    >
-        <i className="fas fa-lightbulb icon mr-2"></i>
-        {isLightOn ? 'Turn Light Off' : 'Turn Light On'}
-    </button>
-  );
+const ControlButton = ({ onClick, disabled = false, className = '', iconClass = '', children }) => (
+  <button
+    className={`w-full py-2 rounded-lg hover:shadow-lg transition-all ${className}`}
+    onClick={onClick}
+    disabled={disabled}
+  >
+    <i className={`${iconClass} icon mr-2`}></i>
+    {children}
+  </button>
+);
+
+ControlButton.propTypes = {
+  onClick: PropTypes.func.isRequired,
+  disabled: PropTypes.bool,
+  className: PropTypes.string,
+  iconClass: PropTypes.string,
+  children: PropTypes.node.isRequired,
 };
 
-
-
-LogSection.propTypes = {
-  log: PropTypes.string.isRequired,
-};
-
-export default LogSection;
+export default ControlButton;

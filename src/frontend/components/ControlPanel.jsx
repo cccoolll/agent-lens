@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
+import ControlButton from './ControlButton';
 // import WinBox from 'winbox/src/js/winbox';
 
 const ControlPanel = ({
@@ -22,17 +23,24 @@ const ControlPanel = ({
     15: 730,
   };
 
+  useEffect(() => {
+    async function updateMicroscopeParamters() {
+      await microscopeControlService.update_parameters_from_client({
+      [channelKeyMap[illuminationChannel]]: [illuminationIntensity, cameraExposure],
+      });
+    }
+
+    updateMicroscopeParamters();
+  }, [illuminationIntensity, cameraExposure, illuminationChannel]);
+
   const snapImage = async () => {
     appendLog('Snapping image...');
     let imageUrl = await microscopeControlService.snap(
-      parseInt(cameraExposure),
-      parseInt(illuminationChannel),
-      parseInt(illuminationIntensity)
+      cameraExposure,
+      illuminationChannel,
+      illuminationIntensity
     );
     await updateMicroscopeStatus();
-    if (!imageUrl) {
-      throw new Error('Received empty image URL');
-    }
 
     imageUrl = encodeURI(imageUrl);
     const response = await fetch(imageUrl, { credentials: 'include' });
@@ -46,35 +54,6 @@ const ControlPanel = ({
 
     setSnapshotImage(imageObjectURL);
     appendLog('Image snapped and fetched successfully.');
-  };
-
-  const updateParametersOnServer = async (updatedParams) => {
-    if (!microscopeControlService) return;
-    try {
-      await microscopeControlService.update_parameters_from_client(updatedParams);
-    } catch (error) {
-      console.error(`Error updating parameters on server: ${error.message}`);
-    }
-  };
-
-  const updateIntensity = (newIntensity) => {
-    setIlluminationIntensity(newIntensity);
-    const key = channelKeyMap[illuminationChannel];
-    if (key) {
-      updateParametersOnServer({
-        [key]: [newIntensity, cameraExposure],
-      });
-    };
-  };
-
-  const updateExposure = (newExposure) => {
-    setCameraExposure(newExposure);
-    const key = channelKeyMap[illuminationChannel];
-    if (key) {
-      updateParametersOnServer({
-        [key]: [illuminationIntensity, newExposure],
-      });
-    }
   };
 
   const handleResetEmbedding = async () => {
@@ -110,13 +89,11 @@ const ControlPanel = ({
     setCameraExposure(exposure);
   };
 
-
   const autoFocus = async () => {
     await microscopeControlService.auto_focus();
     await updateMicroscopeStatus();
   };
   
-
   const toggleLight = async () => {
       if (!isLightOn) {
           await microscopeControlService.on_illumination();
@@ -145,7 +122,7 @@ const ControlPanel = ({
               min="0"
               max="100"
               value={illuminationIntensity}
-              onChange={(e) => { updateIntensity(parseInt(e.target.value), 10); }}
+              onChange={(e) => { setIlluminationIntensity(parseInt(e.target.value, 10)); }}
             />
           </div>
   
@@ -167,44 +144,46 @@ const ControlPanel = ({
             type="number"
             className="w-80 mt-2 rounded-lg border-gray-300 p-2 border-2"
             value={cameraExposure}
-            onChange={(e) => { updateExposure(parseInt(e.target.value, 10)); }}
+            onChange={(e) => { setCameraExposure(parseInt(e.target.value, 10)); }}
           />
         </div>
   
         <div className="flex flex-col items-start mt-4">
           <div className="flex justify-between mb-4 w-full gap-5">
-            <button
-              className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 hover:shadow-lg transition-all"
+          <ControlButton
+              className="bg-blue-500 text-white hover:bg-blue-600"
               onClick={toggleLight}
               disabled={!microscopeControlService}
+              iconClass="fas fa-lightbulb"
             >
-              <i className="fas fa-lightbulb icon mr-2"></i>
               {isLightOn ? 'Turn Light Off' : 'Turn Light On'}
-            </button>
-            <button
-              className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 hover:shadow-lg transition-all"
+            </ControlButton>
+            <ControlButton
+              className="bg-blue-500 text-white hover:bg-blue-600"
               onClick={autoFocus}
               disabled={!microscopeControlService}
+              iconClass="fas fa-crosshairs"
             >
-              <i className="fas fa-crosshairs icon mr-2"></i> Autofocus
-            </button>
+              Autofocus
+            </ControlButton>
           </div>
-  
           <div className="flex justify-between w-full gap-5">
-            <button
-              className="snap-button bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 hover:shadow-lg transition-all"
+            <ControlButton
+              className="bg-green-500 text-white hover:bg-green-600"
               onClick={snapImage}
               disabled={!microscopeControlService}
+              iconClass="fas fa-camera"
             >
-              <i className="fas fa-camera icon mr-2"></i> Snap Image
-            </button>
-            <button
-              className="reset-button bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 hover:shadow-lg transition-all"
+              Snap Image
+            </ControlButton>
+            <ControlButton
+              className="bg-yellow-500 text-white hover:bg-yellow-600"
               onClick={handleResetEmbedding}
               disabled={!segmentService}
+              iconClass="fas fa-sync"
             >
-              <i className="fas fa-sync icon mr-2"></i> Reset
-            </button>
+              Reset
+            </ControlButton>
           </div>
         </div>
       </div>

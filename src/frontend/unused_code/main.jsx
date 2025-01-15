@@ -4,8 +4,8 @@ const [xMove, setXMove] = useState(1);
   const [yMove, setYMove] = useState(1);
   const [zMove, setZMove] = useState(0.1);
   const [isPlateScanRunning, setIsPlateScanRunning] = useState(false);
-  // const [numSimilarResults, setNumSimilarResults] = useState(5);
-  // const [searchResults, setSearchResults] = useState([]);
+  const [numSimilarResults, setNumSimilarResults] = useState(5);
+  const [searchResults, setSearchResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
 const overlaySegmentationFeature = (coordinates) => {
@@ -32,38 +32,21 @@ const updateParameters = async (updatedParams) => {
 };
 
 const handleSimilaritySearch = async () => {
-  console.log(
-    snapshotImage,
-    similarityService,
-    numSimilarResults
-  );
-
-  if (!snapshotImage || !similarityService) {
-    appendLog('No image or service available for similarity search.');
-    return;
-  }
-  setIsLoading(true);
-  appendLog('Starting similarity search...');
-  try {
-      // Fetch the image data as a Blob
-      const response = await fetch(snapshotImage);
-      const blob = await response.blob();
-      // Convert Blob to ArrayBuffer
-      const arrayBuffer = await new Response(blob).arrayBuffer();
-      // Convert ArrayBuffer to Uint8Array
-      const uint8Array = new Uint8Array(arrayBuffer);
-      const imageData = {
-          name: 'snapshot'
-      };
-      const results = await similarityService.find_similar_images(uint8Array, imageData, parseInt(numSimilarResults));
-      appendLog(`Found ${results.length} similar images.`);
-      // Save the results to the state
-      setSearchResults(results);
-  } catch (error) {
-      appendLog(`Error searching for similar images: ${error.message}`);
-  } finally {
-      setIsLoading(false);
-  }
+    // Fetch the image data as a Blob
+    const response = await fetch(snapshotImage);
+    const blob = await response.blob();
+    // Convert Blob to ArrayBuffer
+    const arrayBuffer = await new Response(blob).arrayBuffer();
+    // Convert ArrayBuffer to Uint8Array
+    const uint8Array = new Uint8Array(arrayBuffer);
+    const imageData = {
+        name: 'snapshot'
+    };
+    const results = await similarityService.find_similar_images(uint8Array, imageData, parseInt(numSimilarResults));
+    appendLog(`Found ${results.length} similar images.`);
+    // Save the results to the state
+    setSearchResults(results);
+    setIsLoading(false);
 };
 
  // Add this above the return statement in MicroscopeControl
