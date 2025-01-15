@@ -4,7 +4,7 @@ import { makeMap, addTileLayer, addMapMask } from './MapSetup';
 import MapButton from './MapButton';
 import ChatbotButton from './ChatbotButton';
 import MapInteractions from './MapInteractions';
-import ControlPanel from './components/ControlPanel';
+import ControlPanel from './ControlPanel';
 
 const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) => {
   const map = useRef(null);

@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import ImageLayer from 'ol/layer/Image';
 import ImageStatic from 'ol/source/ImageStatic';
-import { MapButton } from './MapButton';
-import { InteractionButton } from './InteractionButton';
-import { PenButton } from './PenButton';
+import MapButton from './MapButton';
+import InteractionButton from './InteractionButton';
+import PenButton from './PenButton';
 
 const MapInteractions = ({ segmentService, snapshotImage, map, extent, appendLog, vectorLayer }) => {
   const [isFirstClick, setIsFirstClick] = useState(true); // Track if it's the first click for segmentation
@@ -20,51 +20,43 @@ const MapInteractions = ({ segmentService, snapshotImage, map, extent, appendLog
       });
   }, [map]);
 
+  const getSnapshotArray = async (snapshotImage) => {
+    const response = await fetch(snapshotImage);
+    const blob = await response.blob();
+    const arrayBuffer = await new Response(blob).arrayBuffer();
+    return new Uint8Array(arrayBuffer);
+  };
+
+  const getSegmentedResult = async (pointCoordinates, snapshotArray) => {
+    if (isFirstClick) {
+      return await segmentService.compute_embedding_with_initial_segment(
+        selectedModel,
+        snapshotArray,
+        [pointCoordinates],
+        [1]
+      );
+    } else {
+      return await segmentService.segment_with_existing_embedding(
+        snapshotArray,
+        [pointCoordinates],
+        [1]
+      );
+    }
+  };
+
   const handleImageClick = async (pointCoordinates) => {
     appendLog(`Clicked at coordinates: (${pointCoordinates[0]}, ${pointCoordinates[1]})`);
 
-    try {
-      const response = await fetch(snapshotImage);
-      const blob = await response.blob();
-      const arrayBuffer = await new Response(blob).arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
+    const snapshotArray = await getSnapshotArray(snapshotImage)
+    const segmentedResult = await getSegmentedResult(pointCoordinates, snapshotArray);
 
-      let segmentedResult;
-      if (isFirstClick) {
-        // First click: Use compute_embedding_with_initial_segment with the selected model
-        segmentedResult = await segmentService.compute_embedding_with_initial_segment(
-          selectedModel,
-          uint8Array,
-          [pointCoordinates],
-          [1]
-        );
-        setIsFirstClick(false);
-      } else {
-        // Subsequent clicks: Use segment_with_existing_embedding
-        segmentedResult = await segmentService.segment_with_existing_embedding(
-          uint8Array,
-          [pointCoordinates],
-          [1]
-        );
-      }
-
-      if (segmentedResult.error) {
-        appendLog(`Segmentation error: ${segmentedResult.error}`);
-        return;
-      }
-
-      const maskData = segmentedResult.mask;
-      if (!maskData) {
-        appendLog("Received empty mask data from the server.");
-        return;
-      }
-
-      overlaySegmentationMask(maskData, map, extent);
-      appendLog('Segmentation completed and displayed.');
-
-    } catch (error) {
-      appendLog(`Error in segmentation: ${error.message}`);
+    if (segmentedResult.error) {
+      appendLog(`Segmentation error: ${segmentedResult.error}`);
+      return;
     }
+
+    overlaySegmentationMask(segmentedResult.mask);
+    appendLog('Segmentation completed and displayed.');
   };
 
   const overlaySegmentationMask = (maskData) => {
