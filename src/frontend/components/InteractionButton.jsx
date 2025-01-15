@@ -7,10 +7,7 @@ const InteractionButton = ({ map, vectorLayer, setIsDrawingActive, icon, drawTyp
   const [draw, setDraw] = useState(null);
 
   const addInteraction = (type) => {
-
-    if (draw) {
-      map.removeInteraction(draw);
-    }
+    map.removeInteraction(draw);
   
     const newDraw = new Draw({
       source: vectorLayer.getSource(),

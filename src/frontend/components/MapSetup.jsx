@@ -31,24 +31,22 @@ export const makeMap = (mapRef, extent) => {
 };
 
 export const addTileLayer = (map, extent) => {
-  if (map) {
-    const tileUrl = isLocal()
-      ? `${window.location.protocol}//${window.location.hostname}:9000/public/apps/microscope-control/tiles`
-      : "https://hypha.aicell.io/agent-lens/apps/microscope-control/tiles";
+  
+  const tileUrl = isLocal()
+    ? `${window.location.protocol}//${window.location.hostname}:9000/public/apps/microscope-control/tiles`
+    : "https://hypha.aicell.io/agent-lens/apps/microscope-control/tiles";
+  const tileLayer = new TileLayer({
+    source: new XYZ({
+      url: `${tileUrl}?tile={z}/{x}/{y}.jpg`,
+      crossOrigin: 'anonymous',
+      tileSize: 256,
+      maxZoom: 10,
+      projection: 'deepzoom-image',
+    }),
+  });
 
-    const tileLayer = new TileLayer({
-      source: new XYZ({
-        url: `${tileUrl}?tile={z}/{x}/{y}.jpg`,
-        crossOrigin: 'anonymous',
-        tileSize: 256,
-        maxZoom: 10,
-        projection: 'deepzoom-image',
-      }),
-    });
-
-    map.addLayer(tileLayer);
-    map.getView().fit(extent, { size: map.getSize() });
-  }
+  map.addLayer(tileLayer);
+  map.getView().fit(extent, { size: map.getSize() });
 };
 
 export const addMapMask = (map, setVectorLayer) => {

@@ -5,15 +5,12 @@ import '@fortawesome/fontawesome-free/css/all.min.css';
 import LogSection from './components/LogSection';
 import LoginPrompt from './components/LoginPrompt';
 import ImageDisplay from './components/ImageDisplay';
-import ControlPanel from './components/ControlPanel';
 import { getService } from './utils';
 import 'ol/ol.css';
 
 const MicroscopeControl = () => {    
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [microscopeControlService, setMicroscopeControlService] = useState(null);
-  const [snapshotImage, setSnapshotImage] = useState(null);
-  const [isControlSectionOpen, setIsControlSectionOpen] = useState(false);
   // const [similarityService, setSimilarityService] = useState(null);
   const [log, setLog] = useState('');
   const [segmentService, setSegmentService] = useState(null);
@@ -24,14 +21,6 @@ const MicroscopeControl = () => {
     appendLog("Logged in.");
     setIsAuthenticated(true);
   };
-
-  useEffect(() => {
-    return () => {
-      if (snapshotImage) {
-        URL.revokeObjectURL(snapshotImage);
-      }
-    };
-  }, [snapshotImage]);
 
   const appendLog = (message) => {
       setLog((prevLog) => prevLog + message + '\n');
@@ -98,23 +87,11 @@ const MicroscopeControl = () => {
       {!isAuthenticated ? (
         <LoginPrompt onLogin={handleLogin} />
       ) : (
-        <>
-          <ImageDisplay
-            toggleControls={() => setIsControlSectionOpen(!isControlSectionOpen)}
-            snapshotImage={snapshotImage}
-            appendLog={appendLog}
-            segmentService={segmentService}
-            microscopeControlService={microscopeControlService}
-          />
-          {isControlSectionOpen && (
-            <ControlPanel
-              setSnapshotImage={setSnapshotImage}
-              microscopeControl={microscopeControlService}
-              segmentService={segmentService}
-              appendLog={appendLog}
-            />
-          )}
-        </>
+        <ImageDisplay
+          appendLog={appendLog}
+          segmentService={segmentService}
+          microscopeControlService={microscopeControlService}
+        />
       )}
       <LogSection log={log} />
     </div>
