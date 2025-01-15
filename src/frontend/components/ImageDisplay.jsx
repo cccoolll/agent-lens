@@ -73,9 +73,7 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
 };
 
 ImageDisplay.propTypes = {
-  toggleControls: PropTypes.func.isRequired,
   appendLog: PropTypes.func.isRequired,
-  snapshotImage: PropTypes.string,
   segmentService: PropTypes.object,
   microscopeControlService: PropTypes.object,
 };

@@ -38,8 +38,8 @@ const InteractionButton = ({ map, vectorLayer, setIsDrawingActive, icon, drawTyp
 
 // Prop validation
 InteractionButton.propTypes = {
-  map: PropTypes.object.isRequired,
-  vectorLayer: PropTypes.object.isRequired,
+  map: PropTypes.object,
+  vectorLayer: PropTypes.object,
   setIsDrawingActive: PropTypes.func.isRequired,
   icon: PropTypes.string.isRequired,
   drawType: PropTypes.string.isRequired,

@@ -87,7 +87,7 @@ const CameraSettings = ({ microscopeControlService }) => {
 };
 
 CameraSettings.propTypes = {
-    microscopeControlService: PropTypes.object.isRequired,
+    microscopeControlService: PropTypes.object,
 };
 
 export default CameraSettings;

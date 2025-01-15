@@ -39,7 +39,7 @@ const ChatbotButton = ({ microscopeControlService, appendLog, bottom }) => {
 }
 
 ChatbotButton.propTypes = {
-    microscopeControlService: PropTypes.object.isRequired,
+    microscopeControlService: PropTypes.object,
     appendLog: PropTypes.func.isRequired,
     bottom: PropTypes.string,
 };

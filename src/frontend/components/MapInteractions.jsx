@@ -12,12 +12,14 @@ const MapInteractions = ({ segmentService, snapshotImage, map, extent, appendLog
   const [selectedModel, setSelectedModel] = useState('vit_b_lm'); // Default model
 
   useEffect(() => {
+    if (map.current) {
       map.current.on('click', async (event) => {
           if (isDrawingActive) {
               return;
           }
           await handleImageClick(event.coordinate)
       });
+    }
   }, [map]);
 
   const getSnapshotArray = async (snapshotImage) => {
@@ -125,19 +127,19 @@ const MapInteractions = ({ segmentService, snapshotImage, map, extent, appendLog
       </select>
       <PenButton appendLog={appendLog} setIsFirstClick={setIsFirstClick} />
       <MapButton onClick={() => handleSegmentAllCells(segmentService, snapshotImage, map.current, extent, selectedModel, appendLog) } icon="fa-layer-group" top="470" disabled={!snapshotImage || !segmentService}/>
-      <InteractionButton type="Point" icon="fa-map-marker-alt" top="520" map={map.current} vectorLayer={vectorLayer} setIsDrawingActive={setIsDrawingActive} />
-      <InteractionButton type="Polygon" icon="fa-draw-polygon" top="570" map={map.current} vectorLayer={vectorLayer} setIsDrawingActive={setIsDrawingActive} />
+      <InteractionButton drawType="Point" icon="fa-map-marker-alt" top="520" map={map.current} vectorLayer={vectorLayer} setIsDrawingActive={setIsDrawingActive} />
+      <InteractionButton drawType="Polygon" icon="fa-draw-polygon" top="570" map={map.current} vectorLayer={vectorLayer} setIsDrawingActive={setIsDrawingActive} />
     </>
   );
 }
 
 MapInteractions.propTypes = {
-  segmentService: PropTypes.object.isRequired,
+  segmentService: PropTypes.object,
   snapshotImage: PropTypes.string,
-  map: PropTypes.object.isRequired,
+  map: PropTypes.object,
   extent: PropTypes.array.isRequired,
   appendLog: PropTypes.func.isRequired,
-  vectorLayer: PropTypes.object.isRequired,
+  vectorLayer: PropTypes.object,
 };
 
 export default MapInteractions;
