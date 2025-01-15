@@ -11,7 +11,7 @@ import 'ol/ol.css';
 const MicroscopeControl = () => {    
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [microscopeControlService, setMicroscopeControlService] = useState(null);
-  // const [similarityService, setSimilarityService] = useState(null);
+  const [similarityService, setSimilarityService] = useState(null);
   const [log, setLog] = useState('');
   const [segmentService, setSegmentService] = useState(null);
 
@@ -26,8 +26,8 @@ const MicroscopeControl = () => {
       setLog((prevLog) => prevLog + message + '\n');
   };  
 
-  const initializeServices = async (token) => {
-    const serverUrl = "https://hypha.aicell.io";
+const initializeServices = async (token) => {
+    const serverUrl = "https://chat.bioimage.io";
     appendLog('Initializing connection to server...');
 
     const server = await hyphaWebsocketClient.connectToServer({
@@ -40,8 +40,8 @@ const MicroscopeControl = () => {
     setSegmentService(segmentationService);
     const microscopeControlService = await tryGetService(server, "Microscope Control", "agent-lens/microscope-control-squid-test");
     setMicroscopeControlService(microscopeControlService);
-    // const similarityService = await tryGetService(server, "Similarity Search", "agent-lens/image-embedding-similarity-search", "image-embedding-similarity-search");
-    // setSimilarityService(similarityService);
+    const similarityService = await tryGetService(server, "Similarity Search", "agent-lens/image-embedding-similarity-search", "image-embedding-similarity-search");
+    setSimilarityService(similarityService);
   };
   
   const tryGetService = async(server, name, remoteId, localId = null) => {

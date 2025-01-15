@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import ControlButton from './ControlButton';
-// import WinBox from 'winbox/src/js/winbox';
 import CameraSettings from './CameraSettings';
 
 const ControlPanel = ({
