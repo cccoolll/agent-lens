@@ -32,6 +32,7 @@ export const makeMap = (mapRef, extent) => {
 
 export const addTileLayer = (map, extent) => {
   // TODO: Update the tile URL
+  // TODO: adjust this URL based on channel
   // const tileUrl = isLocal()
   //   ? `${window.location.protocol}//${window.location.hostname}:9000/public/apps/microscope-control/tiles`
   //   : "https://hypha.aicell.io/agent-lens/apps/microscope-control/tiles";
