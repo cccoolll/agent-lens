@@ -3,29 +3,33 @@ import { Draw } from 'ol/interaction';
 import MapButton from './MapButton';
 import PropTypes from 'prop-types';
 
-const InteractionButton = ({ map, vectorLayer, setIsDrawingActive, icon, drawType, top }) => {
+const DrawButton = ({ mapCurrent, vectorLayer, setIsDrawingActive, icon, drawType, top }) => {
   const [draw, setDraw] = useState(null);
 
   const addInteraction = (type) => {
-    map.removeInteraction(draw);
+    if (!['Point', 'LineString', 'Polygon'].includes(type)) {
+      console.error(`Invalid draw type: ${type}`);
+      return;
+    }
+
+    mapCurrent.removeInteraction(draw);
   
     const newDraw = new Draw({
       source: vectorLayer.getSource(),
-      type: type, // 'Point', 'LineString', 'Polygon'
+      type: type,
     });
   
-    map.addInteraction(newDraw);
+    mapCurrent.addInteraction(newDraw);
     setDraw(newDraw);
-    setIsDrawingActive(true); // Set drawing active
+    setIsDrawingActive(true);
   
     newDraw.on('drawend', (event) => {
       const feature = event.feature;
       console.log('New feature added:', feature);
   
-      // After drawing ends, remove the interaction
-      map.removeInteraction(newDraw);
+      mapCurrent.removeInteraction(newDraw);
       setDraw(null);
-      setIsDrawingActive(false); // Reset drawing active state
+      setIsDrawingActive(false);
     });
   };
 
@@ -37,8 +41,8 @@ const InteractionButton = ({ map, vectorLayer, setIsDrawingActive, icon, drawTyp
 };
 
 // Prop validation
-InteractionButton.propTypes = {
-  map: PropTypes.object,
+DrawButton.propTypes = {
+  mapCurrent: PropTypes.object,
   vectorLayer: PropTypes.object,
   setIsDrawingActive: PropTypes.func.isRequired,
   icon: PropTypes.string.isRequired,
@@ -46,4 +50,4 @@ InteractionButton.propTypes = {
   top: PropTypes.string.isRequired,
 };
 
-export default InteractionButton;
+export default DrawButton;

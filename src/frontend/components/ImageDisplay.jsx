@@ -22,10 +22,6 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
       map.current = makeMap(mapRef, extent);
       addTileLayer(map.current, extent);
       addMapMask(map.current, setVectorLayer);
-
-      return () => {
-        map.current.un('click');
-      };
     }
   }, [mapRef]);
 
@@ -37,35 +33,21 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
     };
   }, [snapshotImage]);
 
-  const handleResetEmbedding = async () => {
-    map.getLayers()
-        .getArray()
-        .slice()
-        .filter((layer) => layer.get('isSegmentationLayer'))
-        .forEach((layer) => {
-          map.removeLayer(layer);
-        });
-
-    if (vectorLayer && vectorLayer.getSource()) {
-      vectorLayer.getSource().clear();
-    }
-  };
-
   return (
     <>
       <div className="relative top-0 left-0 w-full h-screen bg-gray-100 flex items-center justify-center overflow-hidden">
         <div ref={mapRef} className="w-full h-full"></div>
+        <MapInteractions segmentService={segmentService} snapshotImage={snapshotImage} mapCurrent={map.current} extent={extent} appendLog={appendLog} vectorLayer={vectorLayer} />
         <MapButton onClick={() => setIsControlSectionOpen(!isControlSectionOpen)} icon="fa-cog" bottom="10" right="10" />
-        <MapInteractions segmentService={segmentService} snapshotImage={snapshotImage} map={map} extent={extent} appendLog={appendLog} vectorLayer={vectorLayer} />
         <ChatbotButton microscopeControlService={microscopeControlService} appendLog={appendLog} bottom="10" />
       </div>
       {isControlSectionOpen && (
         <ControlPanel
+          mapCurrent={map.current}
           setSnapshotImage={setSnapshotImage}
           microscopeControl={microscopeControlService}
           segmentService={segmentService}
           appendLog={appendLog}
-          resetEmbedding={handleResetEmbedding}
         />
       )}
     </>

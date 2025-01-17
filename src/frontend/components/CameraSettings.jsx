@@ -15,21 +15,21 @@ const CameraSettings = ({ microscopeControlService }) => {
       15: 730,
     };
 
+    const fluorescenceOptions = Object.entries(channelKeyMap).map(([key, value]) => (
+        <option key={key} value={key}>{key == 0? "BF LED matrix full" : `Fluorescence ${value} nm Ex`}</option>
+    ));
+
     useEffect(() => {
-        async function updateMicroscopeParamters() {
+        async function updateMicroscopeParameters() {
             await microscopeControlService.update_parameters_from_client({
                 [channelKeyMap[illuminationChannel]]: [illuminationIntensity, cameraExposure],
             });
         }
 
-        updateMicroscopeParamters();
-    }, [illuminationIntensity, cameraExposure, illuminationChannel]);
-
-    const fluorescenceOptions = Object.entries(channelKeyMap).map(([key, value]) => (
-        key == 0?
-            <option key={key}>BF LED matrix full</option>
-            : <option key={key} value={key}>Fluorescence {value} nm Ex</option>
-    ));
+        if (microscopeControlService) {
+            updateMicroscopeParameters();
+        }
+    }, [illuminationIntensity, cameraExposure, illuminationChannel, microscopeControlService]);
 
     const updateMicroscopeStatus = async () => {
         const status = await microscopeControlService.get_status();

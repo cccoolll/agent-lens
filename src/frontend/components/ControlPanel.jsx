@@ -7,8 +7,9 @@ const ControlPanel = ({
   microscopeControlService,
   segmentService,
   setSnapshotImage,
-  resetEmbedding,
-  appendLog
+  mapCurrent,
+  vectorLayer,
+  appendLog,
 }) => {
   const [isLightOn, setIsLightOn] = useState(false);
 
@@ -49,6 +50,20 @@ const ControlPanel = ({
       setIsLightOn(!isLightOn);
   };
 
+  const resetEmbedding = (map, vectorLayer) => {
+    map.getLayers()
+      .getArray()
+      .slice()
+      .filter((layer) => layer.get('isSegmentationLayer'))
+      .forEach((layer) => {
+      map.removeLayer(layer);
+    });
+
+    if (vectorLayer && vectorLayer.getSource()) {
+        vectorLayer.getSource().clear();
+    }
+  };
+
   return (
     <div className="absolute top-40 right-0 w-[23%] h-[40%] bg-white bg-opacity-95 p-4 rounded-lg shadow-lg z-50 border-l border-gray-300 box-border overflow-y-auto">
       <h3 className="text-xl font-medium">Manual Control</h3>
@@ -84,7 +99,7 @@ const ControlPanel = ({
             </ControlButton>
             <ControlButton
               className="bg-yellow-500 text-white hover:bg-yellow-600"
-              onClick={resetEmbedding}
+              onClick={() => resetEmbedding(mapCurrent, vectorLayer)}
               disabled={!segmentService}
               iconClass="fas fa-sync"
             >
@@ -103,6 +118,8 @@ ControlPanel.propTypes = {
   setSnapshotImage: PropTypes.func.isRequired,
   appendLog: PropTypes.func.isRequired,
   resetEmbedding: PropTypes.func.isRequired,
+  mapCurrent: PropTypes.object,
+  vectorLayer: PropTypes.object,
 };
 
 export default ControlPanel;

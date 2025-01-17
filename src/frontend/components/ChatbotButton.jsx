@@ -6,6 +6,28 @@ import WinBox from 'winbox/src/js/winbox';
 const ChatbotButton = ({ microscopeControlService, appendLog, bottom }) => {
     const hyphaCoreInitialized = React.useRef(false);
 
+    useEffect(() => {
+        const initializeHyphaCore = async () => {
+            if (!hyphaCoreInitialized.current) {
+                hyphaCoreInitialized.current = true;
+            
+                // Dynamically import HyphaCore
+                const module = await import('https://cdn.jsdelivr.net/npm/hypha-core@0.20.38/dist/hypha-core.mjs');
+                const { HyphaCore } = module;
+            
+                window.hyphaCore = new HyphaCore();
+                window.chatbotWindow = null;
+            
+                window.hyphaCore.on('add_window', createChatWindow);
+            
+                await window.hyphaCore.start();
+                window.hyphaApi = window.hyphaCore.api;
+            }
+        };
+        
+        initializeHyphaCore();
+    }, []);
+
     const createChatWindow = async (config) => {
         const wb = new WinBox(config.name || config.src.slice(0, 128), {
             id: 'chatbot-window', // Assign an ID to the window
@@ -29,28 +51,6 @@ const ChatbotButton = ({ microscopeControlService, appendLog, bottom }) => {
         
         return wb;
     };
-
-    useEffect(() => {
-        const initializeHyphaCore = async () => {
-            if (!hyphaCoreInitialized.current) {
-                hyphaCoreInitialized.current = true;
-            
-                // Dynamically import HyphaCore
-                const module = await import('https://cdn.jsdelivr.net/npm/hypha-core@0.20.38/dist/hypha-core.mjs');
-                const { HyphaCore } = module;
-            
-                window.hyphaCore = new HyphaCore();
-                window.chatbotWindow = null;
-            
-                window.hyphaCore.on('add_window', createChatWindow);
-            
-                await window.hyphaCore.start();
-                window.hyphaApi = window.hyphaCore.api;
-            }
-        };
-        
-        initializeHyphaCore();
-    }, []);
 
     const openChatbot = async (microscopeControlService, appendLog) => {
         try {
