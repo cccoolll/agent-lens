@@ -4,7 +4,6 @@ It includes methods for creating vector collections, adding vectors, searching v
 and handling file uploads and downloads.
 """
 
-import io
 import requests
 
 class AgentLensArtifactManager:
@@ -156,34 +155,3 @@ class AgentLensArtifactManager:
         response = requests.get(get_url, timeout=500)
         assert response.ok, "File download failed"
         return response.content
-
-    # TODO: move to frontend
-    async def get_zip_file(self, user_id, coll_name, zip_file_path, file_path):
-        """
-        Retrieve a file from a zip archive in the collection.
-
-        Args:
-            user_id (str): The user ID.
-            coll_name (str): The collection name.
-            zip_file_path (str): The path to the zip file.
-            file_path (str): The path to the file within the zip archive.
-
-        Returns:
-            BytesIO: The file content.
-        """
-        workspace = self._workspace_id(user_id)
-        artifact_alias = self._artifact_alias(coll_name)
-        server_url = self.server.config.public_base_url
-        response = requests.get(
-            f"{server_url}/{workspace}/artifacts/{artifact_alias}/zip-files/{zip_file_path}",
-            params={"path": file_path},
-            stream=True,
-            timeout=500
-        )
-
-        file_content = io.BytesIO()
-        for chunk in response.iter_content(chunk_size=8192):
-            file_content.write(chunk)
-
-        file_content.seek(0)
-        return file_content
