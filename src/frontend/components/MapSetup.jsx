@@ -31,14 +31,13 @@ export const makeMap = (mapRef, extent) => {
 };
 
 export const addTileLayer = (map, extent) => {
-  // TODO: Update the tile URL
   // TODO: adjust this URL based on channel
   // const tileUrl = isLocal()
   //   ? `${window.location.protocol}//${window.location.hostname}:9000/public/apps/microscope-control/tiles`
   //   : "https://hypha.aicell.io/agent-lens/apps/microscope-control/tiles";
   const tileLayer = new TileLayer({
     source: new XYZ({
-      url: `https://hypha.aicell.io/squid-control/services/tile-streaming-whole-view/get_tile?channel_name=Brightfield&z={z}&x={x}&y={y}`, // TODO: dynamic currentChannel
+      url: `https://hypha.aicell.io/squid-control/services/tile-streaming-whole-view/get_tile?channel_name=Brightfield&z={z}&x={x}&y={y}`,
       crossOrigin: 'anonymous',
       tileSize: 256,
       maxZoom: 10,

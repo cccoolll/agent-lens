@@ -8,8 +8,6 @@ from hypha_rpc import connect_to_server, login
 
 dotenv.load_dotenv()
 
-# TODO: change dist/index.html src="assets/..." instead of "/assets/..."
-# Or fix this
 async def start_hypha_server(server, service_id):
     app = FastAPI()
     frontend_dir = os.path.join(os.path.dirname(__file__), "../frontend")

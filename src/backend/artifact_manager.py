@@ -5,7 +5,7 @@ and handling file uploads and downloads.
 """
 
 import io
-import requests # TODO: httpxrequests
+import requests
 
 class AgentLensArtifactManager:
     """
