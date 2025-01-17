@@ -4,8 +4,7 @@ It includes methods for creating vector collections, adding vectors, searching v
 and handling file uploads and downloads.
 """
 
-import io
-import requests # TODO: httpxrequests
+import httpx
 
 class AgentLensArtifactManager:
     """
@@ -135,8 +134,9 @@ class AgentLensArtifactManager:
         """
         art_id = self._artifact_id(user_id, coll_name)
         put_url = await self._svc.put_file(art_id, file_path, download_weight=1.0)
-        response = requests.put(put_url, data=file_content, timeout=500)
-        assert response.ok, "File upload failed"
+        async with httpx.AsyncClient() as client:
+            response = await client.put(put_url, data=file_content, timeout=500)
+        response.raise_for_status()
         await self._svc.commit(art_id)
 
     async def get_file(self, user_id, coll_name, file_path):
@@ -153,37 +153,9 @@ class AgentLensArtifactManager:
         """
         art_id = self._artifact_id(user_id, coll_name)
         get_url = await self._svc.get_file(art_id, file_path)
-        response = requests.get(get_url, timeout=500)
-        assert response.ok, "File download failed"
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(get_url, timeout=500)
+        response.raise_for_status()
+        
         return response.content
-
-    # TODO: move to frontend
-    async def get_zip_file(self, user_id, coll_name, zip_file_path, file_path):
-        """
-        Retrieve a file from a zip archive in the collection.
-
-        Args:
-            user_id (str): The user ID.
-            coll_name (str): The collection name.
-            zip_file_path (str): The path to the zip file.
-            file_path (str): The path to the file within the zip archive.
-
-        Returns:
-            BytesIO: The file content.
-        """
-        workspace = self._workspace_id(user_id)
-        artifact_alias = self._artifact_alias(coll_name)
-        server_url = self.server.config.public_base_url
-        response = requests.get(
-            f"{server_url}/{workspace}/artifacts/{artifact_alias}/zip-files/{zip_file_path}",
-            params={"path": file_path},
-            stream=True,
-            timeout=500
-        )
-
-        file_content = io.BytesIO()
-        for chunk in response.iter_content(chunk_size=8192):
-            file_content.write(chunk)
-
-        file_content.seek(0)
-        return file_content
