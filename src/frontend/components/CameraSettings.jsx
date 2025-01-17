@@ -1,19 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import { channelKeyMap } from '../constants';
 import PropTypes from 'prop-types';
 
-const CameraSettings = ({ microscopeControlService }) => {
+const CameraSettings = ({ microscopeControlService, addTileLayer }) => {
     const [cameraExposure, setCameraExposure] = useState(100);
     const [illuminationIntensity, setIlluminationIntensity] = useState(50);
     const [illuminationChannel, setIlluminationChannel] = useState("0");
-  
-    const channelKeyMap = {
-      0: "BF",
-      11: 405,
-      12: 488,
-      14: 561,
-      13: 638,
-      15: 730,
-    };
 
     const fluorescenceOptions = Object.entries(channelKeyMap).map(([key, value]) => (
         <option key={key} value={key}>{key == 0? "BF LED matrix full" : `Fluorescence ${value} nm Ex`}</option>
@@ -43,6 +35,12 @@ const CameraSettings = ({ microscopeControlService }) => {
         setCameraExposure(exposure);
     };
 
+    const updateIlluminationChannel = async (newChannel) => {
+        setIlluminationChannel(newChannel);
+        addTileLayer(newChannel);
+        await updateMicroscopeStatus();
+    }
+
     return (
         <>
             <div className="mb-4 flex flex-col flex-wrap justify-between">
@@ -66,7 +64,7 @@ const CameraSettings = ({ microscopeControlService }) => {
                 <select
                 className="w-full mt-2 rounded-lg mb-1 p-2"
                 value={illuminationChannel}
-                onChange={async (e) => { setIlluminationChannel(e.target.value); await updateMicroscopeStatus(); }}
+                onChange={async (e) => { await updateIlluminationChannel(e.target.value); }}
                 >
                 {fluorescenceOptions}
                 </select>
@@ -88,6 +86,7 @@ const CameraSettings = ({ microscopeControlService }) => {
 
 CameraSettings.propTypes = {
     microscopeControlService: PropTypes.object,
+    addTileLayer: PropTypes.func,
 };
 
 export default CameraSettings;

@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
-import { makeMap, addTileLayer, addMapMask } from './MapSetup';
+import { makeMap, TileLayer, addMapMask } from './MapSetup';
 import MapButton from './MapButton';
 import ChatbotButton from './ChatbotButton';
 import MapInteractions from './MapInteractions';
 import ControlPanel from './ControlPanel';
+import XYZ from 'ol/source/XYZ';
 
 const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) => {
   const map = useRef(null);
@@ -12,6 +13,7 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
   const [vectorLayer, setVectorLayer] = useState(null);
   const [isControlSectionOpen, setIsControlSectionOpen] = useState(false);
   const [snapshotImage, setSnapshotImage] = useState(null);
+  const [imageLayer, setImageLayer] = useState(null);
 
   const imageWidth = 2048;
   const imageHeight = 2048;
@@ -20,7 +22,7 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
   useEffect(() => {
     if (!map.current && mapRef.current) {
       map.current = makeMap(mapRef, extent);
-      addTileLayer(map.current, extent);
+      addTileLayer(map.current, extent, 0);
       addMapMask(map.current, setVectorLayer);
     }
   }, [mapRef]);
@@ -32,6 +34,45 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
       }
     };
   }, [snapshotImage]);
+
+  const channelKeyMap = {
+    0: "BF",
+    11: 405,
+    12: 488,
+    14: 561,
+    13: 638,
+    15: 730,
+  };
+  
+  const addTileLayer = (mapCurrent, channelKey) => {
+    const channelName = channelKeyMap[channelKey];
+  
+    if (imageLayer) {
+      mapCurrent.removeLayer(imageLayer);
+    }
+  
+    // TODO:
+    // const tileUrl = isLocal()
+    //   ? `${window.location.protocol}//${window.location.hostname}:9000/public/apps/microscope-control/tiles`
+    //   : "https://hypha.aicell.io/agent-lens/apps/microscope-control/tiles";
+    const tileLayer = new TileLayer({
+      source: new XYZ({
+        url: `https://hypha.aicell.io/squid-control/services/tile-streaming-whole-view/get_tile?channel_name=${channelName}&z={z}&x={x}&y={y}`,
+        crossOrigin: 'anonymous',
+        tileSize: 256,
+        maxZoom: 10,
+        imageLoadFunction: function(image, src) {
+          image.getImage().src = src;
+          image.getImage().onerror = function() {
+            console.log(`Failed to load tile: ${src}`);
+          };
+        }
+      }),
+    });
+  
+    mapCurrent.addLayer(tileLayer);
+    setImageLayer(tileLayer);
+  };
 
   return (
     <>
@@ -48,6 +89,7 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
           microscopeControl={microscopeControlService}
           segmentService={segmentService}
           appendLog={appendLog}
+          addTileLayer={addTileLayer}
         />
       )}
     </>

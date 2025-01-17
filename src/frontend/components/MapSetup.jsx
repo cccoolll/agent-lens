@@ -1,6 +1,4 @@
 import { Map, View } from 'ol';
-import TileLayer from 'ol/layer/Tile';
-import XYZ from 'ol/source/XYZ';
 import { Projection, addProjection } from 'ol/proj';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
@@ -30,31 +28,7 @@ export const makeMap = (mapRef, extent) => {
   });
 };
 
-export const addTileLayer = (map, extent) => {
-  // TODO: adjust this URL based on channel
-  // const tileUrl = isLocal()
-  //   ? `${window.location.protocol}//${window.location.hostname}:9000/public/apps/microscope-control/tiles`
-  //   : "https://hypha.aicell.io/agent-lens/apps/microscope-control/tiles";
-  const tileLayer = new TileLayer({
-    source: new XYZ({
-      url: `https://hypha.aicell.io/squid-control/services/tile-streaming-whole-view/get_tile?channel_name=Brightfield&z={z}&x={x}&y={y}`,
-      crossOrigin: 'anonymous',
-      tileSize: 256,
-      maxZoom: 10,
-      imageLoadFunction: function(image, src) {
-        image.getImage().src = src;
-        image.getImage().onerror = function() {
-          console.log(`Failed to load tile: ${src}`);
-        };
-      }
-    }),
-  });
-
-  map.addLayer(tileLayer);
-  map.getView().fit(extent, { size: map.getSize() });
-};
-
-export const addMapMask = (map, setVectorLayer) => {
+export const addMapMask = (mapCurrent, setVectorLayer) => {
   const annotationSource = new VectorSource();
 
   const newVectorLayer = new VectorLayer({
@@ -76,6 +50,6 @@ export const addMapMask = (map, setVectorLayer) => {
     }),
   });
 
-  map.addLayer(newVectorLayer);
+  mapCurrent.addLayer(newVectorLayer);
   setVectorLayer(newVectorLayer);
 };

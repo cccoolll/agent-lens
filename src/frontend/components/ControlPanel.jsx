@@ -10,13 +10,14 @@ const ControlPanel = ({
   mapCurrent,
   vectorLayer,
   appendLog,
+  addTileLayer,
 }) => {
   const [isLightOn, setIsLightOn] = useState(false);
 
   const snapImage = async () => {
     appendLog('Snapping image...');
     let imageUrl = await microscopeControlService.snap();
-    // Are these options necessary?
+    // TODO: Are these options necessary?
     // cameraExposure,
     // illuminationChannel,
     // illuminationIntensity
@@ -50,13 +51,13 @@ const ControlPanel = ({
       setIsLightOn(!isLightOn);
   };
 
-  const resetEmbedding = (map, vectorLayer) => {
-    map.getLayers()
+  const resetEmbedding = (mapCurrent, vectorLayer) => {
+    mapCurrent.getLayers()
       .getArray()
       .slice()
       .filter((layer) => layer.get('isSegmentationLayer'))
       .forEach((layer) => {
-      map.removeLayer(layer);
+      mapCurrent.removeLayer(layer);
     });
 
     if (vectorLayer && vectorLayer.getSource()) {
@@ -67,7 +68,7 @@ const ControlPanel = ({
   return (
     <div className="absolute top-40 right-0 w-[23%] h-[40%] bg-white bg-opacity-95 p-4 rounded-lg shadow-lg z-50 border-l border-gray-300 box-border overflow-y-auto">
       <h3 className="text-xl font-medium">Manual Control</h3>
-      <CameraSettings microscopeControlService={microscopeControlService} />
+      <CameraSettings microscopeControlService={microscopeControlService} addTileLayer={addTileLayer} />
       <div>
         <div className="flex flex-col items-start mt-4">
           <div className="flex justify-between mb-4 w-full gap-5">
@@ -120,6 +121,7 @@ ControlPanel.propTypes = {
   resetEmbedding: PropTypes.func.isRequired,
   mapCurrent: PropTypes.object,
   vectorLayer: PropTypes.object,
+  addTileLayer: PropTypes.func,
 };
 
 export default ControlPanel;
