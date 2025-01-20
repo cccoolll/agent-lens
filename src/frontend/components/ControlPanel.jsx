@@ -69,7 +69,7 @@ const ControlPanel = ({
   return (
     <div className="absolute top-40 right-0 w-[23%] h-[40%] bg-white bg-opacity-95 p-4 rounded-lg shadow-lg z-50 border-l border-gray-300 box-border overflow-y-auto">
       <h3 className="text-xl font-medium">Manual Control</h3>
-      <CameraSettings microscopeControlService={microscopeControlService} addTileLayer={addTileLayer} channelKeyMap={channelKeyMap} />
+      <CameraSettings mapCurrent={mapCurrent} microscopeControlService={microscopeControlService} addTileLayer={addTileLayer} channelKeyMap={channelKeyMap} />
       <div>
         <div className="flex flex-col items-start mt-4">
           <div className="flex justify-between mb-4 w-full gap-5">
@@ -119,7 +119,6 @@ ControlPanel.propTypes = {
   segmentService: PropTypes.object,
   setSnapshotImage: PropTypes.func.isRequired,
   appendLog: PropTypes.func.isRequired,
-  resetEmbedding: PropTypes.func.isRequired,
   mapCurrent: PropTypes.object,
   vectorLayer: PropTypes.object,
   addTileLayer: PropTypes.func,

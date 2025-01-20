@@ -87,11 +87,12 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
         <ControlPanel
           mapCurrent={map.current}
           setSnapshotImage={setSnapshotImage}
-          microscopeControl={microscopeControlService}
+          microscopeControlService={microscopeControlService}
           segmentService={segmentService}
           appendLog={appendLog}
           addTileLayer={addTileLayer}
           channelKeyMap={channelKeyMap}
+          vectorLayer={vectorLayer}
         />
       )}
     </>
