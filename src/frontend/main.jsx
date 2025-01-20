@@ -16,8 +16,9 @@ const MicroscopeControl = () => {
   const [segmentService, setSegmentService] = useState(null);
 
   const handleLogin = async () => {
-    const token = await login();
-    await initializeServices(token, setMicroscopeControlService, setSimilarityService, setSegmentService, appendLog);
+    const serverUrl = "https://hypha.aicell.io";
+    const token = await login(serverUrl);
+    await initializeServices(serverUrl, token, setMicroscopeControlService, setSimilarityService, setSegmentService, appendLog);
     appendLog("Logged in.");
     setIsAuthenticated(true);
   };

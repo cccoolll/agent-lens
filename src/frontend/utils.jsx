@@ -21,8 +21,7 @@ const getService = async (server, remoteId, localId = null) => {
     return svc;
 };
 
-export const initializeServices = async (token, setMicroscopeControlService, setSimilarityService, setSegmentService, appendLog) => {
-  const serverUrl = "https://chat.bioimage.io";
+export const initializeServices = async (serverUrl, token, setMicroscopeControlService, setSimilarityService, setSegmentService, appendLog) => {
   appendLog('Initializing connection to server...');
 
   const server = await hyphaWebsocketClient.connectToServer({
@@ -51,8 +50,7 @@ const tryGetService = async (server, name, remoteId, localId, appendLog) => {
   }
 };
 
-export const login = async () => {
-  const serverUrl = "https://hypha.aicell.io";
+export const login = async (serverUrl = "https://hypha.aicell.io") => {
   let token = localStorage.getItem("token");
   if (token) {
     const tokenExpiry = localStorage.getItem("tokenExpiry");
