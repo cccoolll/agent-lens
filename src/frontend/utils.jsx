@@ -1,5 +1,3 @@
-import * as hyphaWebsocketClient from "hypha-websocket-client";
-
 const getServerUrl = () => {
     return getUrlParam("server") || window.location.origin;
   }
