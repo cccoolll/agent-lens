@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import DrawButton from './DrawButton';
 import PenButton from './PenButton';
 import SegmentControls from './SegmentControls';
-import { getSnapshotArray, overlaySegmentationMask } from '../utils/segmentation';
+import { getSnapshotArray, overlaySegmentationMask } from './Segmentation';
 
 const MapInteractions = ({ segmentService, snapshotImage, mapCurrent, extent, appendLog, vectorLayer }) => {
   const [isFirstClick, setIsFirstClick] = useState(true); // Track if it's the first click for segmentation

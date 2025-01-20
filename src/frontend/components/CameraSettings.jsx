@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { channelKeyMap } from '../constants';
 import PropTypes from 'prop-types';
 
-const CameraSettings = ({ microscopeControlService, addTileLayer }) => {
+const CameraSettings = ({ microscopeControlService, addTileLayer, channelKeyMap }) => {
     const [cameraExposure, setCameraExposure] = useState(100);
     const [illuminationIntensity, setIlluminationIntensity] = useState(50);
     const [illuminationChannel, setIlluminationChannel] = useState("0");
@@ -87,6 +86,7 @@ const CameraSettings = ({ microscopeControlService, addTileLayer }) => {
 CameraSettings.propTypes = {
     microscopeControlService: PropTypes.object,
     addTileLayer: PropTypes.func,
+    channelKeyMap: PropTypes.object,
 };
 
 export default CameraSettings;

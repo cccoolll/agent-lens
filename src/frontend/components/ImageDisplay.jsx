@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
-import { makeMap, TileLayer, addMapMask } from './MapSetup';
+import { makeMap, addMapMask } from './MapSetup';
 import MapButton from './MapButton';
 import ChatbotButton from './ChatbotButton';
 import MapInteractions from './MapInteractions';
 import ControlPanel from './ControlPanel';
 import XYZ from 'ol/source/XYZ';
+import TileLayer from 'ol/layer/Tile';
 
 const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) => {
   const map = useRef(null);
@@ -90,6 +91,7 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
           segmentService={segmentService}
           appendLog={appendLog}
           addTileLayer={addTileLayer}
+          channelKeyMap={channelKeyMap}
         />
       )}
     </>
