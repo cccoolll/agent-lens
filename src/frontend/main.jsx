@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { StrictMode, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
@@ -28,18 +28,20 @@ const MicroscopeControl = () => {
   };  
 
   return (
-    <div className="main-container relative">
-      {!isAuthenticated ? (
-        <LoginPrompt onLogin={handleLogin} />
-      ) : (
-        <ImageDisplay
-          appendLog={appendLog}
-          segmentService={segmentService}
-          microscopeControlService={microscopeControlService}
-        />
-      )}
-      <LogSection log={log} />
-    </div>
+    <StrictMode>
+      <div className="main-container relative">
+        {!isAuthenticated ? (
+          <LoginPrompt onLogin={handleLogin} />
+        ) : (
+          <ImageDisplay
+            appendLog={appendLog}
+            segmentService={segmentService}
+            microscopeControlService={microscopeControlService}
+          />
+        )}
+        <LogSection log={log} />
+      </div>
+    </StrictMode>
   );
 };
 
