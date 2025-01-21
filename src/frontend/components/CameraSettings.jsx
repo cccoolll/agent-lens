@@ -1,19 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 
-const CameraSettings = ({ mapCurrent, microscopeControlService, addTileLayer, channelKeyMap }) => {
+const CameraSettings = ({ mapCurrent, microscopeControlService, addTileLayer, channelNames }) => {
     const [cameraExposure, setCameraExposure] = useState(100);
     const [illuminationIntensity, setIlluminationIntensity] = useState("50");
     const [illuminationChannel, setIlluminationChannel] = useState("0");
 
-    const fluorescenceOptions = Object.entries(channelKeyMap).map(([key, value]) => (
+    const fluorescenceOptions = Object.entries(channelNames).map(([key, value]) => (
         <option key={key} value={key}>{key == 0? "BF LED matrix full" : `Fluorescence ${value} nm Ex`}</option>
     ));
 
     useEffect(() => {
         async function updateMicroscopeParameters() {
             await microscopeControlService.update_parameters_from_client({
-                [channelKeyMap[illuminationChannel]]: [illuminationIntensity, cameraExposure],
+                [channelNames[illuminationChannel]]: [illuminationIntensity, cameraExposure],
             });
         }
 
@@ -28,7 +28,7 @@ const CameraSettings = ({ mapCurrent, microscopeControlService, addTileLayer, ch
     };
     
     const updateUIBasedOnStatus = (status) => {
-        const channelName = channelKeyMap[illuminationChannel];
+        const channelName = channelNames[illuminationChannel];
         const { intensity, exposure } = status[`${channelName}_intensity_exposure`];
         setIlluminationIntensity(intensity);
         setCameraExposure(exposure);
@@ -87,7 +87,7 @@ CameraSettings.propTypes = {
     mapCurrent: PropTypes.object,
     microscopeControlService: PropTypes.object,
     addTileLayer: PropTypes.func,
-    channelKeyMap: PropTypes.object,
+    channelNames: PropTypes.object,
 };
 
 export default CameraSettings;

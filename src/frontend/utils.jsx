@@ -19,7 +19,7 @@ const getService = async (server, remoteId, localId = null) => {
     return svc;
 };
 
-export const initializeServices = async (serverUrl, token, setMicroscopeControlService, setSimilarityService, setSegmentService, appendLog) => {
+export const initializeServices = async (serverUrl, token, setMicroscopeControlService, setSimilarityService, setSegmentService, setTileService, appendLog) => {
   appendLog('Initializing connection to server...');
 
   const server = await hyphaWebsocketClient.connectToServer({
@@ -28,12 +28,14 @@ export const initializeServices = async (serverUrl, token, setMicroscopeControlS
     method_timeout: 500,
   });
 
-  const segmentationService = await tryGetService(server, "Acquiring Segmentation", "agent-lens/interactive-segmentation", "interactive-segmentation", appendLog);
+  const segmentationService = await tryGetService(server, "Segmentation", "agent-lens/interactive-segmentation", "interactive-segmentation", appendLog);
   setSegmentService(segmentationService);
   const microscopeControlService = await tryGetService(server, "Microscope Control", "agent-lens/microscope-control-squid-test", null, appendLog);
   setMicroscopeControlService(microscopeControlService);
   const similarityService = await tryGetService(server, "Similarity Search", "agent-lens/image-embedding-similarity-search", "image-embedding-similarity-search", appendLog);
   setSimilarityService(similarityService);
+  const tileService = await tryGetService(server, "Tile", "squid-control/microscope_tile_service_test", null, appendLog);
+  setTileService(tileService);
 };
 
 const tryGetService = async (server, name, remoteId, localId, appendLog) => {

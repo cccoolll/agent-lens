@@ -5,10 +5,11 @@ import MapButton from './MapButton';
 import ChatbotButton from './ChatbotButton';
 import MapInteractions from './MapInteractions';
 import ControlPanel from './ControlPanel';
+import { createXYZ } from 'ol/tilegrid';
 import XYZ from 'ol/source/XYZ';
 import TileLayer from 'ol/layer/Tile';
 
-const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) => {
+const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, tileService }) => {
   const map = useRef(null);
   const mapRef = useRef(null); // Reference to the map container
   const [vectorLayer, setVectorLayer] = useState(null);
@@ -23,7 +24,7 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
   useEffect(() => {
     if (!map.current && mapRef.current) {
       map.current = makeMap(mapRef, extent);
-      addTileLayer(map.current, extent, 0);
+      addTileLayer(map.current, 0);
       addMapMask(map.current, setVectorLayer);
     }
   }, [mapRef]);
@@ -36,26 +37,31 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
     };
   }, [snapshotImage]);
 
-  const channelKeyMap = {
-    0: "BF",
-    11: 405,
-    12: 488,
-    14: 561,
-    13: 638,
-    15: 730,
+  const channelNames = {
+    0: 'BF_LED_matrix_full',
+    11: 'Fluorescence_405_nm_Ex',
+    12: 'Fluorescence_488_nm_Ex',
+    14: 'Fluorescence_561_nm_Ex',
+    13: 'Fluorescence_638_nm_Ex'
+  }
+
+  // const getTile = async (channelName, z, x, y) => {
+  //   const tileBytes = await tileService.get_tile(channelName, z, x, y);
+  //   return new Blob([tileBytes]);
+  // };
+  
+  const createTileLoader = (channelName) => async (z, x, y) => {
+    const tileBytes = await tileService.get_tile(channelName, z, x, y);
+    const blob = new Blob([tileBytes], { type: 'image/png' });
+    return blob;
   };
   
   const addTileLayer = (mapCurrent, channelKey) => {
-    const channelName = channelKeyMap[channelKey];
+    const channelName = channelNames[channelKey];
   
     if (imageLayer) {
       mapCurrent.removeLayer(imageLayer);
     }
-  
-    // TODO:
-    // const tileUrl = isLocal()
-    //   ? `${window.location.protocol}//${window.location.hostname}:9000/public/apps/microscope-control/tiles`
-    //   : "https://hypha.aicell.io/agent-lens/apps/microscope-control/tiles";
     const tileLayer = new TileLayer({
       source: new XYZ({
         url: `https://hypha.aicell.io/squid-control/services/tile-streaming-whole-view/get_tile?channel_name=${channelName}&z={z}&x={x}&y={y}`,
@@ -91,7 +97,7 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
           segmentService={segmentService}
           appendLog={appendLog}
           addTileLayer={addTileLayer}
-          channelKeyMap={channelKeyMap}
+          channelNames={channelNames}
           vectorLayer={vectorLayer}
         />
       )}
@@ -103,6 +109,7 @@ ImageDisplay.propTypes = {
   appendLog: PropTypes.func.isRequired,
   segmentService: PropTypes.object,
   microscopeControlService: PropTypes.object,
+  tileService: PropTypes.object,
 };
 
 export default ImageDisplay;
