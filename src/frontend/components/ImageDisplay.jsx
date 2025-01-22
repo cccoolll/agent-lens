@@ -5,10 +5,8 @@ import MapButton from './MapButton';
 import ChatbotButton from './ChatbotButton';
 import MapInteractions from './MapInteractions';
 import ControlPanel from './ControlPanel';
-import { createXYZ } from 'ol/tilegrid';
 import XYZ from 'ol/source/XYZ';
 import TileLayer from 'ol/layer/Tile';
-import TileDebug from 'ol/source/TileDebug.js';
 
 const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, tileService }) => {
   const [map, setMap] = useState(null);
@@ -72,7 +70,7 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, til
         tileLoadFunction: function(tile, src) {
           console.log("Loading tile...", src);
           tile.getImage().src = src;
-          tile.getImage().onerror = function(error) {
+          tile.getImage().onerror = function() {
             console.log(`Failed to load tile: ${src}`);
           };
         }

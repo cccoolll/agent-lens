@@ -1,12 +1,9 @@
 import { Map, View } from 'ol';
-import { Projection } from 'ol/proj';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import { defaults as defaultControls, FullScreen, ZoomSlider } from 'ol/control';
 import { Circle as CircleStyle, Fill, Stroke, Style } from 'ol/style';
 import 'ol/ol.css';
-import TileLayer from 'ol/layer/Tile';
-import { OSM } from 'ol/source';
 // import { isLocal } from '../utils';
 
 export const makeMap = (mapRef, extent) => {
