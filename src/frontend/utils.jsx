@@ -19,7 +19,7 @@ const getService = async (server, remoteId, localId = null) => {
     return svc;
 };
 
-export const initializeServices = async (serverUrl, token, setMicroscopeControlService, setSimilarityService, setSegmentService, setTileService, appendLog) => {
+export const initializeServices = async (serverUrl, token, setMicroscopeControlService, setSimilarityService, setSegmentService, appendLog) => {
   appendLog('Initializing connection to server...');
 
   const server = await hyphaWebsocketClient.connectToServer({
@@ -34,8 +34,6 @@ export const initializeServices = async (serverUrl, token, setMicroscopeControlS
   setMicroscopeControlService(microscopeControlService);
   const similarityService = await tryGetService(server, "Similarity Search", "agent-lens/image-embedding-similarity-search", "image-embedding-similarity-search", appendLog);
   setSimilarityService(similarityService);
-  const tileService = await tryGetService(server, "Tile", "squid-control/microscope_tile_service_test", null, appendLog);
-  setTileService(tileService);
 };
 
 const tryGetService = async (server, name, remoteId, localId, appendLog) => {

@@ -8,7 +8,7 @@ import ControlPanel from './ControlPanel';
 import XYZ from 'ol/source/XYZ';
 import TileLayer from 'ol/layer/Tile';
 
-const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, tileService }) => {
+const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) => {
   const [map, setMap] = useState(null);
   const mapRef = useRef(null); // Reference to the map container
   const effectRan = useRef(false);
@@ -109,7 +109,6 @@ ImageDisplay.propTypes = {
   appendLog: PropTypes.func.isRequired,
   segmentService: PropTypes.object,
   microscopeControlService: PropTypes.object,
-  tileService: PropTypes.object,
 };
 
 export default ImageDisplay;
