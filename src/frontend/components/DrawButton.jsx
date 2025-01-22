@@ -3,7 +3,7 @@ import { Draw } from 'ol/interaction';
 import MapButton from './MapButton';
 import PropTypes from 'prop-types';
 
-const DrawButton = ({ mapCurrent, vectorLayer, setIsDrawingActive, icon, drawType, top }) => {
+const DrawButton = ({ map, vectorLayer, setIsDrawingActive, icon, drawType, top }) => {
   const [draw, setDraw] = useState(null);
 
   const addInteraction = (type) => {
@@ -12,14 +12,14 @@ const DrawButton = ({ mapCurrent, vectorLayer, setIsDrawingActive, icon, drawTyp
       return;
     }
 
-    mapCurrent.removeInteraction(draw);
+    map.removeInteraction(draw);
   
     const newDraw = new Draw({
       source: vectorLayer.getSource(),
       type: type,
     });
   
-    mapCurrent.addInteraction(newDraw);
+    map.addInteraction(newDraw);
     setDraw(newDraw);
     setIsDrawingActive(true);
   
@@ -27,7 +27,7 @@ const DrawButton = ({ mapCurrent, vectorLayer, setIsDrawingActive, icon, drawTyp
       const feature = event.feature;
       console.log('New feature added:', feature);
   
-      mapCurrent.removeInteraction(newDraw);
+      map.removeInteraction(newDraw);
       setDraw(null);
       setIsDrawingActive(false);
     });
@@ -42,7 +42,7 @@ const DrawButton = ({ mapCurrent, vectorLayer, setIsDrawingActive, icon, drawTyp
 
 // Prop validation
 DrawButton.propTypes = {
-  mapCurrent: PropTypes.object,
+  map: PropTypes.object,
   vectorLayer: PropTypes.object,
   setIsDrawingActive: PropTypes.func.isRequired,
   icon: PropTypes.string.isRequired,

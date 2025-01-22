@@ -5,14 +5,14 @@ import PenButton from './PenButton';
 import SegmentControls from './SegmentControls';
 import { getSnapshotArray, overlaySegmentationMask } from './Segmentation';
 
-const MapInteractions = ({ segmentService, snapshotImage, mapCurrent, extent, appendLog, vectorLayer }) => {
+const MapInteractions = ({ segmentService, snapshotImage, map, extent, appendLog, vectorLayer }) => {
   const [isFirstClick, setIsFirstClick] = useState(true); // Track if it's the first click for segmentation
   const [isDrawingActive, setIsDrawingActive] = useState(false);
   const [selectedModel, setSelectedModel] = useState('vit_b_lm');
 
   useEffect(() => {
-    if (mapCurrent) {
-      mapCurrent.on('click', async (event) => {
+    if (map) {
+      map.on('click', async (event) => {
           if (isDrawingActive) {
               return;
           }
@@ -20,10 +20,10 @@ const MapInteractions = ({ segmentService, snapshotImage, mapCurrent, extent, ap
       });
 
       return () => {
-        mapCurrent.un('click');
+        map.un('click');
       };
     }
-  }, [mapCurrent]);
+  }, [map]);
 
   const getSegmentedResult = async (pointCoordinates, snapshotArray) => {
     if (isFirstClick) {
@@ -53,16 +53,16 @@ const MapInteractions = ({ segmentService, snapshotImage, mapCurrent, extent, ap
         return;
     }
 
-    overlaySegmentationMask(segmentedResult.mask, mapCurrent, extent);
+    overlaySegmentationMask(segmentedResult.mask, map, extent);
     appendLog('Segmentation completed and displayed.');
   };
 
   return (
     <>
       <PenButton appendLog={appendLog} setIsFirstClick={setIsFirstClick} />
-      <SegmentControls segmentService={segmentService} snapshotImage={snapshotImage} selectedModel={selectedModel} setSelectedModel={setSelectedModel} mapCurrent={mapCurrent} extent={extent} appendLog={appendLog} />
-      <DrawButton drawType="Point" icon="fa-map-marker-alt" top="520" mapCurrent={mapCurrent} vectorLayer={vectorLayer} setIsDrawingActive={setIsDrawingActive} />
-      <DrawButton drawType="Polygon" icon="fa-draw-polygon" top="570" mapCurrent={mapCurrent} vectorLayer={vectorLayer} setIsDrawingActive={setIsDrawingActive} />
+      <SegmentControls segmentService={segmentService} snapshotImage={snapshotImage} selectedModel={selectedModel} setSelectedModel={setSelectedModel} map={map} extent={extent} appendLog={appendLog} />
+      <DrawButton drawType="Point" icon="fa-map-marker-alt" top="520" map={map} vectorLayer={vectorLayer} setIsDrawingActive={setIsDrawingActive} />
+      <DrawButton drawType="Polygon" icon="fa-draw-polygon" top="570" map={map} vectorLayer={vectorLayer} setIsDrawingActive={setIsDrawingActive} />
     </>
   );
 }
@@ -70,7 +70,7 @@ const MapInteractions = ({ segmentService, snapshotImage, mapCurrent, extent, ap
 MapInteractions.propTypes = {
   segmentService: PropTypes.object,
   snapshotImage: PropTypes.string,
-  mapCurrent: PropTypes.object,
+  map: PropTypes.object,
   extent: PropTypes.array.isRequired,
   appendLog: PropTypes.func.isRequired,
   vectorLayer: PropTypes.object,

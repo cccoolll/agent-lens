@@ -3,10 +3,10 @@ import PropTypes from 'prop-types';
 import MapButton from './MapButton';
 import { getSnapshotArray, overlaySegmentationMask } from './Segmentation';
 
-const SegmentButton = ({ appendLog, snapshotImage, segmentService, mapCurrent, extent, selectedModel, setSelectedModel }) => {
+const SegmentButton = ({ appendLog, snapshotImage, segmentService, map, extent, selectedModel, setSelectedModel }) => {
 
     const handleSegmentAllCells = async () => {
-        if (!segmentService || !snapshotImage || !mapCurrent) return;
+        if (!segmentService || !snapshotImage || !map) return;
     
         appendLog('Segmenting all cells in the image...');
         try {
@@ -26,7 +26,7 @@ const SegmentButton = ({ appendLog, snapshotImage, segmentService, mapCurrent, e
           }
     
           masks.forEach((maskData) => {
-            overlaySegmentationMask(maskData, mapCurrent, extent);
+            overlaySegmentationMask(maskData, map, extent);
           });
     
           appendLog('All cells segmented and displayed.');
@@ -57,7 +57,7 @@ SegmentButton.propTypes = {
     appendLog: PropTypes.func.isRequired,
     snapshotImage: PropTypes.string,
     segmentService: PropTypes.object,
-    mapCurrent: PropTypes.object,
+    map: PropTypes.object,
     extent: PropTypes.array.isRequired,
     selectedModel: PropTypes.string,
     setSelectedModel: PropTypes.func.isRequired,

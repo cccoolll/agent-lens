@@ -1,34 +1,31 @@
 import { Map, View } from 'ol';
-import { Projection, addProjection } from 'ol/proj';
+import { Projection } from 'ol/proj';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
+import { defaults as defaultControls, FullScreen, ZoomSlider } from 'ol/control';
 import { Circle as CircleStyle, Fill, Stroke, Style } from 'ol/style';
 import 'ol/ol.css';
+import TileLayer from 'ol/layer/Tile';
+import { OSM } from 'ol/source';
 // import { isLocal } from '../utils';
 
 export const makeMap = (mapRef, extent) => {
-  const projection = new Projection({
-    code: 'deepzoom-image',
-    units: 'pixels',
-    extent: extent,
-  });
 
-  addProjection(projection);
 
   return new Map({
     target: mapRef.current,
     layers: [],
     view: new View({
-      projection: 'deepzoom-image',
       center: [extent[2] / 2, extent[3] / 2],
       zoom: 2,
       minZoom: 0,
       maxZoom: 10,
     }),
+    controls: defaultControls().extend([new ZoomSlider(), new FullScreen()]),
   });
 };
 
-export const addMapMask = (mapCurrent, setVectorLayer) => {
+export const addMapMask = (map, setVectorLayer) => {
   const annotationSource = new VectorSource();
 
   const newVectorLayer = new VectorLayer({
@@ -50,6 +47,6 @@ export const addMapMask = (mapCurrent, setVectorLayer) => {
     }),
   });
 
-  mapCurrent.addLayer(newVectorLayer);
+  map.addLayer(newVectorLayer);
   setVectorLayer(newVectorLayer);
 };

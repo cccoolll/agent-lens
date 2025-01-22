@@ -7,7 +7,7 @@ const ControlPanel = ({
   microscopeControlService,
   segmentService,
   setSnapshotImage,
-  mapCurrent,
+  map,
   vectorLayer,
   appendLog,
   addTileLayer,
@@ -38,27 +38,27 @@ const ControlPanel = ({
   };
 
   const autoFocus = async () => {
-    await microscopeControlService.auto_focus();
+    // await microscopeControlService.auto_focus();
   };
   
   const toggleLight = async () => {
       if (!isLightOn) {
-          await microscopeControlService.on_illumination();
+          // await microscopeControlService.on_illumination();
           appendLog('Light turned on.');
       } else {
-          await microscopeControlService.off_illumination();
+          // await microscopeControlService.off_illumination();
           appendLog('Light turned off.');
       }
       setIsLightOn(!isLightOn);
   };
 
-  const resetEmbedding = (mapCurrent, vectorLayer) => {
-    mapCurrent.getLayers()
+  const resetEmbedding = (map, vectorLayer) => {
+    map.getLayers()
       .getArray()
       .slice()
       .filter((layer) => layer.get('isSegmentationLayer'))
       .forEach((layer) => {
-      mapCurrent.removeLayer(layer);
+      map.removeLayer(layer);
     });
 
     if (vectorLayer && vectorLayer.getSource()) {
@@ -69,7 +69,7 @@ const ControlPanel = ({
   return (
     <div className="absolute top-40 right-0 w-[23%] h-[40%] bg-white bg-opacity-95 p-4 rounded-lg shadow-lg z-50 border-l border-gray-300 box-border overflow-y-auto">
       <h3 className="text-xl font-medium">Manual Control</h3>
-      <CameraSettings mapCurrent={mapCurrent} microscopeControlService={microscopeControlService} addTileLayer={addTileLayer} channelNames={channelNames} />
+      <CameraSettings map={map} microscopeControlService={microscopeControlService} addTileLayer={addTileLayer} channelNames={channelNames} />
       <div>
         <div className="flex flex-col items-start mt-4">
           <div className="flex justify-between mb-4 w-full gap-5">
@@ -101,7 +101,7 @@ const ControlPanel = ({
             </ControlButton>
             <ControlButton
               className="bg-yellow-500 text-white hover:bg-yellow-600"
-              onClick={() => resetEmbedding(mapCurrent, vectorLayer)}
+              onClick={() => resetEmbedding(map, vectorLayer)}
               disabled={!segmentService}
               iconClass="fas fa-sync"
             >
@@ -119,7 +119,7 @@ ControlPanel.propTypes = {
   segmentService: PropTypes.object,
   setSnapshotImage: PropTypes.func.isRequired,
   appendLog: PropTypes.func.isRequired,
-  mapCurrent: PropTypes.object,
+  map: PropTypes.object,
   vectorLayer: PropTypes.object,
   addTileLayer: PropTypes.func,
   channelNames: PropTypes.object,

@@ -8,10 +8,12 @@ import ControlPanel from './ControlPanel';
 import { createXYZ } from 'ol/tilegrid';
 import XYZ from 'ol/source/XYZ';
 import TileLayer from 'ol/layer/Tile';
+import TileDebug from 'ol/source/TileDebug.js';
 
 const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, tileService }) => {
-  const map = useRef(null);
+  const [map, setMap] = useState(null);
   const mapRef = useRef(null); // Reference to the map container
+  const effectRan = useRef(false);
   const [vectorLayer, setVectorLayer] = useState(null);
   const [isControlSectionOpen, setIsControlSectionOpen] = useState(false);
   const [snapshotImage, setSnapshotImage] = useState(null);
@@ -22,12 +24,20 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, til
   const extent = [0, 0, imageWidth, imageHeight];
 
   useEffect(() => {
-    if (!map.current && mapRef.current) {
-      map.current = makeMap(mapRef, extent);
-      addTileLayer(map.current, 0);
-      addMapMask(map.current, setVectorLayer);
+    if (!map && mapRef.current && !effectRan.current) {
+      const newMap = makeMap(mapRef, extent);
+      setMap(newMap);
+      addTileLayer(newMap, 0);
+      addMapMask(newMap, setVectorLayer);
+      effectRan.current = true;
     }
-  }, [mapRef]);
+
+    return () => {
+      if (map) {
+        map.setTarget(null);
+      }
+    };
+  }, [mapRef.current]);
 
   useEffect(() => {
     return () => {
@@ -43,41 +53,33 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, til
     12: 'Fluorescence_488_nm_Ex',
     14: 'Fluorescence_561_nm_Ex',
     13: 'Fluorescence_638_nm_Ex'
-  }
-
-  // const getTile = async (channelName, z, x, y) => {
-  //   const tileBytes = await tileService.get_tile(channelName, z, x, y);
-  //   return new Blob([tileBytes]);
-  // };
-  
-  const createTileLoader = (channelName) => async (z, x, y) => {
-    const tileBytes = await tileService.get_tile(channelName, z, x, y);
-    const blob = new Blob([tileBytes], { type: 'image/png' });
-    return blob;
   };
   
-  const addTileLayer = (mapCurrent, channelKey) => {
+  const addTileLayer = (map, channelKey) => {
     const channelName = channelNames[channelKey];
+    console.log(map);
   
     if (imageLayer) {
-      mapCurrent.removeLayer(imageLayer);
+      map.removeLayer(imageLayer);
     }
+
     const tileLayer = new TileLayer({
       source: new XYZ({
-        url: `https://hypha.aicell.io/squid-control/services/tile-streaming-whole-view/get_tile?channel_name=${channelName}&z={z}&x={x}&y={y}`,
+        url: `https://hypha.aicell.io/squid-control/services/microscope_tile_service_test/get_tile?channel_name=${channelName}&z={z}&x={x}&y={y}`,
         crossOrigin: 'anonymous',
         tileSize: 256,
         maxZoom: 10,
-        imageLoadFunction: function(image, src) {
-          image.getImage().src = src;
-          image.getImage().onerror = function() {
+        tileLoadFunction: function(tile, src) {
+          console.log("Loading tile...", src);
+          tile.getImage().src = src;
+          tile.getImage().onerror = function(error) {
             console.log(`Failed to load tile: ${src}`);
           };
         }
       }),
     });
   
-    mapCurrent.addLayer(tileLayer);
+    map.addLayer(tileLayer);
     setImageLayer(tileLayer);
   };
 
@@ -85,13 +87,13 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, til
     <>
       <div className="relative top-0 left-0 w-full h-screen bg-gray-100 flex items-center justify-center overflow-hidden">
         <div ref={mapRef} className="w-full h-full"></div>
-        <MapInteractions segmentService={segmentService} snapshotImage={snapshotImage} mapCurrent={map.current} extent={extent} appendLog={appendLog} vectorLayer={vectorLayer} />
+        <MapInteractions segmentService={segmentService} snapshotImage={snapshotImage} map={map} extent={extent} appendLog={appendLog} vectorLayer={vectorLayer} />
         <MapButton onClick={() => setIsControlSectionOpen(!isControlSectionOpen)} icon="fa-cog" bottom="10" right="10" />
         <ChatbotButton microscopeControlService={microscopeControlService} appendLog={appendLog} bottom="10" />
       </div>
       {isControlSectionOpen && (
         <ControlPanel
-          mapCurrent={map.current}
+          map={map}
           setSnapshotImage={setSnapshotImage}
           microscopeControlService={microscopeControlService}
           segmentService={segmentService}

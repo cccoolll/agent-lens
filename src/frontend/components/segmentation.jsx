@@ -8,11 +8,11 @@ export const getSnapshotArray = async (snapshotImage) => {
     return new Uint8Array(arrayBuffer);
 };
 
-export const overlaySegmentationMask = (maskData, mapCurrent, extent) => {
+export const overlaySegmentationMask = (maskData, map, extent) => {
     const maskSource = new ImageStatic({
         url: `data:image/png;base64,${maskData}`,
         imageExtent: extent,
-        projection: mapCurrent.getView().getProjection(),
+        projection: map.getView().getProjection(),
     });
 
     const maskLayer = new ImageLayer({
@@ -23,5 +23,5 @@ export const overlaySegmentationMask = (maskData, mapCurrent, extent) => {
     // Tag the layer so it can be identified later
     maskLayer.set('isSegmentationLayer', true);
 
-    mapCurrent.addLayer(maskLayer);
+    map.addLayer(maskLayer);
 };
