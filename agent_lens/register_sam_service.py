@@ -1,6 +1,6 @@
-
 import io
 import os
+import base64
 from logging import getLogger
 from typing import Union
 from PIL import Image
@@ -11,8 +11,7 @@ import torch
 from dotenv import find_dotenv, load_dotenv
 from kaibu_utils import mask_to_features
 from segment_anything import SamPredictor, sam_model_registry, SamAutomaticMaskGenerator
-from backend.service_utils import make_service
-import base64
+from agent_lens.service_utils import make_service
 
 dotenv.load_dotenv()
 

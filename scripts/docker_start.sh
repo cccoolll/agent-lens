@@ -1,4 +1,4 @@
 #!/bin/bash
 
-npm install --prefix src/frontend
+npm install --prefix frontend
 sh scripts/run_app.sh

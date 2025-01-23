@@ -5,13 +5,12 @@ that processes and stores image embeddings, and allows for searching similar ima
 
 import io
 import base64
-import tempfile
 import numpy as np
-import pyvips
 import torch
 import clip
 from PIL import Image
-from backend.service_utils import make_service
+from agent_lens.service_utils import make_service
+from agent_lens.artifact_manager import AgentLensArtifactManager
 
 async def create_collection(artifact_manager, user_id):
     """
@@ -147,18 +146,10 @@ async def init_methods(artifact_manager):
             "thumbnail": make_thumbnail(cell_image),
         })
 
-    async def tile_image(microscope_image, user_id):
-        vips_image = pyvips.Image.new_from_image(microscope_image, 0)
-        with tempfile.NamedTemporaryFile(suffix=".zip") as temp_zip:
-            vips_image.dzsave(basename=temp_zip.name, layout="google", container="zip") # TODO: save as PNG tiles
-            temp_zip.seek(0)
-            zip_content = temp_zip.read()
-            await artifact_manager.add_file(user_id, "cell-images", zip_content, "tiles.zip")
-
-    return find_similar_cells, save_cell_image, tile_image
+    return find_similar_cells, save_cell_image
 
 
-async def setup_service(server, artifact_manager):
+async def setup_service(server):
     """
     Set up the similarity search service.
 
@@ -166,7 +157,9 @@ async def setup_service(server, artifact_manager):
         server (Server): The server instance.
         artifact_manager (ArtifactManager): The artifact manager instance.
     """
-    find_similar_cells, save_cell_image, tile_image = await init_methods(artifact_manager)
+    artifact_manager = AgentLensArtifactManager()
+    await artifact_manager.connect_server(server)
+    find_similar_cells, save_cell_image = await init_methods(artifact_manager)
 
     await make_service(
         service={
@@ -180,7 +173,6 @@ async def setup_service(server, artifact_manager):
             "find_similar_cells": find_similar_cells,
             "save_cell_image": save_cell_image,
             "setup": create_collection,
-            "tile_image": tile_image,
         },
         server=server
     )

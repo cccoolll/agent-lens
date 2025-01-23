@@ -20,7 +20,7 @@ import VectorSource from 'ol/source/Vector';
 import { Circle as CircleStyle, Fill, Stroke, Style } from 'ol/style';
 import { Draw } from 'ol/interaction';
 import { defaults as defaultControls, FullScreen, ZoomSlider } from 'ol/control';
-import WinBox from 'winbox/src/js/winbox';
+import WinBox from 'winbox';
 
 const originalWidth = 2048;
 const originalHeight = 2048;

@@ -4,11 +4,12 @@ cleanup() {
     kill $PYTHON_PID
 }
 
+docker-compose up -f docker/docker-compose.yml -d minio
 trap cleanup SIGINT
 export PYTHONPATH=$(pwd)
-python src/backend/start_server.py &
+python agent_lens/__main__.py &
 PYTHON_PID=$!
 
-npm run start --prefix src/frontend
+npm run start --prefix frontend
 
 wait $PYTHON_PID

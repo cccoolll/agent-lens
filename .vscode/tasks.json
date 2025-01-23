@@ -1,0 +1,12 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Start MinIO",
+            "type": "shell",
+            "command": "docker-compose up -f docker/docker-compose.yml -d minio",
+            "problemMatcher": [],
+            "isBackground": true
+        }
+    ]
+}

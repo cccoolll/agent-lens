@@ -4,10 +4,10 @@ that serves the frontend application and handles requests for image tiles.
 """
 
 import os
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from backend.service_utils import make_service
+from agent_lens.service_utils import make_service
 
 async def get_frontend_api():
     """
@@ -43,7 +43,7 @@ async def setup_service(server):
         server (Server): The server instance.
         artifact_manager (ArtifactManager): The artifact manager instance.
     """
-    serve_fastapi = get_frontend_api()
+    serve_fastapi = await get_frontend_api()
     service_id = "microscope-control"
     await make_service(
         service={

@@ -33,74 +33,53 @@
 
 ## Installation
 
-### Prerequisites
+### Automatic Installation
 
-1. **Clone the repository:**
+Run the following command to install the application and its dependencies automatically:
 
-   ```bash
-   git clone https://github.com/yourusername/agent-lens.git
-   ```
+  ```bash
+  bash scripts/install.sh
+  ```
 
-2. **Navigate to the project directory:**
+### Manual Installation
 
-   ```bash
-   cd agent-lens
-   ```
-
-### Setup for development
+If you prefer to set up the application manually, follow the steps below:
 
 1. **Conda environment:**
    ```bash
-    conda create -n agent-lens python=3.10.13
-    conda activate agent-lens
+  conda create -n agent-lens python=3.10.13
+  conda activate agent-lens
    ```
 
-2. **Install VIPS:**
-
-   - **On Ubuntu/Debian:**
-
-     ```bash
-     sudo apt-get install libvips-tools
-     ```
-
-   - **On macOS using Homebrew:**
-
-     ```bash
-     brew install vips
-     ```
-
-3. **Install dependencies:**
+2. **Install Python dependencies:**
     ```bash
-    pip install --use-pep517 -r requirements.txt
+    pip install -r requirements.txt
     pip install -e .
     ```
 
-4. **Add the following environment variables to a `.env` file:**
+3. **Add the following environment variables to a `.env` file:**
 
     ```bash
     WORKSPACE_TOKEN=<agent-lens_workspace_token>
     PERSONAL_TOKEN=<personal_workspace_token>
-    JWT_SECRET=<any-integer>
     ```
 
   You can get the `agent-lens_workspace_token` and `personal_workspace_token` from [Hypha](https://hypha.aicell.io). The `JWT_SECRET` can be any integer, e.g. `1337`.
 
-1. **Install npm dependencies:**
+4. **Install npm dependencies:**
     ```bash
-    npm install --prefix src/frontend
+    npm install --prefix agent-lens/frontend
     ```
 
-2. **Start application:**
-    ```bash
-    sh scripts/run_dev.sh
-    ```
+### Running the Application
 
-3. **Access the application:**
+1. **Start application in VSCode:**
 
-   Open the browser and navigate to one of the following URLs:
-   - localhost:9000/public/apps/microscope-control
-   - 0.0.0.0:9000/public/apps/microscope-control
-   - 127.0.0.1:9000/public/apps/microscope-control
+  Go to "Run and Debug" and select "Python: start-server" as the debug configuration. Press run.
+
+2. **Access the application:**
+
+  Open the browser and navigate to `localhost:8080/public/apps/microscope-control`.
 
 ## Configuration
 
@@ -112,25 +91,21 @@
 
 ```
 agent-lens/
-├── src/
-│   ├── backend/
-│   │   ├── test/
-│   │   │   └── test_sam_service.py
-│   │   ├── artifact_manager.py
-│   │   ├── main.py
-│   │   ├── register_frontend_service.py
-│   │   ├── register_sam_service.py
-│   │   ├── register_similarity_search_service.py
-│   │   ├── service_utils.py
-│   │   └── start_server.py
-│   └── frontend/
-│       ├── img/
-│       │   └── example_image.png
-│       ├── tiles_output/
-│       ├── index.html
-│       ├── main.jsx
-│       ├── package.json
-│       └── vite.config.mjs
+├── agent_lens/
+│   ├── test/
+│   │   └── test_sam_service.py
+│   ├── artifact_manager.py
+│   ├── main.py
+│   ├── register_frontend_service.py
+│   ├── register_sam_service.py
+│   ├── register_similarity_search_service.py
+│   ├── service_utils.py
+│   └── start_server.py
+├── frontend/
+│   ├── index.html
+│   ├── main.jsx
+│   ├── package.json
+│   └── vite.config.mjs
 ├── .env
 ├── .gitignore
 ├── pyproject.toml

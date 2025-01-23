@@ -10,5 +10,6 @@ requests==2.32.3
 python-dotenv==1.0.1
 opencv-python==4.10.0.84
 fastapi==0.106.0
-pyvips
+botocore==1.36.3
+aiobotocore==2.19.0
 clip @ git+https://github.com/openai/CLIP.git
