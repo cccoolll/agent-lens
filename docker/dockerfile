@@ -59,7 +59,7 @@ RUN pip install --user -r requirements.txt .
 COPY --chown=agent_lens:agent_lens . .
 
 # Add /app to the list of safe directories for Git
-RUN git config --global --add --use-pep517 safe.directory /app
+RUN git config --global --add safe.directory /app
 
 # Remove all files matching .gitignore patterns and .git directory
 RUN git clean -fdX && rm -rf .git
