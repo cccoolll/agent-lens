@@ -63,16 +63,21 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
 
     const tileLayer = new TileLayer({
       source: new XYZ({
-        url: `https://hypha.aicell.io/squid-control/services/microscope_tile_service_test/get_tile?channel_name=${channelName}&z={z}&x={x}&y={y}`,
+        url: `https://hypha.aicell.io/squid-control/services/microscope_tile_service_test/get_tile_base64?channel_name=${channelName}&z={z}&x={x}&y={y}`,
         crossOrigin: 'anonymous',
         tileSize: 256,
         maxZoom: 10,
         tileLoadFunction: function(tile, src) {
           console.log("Loading tile...", src);
-          tile.getImage().src = src;
-          tile.getImage().onerror = function() {
-            console.log(`Failed to load tile: ${src}`);
-          };
+          fetch(src)
+            .then(response => response.json())
+            .then(data => {
+              const base64Image = data;
+              tile.getImage().src = `data:image/png;base64,${base64Image}`;
+            })
+            .catch(error => {
+              console.log(`Failed to load tile: ${src}`, error);
+            });
         }
       }),
     });

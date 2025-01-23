@@ -4,11 +4,8 @@ import VectorSource from 'ol/source/Vector';
 import { defaults as defaultControls, FullScreen, ZoomSlider } from 'ol/control';
 import { Circle as CircleStyle, Fill, Stroke, Style } from 'ol/style';
 import 'ol/ol.css';
-// import { isLocal } from '../utils';
 
 export const makeMap = (mapRef, extent) => {
-
-
   return new Map({
     target: mapRef.current,
     layers: [],
