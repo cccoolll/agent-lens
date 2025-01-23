@@ -1,3 +1,8 @@
+"""
+This module serves as the entry point for setting up and running the backend services.
+It connects to the server and registers the necessary services.
+"""
+
 import asyncio
 from agent_lens import (
     register_frontend_service,
@@ -17,14 +22,4 @@ async def setup(server=None):
     await register_similarity_search_service.setup_service(server)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--workspace_name", type=str, required=False, default=None)
-    parser.add_argument("--server_url", type=str, required=False, default="https://hypha.aicell.io")
-    parser.add_argument("--service_id", type=str, required=False, default="interactive-segmentation")
-    sam_args = parser.parse_args()
-    
-    loop = asyncio.get_event_loop()
-    loop.create_task(register_frontend_service.setup(workspace=sam_args.workspace_name, server_url=sam_args.server_url))
-    loop.create_task(register_sam_service.register_service(args=sam_args))
-    loop.create_task(register_similarity_search_service.setup(workspace=sam_args.workspace_name, server_url=sam_args.server_url))
-    loop.run_forever()
+    asyncio.run(setup())

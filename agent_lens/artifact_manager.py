@@ -7,14 +7,12 @@ and handling file uploads and downloads.
 import httpx
 
 class AgentLensArtifactManager:
-class AgentLensArtifactManager:
     """
     Manages artifacts for the application.
     """
 
     def __init__(self):
         self._svc = None
-        self.server = None
         self.server = None
 
     async def connect_server(self, server):
@@ -24,7 +22,6 @@ class AgentLensArtifactManager:
         Args:
             server (Server): The server instance.
         """
-        self.server = server
         self.server = server
         self._svc = await server.get_service("public/artifact-manager")
 

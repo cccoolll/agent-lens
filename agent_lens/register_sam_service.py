@@ -9,7 +9,6 @@ import requests
 import dotenv
 import torch
 from dotenv import find_dotenv, load_dotenv
-from hypha_rpc import connect_to_server, login
 from kaibu_utils import mask_to_features
 from segment_anything import SamPredictor, sam_model_registry, SamAutomaticMaskGenerator
 from agent_lens.service_utils import make_service
@@ -312,27 +311,14 @@ def segment_all_cells(model_name: str, image_bytes: bytes) -> dict:
     logger.info(f"Segmented {len(bounding_boxes)} cells.")
     return {"bounding_boxes": bounding_boxes, "masks": mask_data}
 
-async def register_service(args: dict) -> None:
+async def setup_service(server=None) -> None:
     """
     Register the SAM annotation service on the BioImageIO Colab workspace.
     """
-
-    token = os.environ.get("WORKSPACE_TOKEN")
-    if token is None or args.workspace_name is None:
-        token = os.environ.get("PERSONAL_TOKEN")
-    
-    server = await connect_to_server({
-        "server_url": args.server_url,
-         "token": token,
-         "method_timeout": 500,
-        **({"workspace": args.workspace_name} if args.workspace_name else {})
-    })
-
-    # Register a new service
-    service_info = await server.register_service(
-        {
+    await make_service(
+        service={
             "name": "Interactive Segmentation",
-            "id": args.service_id,
+            "id": "interactive-segmentation",
             "config": {
                 "visibility": "public",
                 "require_context": False,
@@ -345,32 +331,12 @@ async def register_service(args: dict) -> None:
             "reset_embedding": reset_embedding,
             "segment_all_cells": segment_all_cells,
         },
-    )
-    logger.info(
-        f"Service (service_id={args.service_id}) started successfully, available at {args.server_url}/{server.config.workspace}/services"
+        server=server,
     )
 
 if __name__ == "__main__":
     import asyncio
 
-    parser = argparse.ArgumentParser(
-        description="Register SAM annotation service on BioImageIO Colab workspace."
-    )
-    parser.add_argument(
-        "--server_url",
-        default="https://hypha.aicell.io",
-        help="URL of the Hypha server",
-    )
-    parser.add_argument(
-        "--workspace_name", default="agent-lens", help="Name of the workspace"
-    )
-    parser.add_argument(
-        "--service_id",
-        default="interactive-segmentation",
-        help="Service ID for registering the service",
-    )
-    parser_args = parser.parse_args()
-
     loop = asyncio.get_event_loop()
-    loop.create_task(register_service(parser_args))
+    loop.create_task(setup_service())
     loop.run_forever()

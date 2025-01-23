@@ -7,7 +7,7 @@ import io
 import base64
 import numpy as np
 import torch
-import dotenv
+import clip
 from PIL import Image
 from agent_lens.service_utils import make_service
 from agent_lens.artifact_manager import AgentLensArtifactManager
