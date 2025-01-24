@@ -9,13 +9,14 @@ description = "A description of your project"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
+dynamic = ["dependencies"]
 
 [project.urls]
 homepage = "https://github.com/aicell-lab/agent-lens"
 repository = "https://github.com/aicell-lab/agent-lens"
 
 [tool.setuptools.dynamic]
-dependencies = ["requirements.txt"]
+dependencies = {file = ["requirements.txt"]}
 
 [tool.setuptools.packages.find]
 include = ["agent_lens*"]
