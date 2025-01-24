@@ -89,7 +89,7 @@ If you prefer to set up the application manually, follow the steps below:
 
 ## Configuration
 
-- **Microscope Control Service**: Ensure that the microscope control backend service (`microscope-control-squid-test`) is running and accessible.
+- **Microscope Control Service**: Ensure that the microscope control backend service (`microscope-control-squid-simulation`) is running and accessible.
 - **Segmentation Service**: The application connects to an AI segmentation service (`interactive-segmentation`) for image analysis.
 - **Similarity Search Service**: The application uses the `image-embedding-similarity-search` service to find similar images.
 
