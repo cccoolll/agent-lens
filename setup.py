@@ -7,6 +7,6 @@ with open("requirements.txt") as f:
 setuptools.setup(
     name="agent-lens",
     version="0.1",
-    packages=["agent_lens"],
+    packages=setuptools.find_packages(include=["agent_lens", "agent_lens.*"]),
     install_requires=requirements,
 )
