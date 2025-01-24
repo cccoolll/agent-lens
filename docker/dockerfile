@@ -52,7 +52,7 @@ RUN npm config set prefix '/home/agent_lens/.npm-global'
 RUN cd frontend && npm install
 
 # Copy files with correct ownership
-COPY --chown=agent_lens:agent_lens requirements.txt pyproject.toml ./
+COPY --chown=agent_lens:agent_lens requirements.txt pyproject.toml README.md ./
 COPY --chown=agent_lens:agent_lens agent_lens ./agent_lens
 
 RUN pip install --upgrade pip
