@@ -4,11 +4,14 @@ cleanup() {
     kill $PYTHON_PID
 }
 
+docker-compose -f docker/docker-compose.yml up -d minio
+npm run build --prefix frontend
+
 trap cleanup SIGINT
 export PYTHONPATH=$(pwd)
-python src/backend/main.py &
+python agent_lens/__main__.py &
 PYTHON_PID=$!
 
-npm run start --prefix src/frontend
+echo "App is now running. Access it at http://localhost:9527/public/apps/microscope-control"
 
 wait $PYTHON_PID

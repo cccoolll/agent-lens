@@ -4,7 +4,7 @@ It includes methods for creating vector collections, adding vectors, searching v
 and handling file uploads and downloads.
 """
 
-import requests
+import httpx
 
 class AgentLensArtifactManager:
     """
@@ -134,8 +134,9 @@ class AgentLensArtifactManager:
         """
         art_id = self._artifact_id(user_id, coll_name)
         put_url = await self._svc.put_file(art_id, file_path, download_weight=1.0)
-        response = requests.put(put_url, data=file_content, timeout=500)
-        assert response.ok, "File upload failed"
+        async with httpx.AsyncClient() as client:
+            response = await client.put(put_url, data=file_content, timeout=500)
+        response.raise_for_status()
         await self._svc.commit(art_id)
 
     async def get_file(self, user_id, coll_name, file_path):
@@ -152,6 +153,9 @@ class AgentLensArtifactManager:
         """
         art_id = self._artifact_id(user_id, coll_name)
         get_url = await self._svc.get_file(art_id, file_path)
-        response = requests.get(get_url, timeout=500)
-        assert response.ok, "File download failed"
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(get_url, timeout=500)
+        response.raise_for_status()
+        
         return response.content

@@ -1,0 +1,16 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: start-server",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "agent_lens",
+            "justMyCode": false,
+            "preLaunchTask": "Prepare app",
+            "args": [
+                "--port=9527",
+            ],
+        },
+    ]
+}

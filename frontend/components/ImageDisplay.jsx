@@ -68,7 +68,6 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
         tileSize: 256,
         maxZoom: 10,
         tileLoadFunction: function(tile, src) {
-          console.log("Loading tile...", src);
           fetch(src)
             .then(response => response.json())
             .then(data => {
