@@ -18,7 +18,7 @@ def main():
     """
     parser = argparse.ArgumentParser(description="Start the Hypha server")
     parser.add_argument("--host", type=str, default="0.0.0.0")
-    parser.add_argument("--port", type=int, default=8080)
+    parser.add_argument("--port", type=int, default=9009)
     parser.add_argument("--public-base-url", type=str, default="")
     args = parser.parse_args()
 
@@ -39,7 +39,7 @@ def main():
     ]
     subprocess.run(command, check=True)
     
-    print("Hypha server started. Access app at http://localhost:8080/public/apps/microscope-control")
+    print("Hypha server started. Access app at http://localhost:9527/public/apps/microscope-control")
 
 if __name__ == "__main__":
     main()

@@ -13,9 +13,6 @@ async def get_frontend_api():
     """
     Create the FastAPI application for serving the frontend.
 
-    Args:
-        artifact_manager (ArtifactManager): The artifact manager instance.
-
     Returns:
         function: The FastAPI application.
     """
@@ -41,7 +38,6 @@ async def setup_service(server):
 
     Args:
         server (Server): The server instance.
-        artifact_manager (ArtifactManager): The artifact manager instance.
     """
     serve_fastapi = await get_frontend_api()
     service_id = "microscope-control"

@@ -5,7 +5,7 @@ import '@fortawesome/fontawesome-free/css/all.min.css';
 import LogSection from './components/LogSection';
 import LoginPrompt from './components/LoginPrompt';
 import ImageDisplay from './components/ImageDisplay';
-import { login, initializeServices } from './utils';
+import { login, initializeServices, getServer } from './utils';
 import 'ol/ol.css';
 
 const MicroscopeControl = () => {    
@@ -16,9 +16,9 @@ const MicroscopeControl = () => {
   const [segmentService, setSegmentService] = useState(null);
 
   const handleLogin = async () => {
-    const serverUrl = "https://hypha.aicell.io";
-    const token = await login(serverUrl);
-    await initializeServices(serverUrl, token,
+    const token = await login();
+    const server = await getServer(token);
+    await initializeServices(server,
       setMicroscopeControlService, setSimilarityService, setSegmentService,
       appendLog);
     appendLog("Logged in.");
