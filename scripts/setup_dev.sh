@@ -26,6 +26,6 @@ EOT
 
 # Install npm dependencies
 echo "Installing npm dependencies..."
-npm install --prefix agent-lens/frontend
+npm install --prefix frontend
 
 echo "Setup complete!"
