@@ -53,6 +53,8 @@ RUN cd frontend && npm install
 
 # Copy files with correct ownership
 COPY --chown=agent_lens:agent_lens requirements.txt pyproject.toml ./
+COPY --chown=agent_lens:agent_lens agent_lens ./agent_lens
+
 RUN pip install --upgrade pip
 RUN pip install --user -r requirements.txt
 RUN pip install -e .
