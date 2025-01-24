@@ -1,6 +1,6 @@
 """
 This module provides functionality for registering a frontend service
-that serves the frontend application and handles requests for image tiles.
+that serves the frontend application.
 """
 
 import os

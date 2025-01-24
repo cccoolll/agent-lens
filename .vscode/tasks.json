@@ -4,9 +4,21 @@
         {
             "label": "Start MinIO",
             "type": "shell",
-            "command": "docker-compose up -f docker/docker-compose.yml -d minio",
+            "command": "docker-compose -f docker/docker-compose.yml up -d minio",
             "problemMatcher": [],
-            "isBackground": true
+        },
+        {
+            "label": "Build Frontend",
+            "type": "shell",
+            "command": "npm run build --prefix frontend",
+            "problemMatcher": []
+        },
+        {
+            "label": "Prepare app",
+            "dependsOn": [
+                "Start MinIO",
+                "Build Frontend"
+            ],
         }
     ]
 }

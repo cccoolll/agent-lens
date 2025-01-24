@@ -24,8 +24,8 @@ RUN groupadd -r -g 1000 agent_lens && useradd -r -u 1000 -g agent_lens -m agent_
 WORKDIR /app/
 
 # Create necessary directories with correct permissions
-RUN mkdir -p /app/logs /app/.cache /app/frontend/tiles_output && \
-    chown -R agent_lens:agent_lens /app /app/logs /app/.cache /app/frontend/tiles_output && \
+RUN mkdir -p /app/logs /app/.cache && \
+    chown -R agent_lens:agent_lens /app /app/logs /app/.cache && \
     chmod -R 755 /app
 
 # Create a directory for global npm packages in the user's home

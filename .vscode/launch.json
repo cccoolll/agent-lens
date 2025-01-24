@@ -7,10 +7,7 @@
             "request": "launch",
             "module": "agent_lens",
             "justMyCode": false,
-            "preLaunchTask": "Start MinIO",
-            "env": {
-                "JWT_SECRET": "1337",
-            },
+            "preLaunchTask": "Prepare app",
         },
     ]
 }

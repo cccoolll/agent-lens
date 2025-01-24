@@ -4,7 +4,7 @@ cleanup() {
     kill $PYTHON_PID
 }
 
-docker-compose up -f docker/docker-compose.yml -d minio
+docker-compose -f docker/docker-compose.yml up -d minio
 npm run build --prefix frontend
 
 trap cleanup SIGINT

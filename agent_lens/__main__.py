@@ -38,6 +38,8 @@ def main():
         "--startup-functions=agent_lens.start_services:setup"
     ]
     subprocess.run(command, check=True)
+    
+    print("Hypha server started. Access app at http://localhost:8080/public/apps/microscope-control")
 
 if __name__ == "__main__":
     main()

@@ -68,14 +68,20 @@ If you prefer to set up the application manually, follow the steps below:
 
 4. **Install npm dependencies:**
     ```bash
-    npm install --prefix agent-lens/frontend
+    npm install --prefix frontend
     ```
 
 ### Running the Application
 
-1. **Start application in VSCode:**
+1a. **Start application in VSCode:**
 
   Go to "Run and Debug" and select "Python: start-server" as the debug configuration. Press run.
+
+1b. **Start application manually:**
+
+  ```bash
+  bash scripts/run_dev.sh
+  ```
 
 2. **Access the application:**
 
@@ -115,7 +121,6 @@ agent-lens/
 
 - **index.html**: The main HTML file where the React app is rendered.
 - **main.jsx**: The main JavaScript file containing the React code, including the `MicroscopeControl` component.
-- **tiles_output/**: Directory containing image tiles used by OpenLayers.
 - **vite.config.mjs**: Configuration file for Vite.
 
 ## Key Dependencies
