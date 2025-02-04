@@ -1,4 +1,3 @@
 #!/bin/bash
-
-npm install --prefix frontend
-sh scripts/run_app.sh
+npm run build --prefix frontend
+python -m agent_lens connect-server --server_url="https://hypha.aicell.io" --workspace_name="agent-lens"

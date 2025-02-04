@@ -5,6 +5,7 @@ and handling file uploads and downloads.
 """
 
 import httpx
+from hypha_rpc.rpc import RemoteException
 
 class AgentLensArtifactManager:
     """
@@ -62,7 +63,7 @@ class AgentLensArtifactManager:
         """
         return f"{self._workspace_id(user_id)}/{self._artifact_alias(name)}"
 
-    async def create_vector_collection(self, user_id, name, manifest, config, overwrite=False):
+    async def create_vector_collection(self, user_id, name, manifest, config, overwrite=False, exists_ok=False):
         """
         Create a vector collection.
 
@@ -76,17 +77,17 @@ class AgentLensArtifactManager:
         art_id = self._artifact_id(user_id, name)
         try:
             await self._svc.create(
-                alias=name,
+                alias=art_id,
                 type="vector-collection",
                 manifest=manifest,
                 config=config,
+                overwrite=overwrite
             )
-        except Exception:
-            if overwrite:
-                await self._svc.edit(art_id, manifest)
-                await self._svc.commit(art_id)
+        except RemoteException as e:
+            if not exists_ok:
+                raise e
 
-    async def add_vectors(self, user_id, coll_name, *vectors):
+    async def add_vectors(self, user_id, coll_name, vectors):
         """
         Add vectors to the collection.
 
@@ -118,7 +119,7 @@ class AgentLensArtifactManager:
         art_id = self._artifact_id(user_id, coll_name)
         return await self._svc.search_vectors(
             artifact_id=art_id,
-            query={"vector": vector},
+            query={"cell_image_vector": vector},
             limit=top_k
         )
 
