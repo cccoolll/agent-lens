@@ -11,6 +11,7 @@ import torch
 import clip
 from PIL import Image
 from agent_lens.artifact_manager import AgentLensArtifactManager
+from hypha_rpc.rpc import RemoteException
 
 class TorchConfig:
     def __init__(self):
@@ -175,6 +176,10 @@ async def save_cell_images(artifact_manager, torch_config, cell_images, workspac
         for cell_image_vector, annotation, thumbnail in vector_data
     ]
     await artifact_manager.add_vectors(workspace, "cell-images", cell_vectors)
+    
+async def remove_vectors(artifact_manager, workspace):
+    await try_create_collection(artifact_manager, workspace)
+    await artifact_manager.remove_vectors(workspace, "cell-images")
 
 
 async def setup_service(server, service_id="similarity-search"):
@@ -193,7 +198,7 @@ async def setup_service(server, service_id="similarity-search"):
         "config": {"visibility": "public"},
         "find_similar_cells": partial(find_similar_cells, artifact_manager, torch_config),
         "save_cell_images": partial(save_cell_images, artifact_manager, torch_config),
-        "remove_vectors": partial(artifact_manager.remove_vectors, "cell-images"),
+        "remove_vectors": partial(remove_vectors, artifact_manager),
     })
     
     print("Similarity search service registered successfully.")

@@ -7,7 +7,7 @@ source activate agent-lens
 
 # Install Python dependencies
 echo "Installing Python dependencies..."
-pip install -r requirements.txt
+pip install -r requirements_test.txt
 pip install -e .
 
 # Prompt user for secret tokens
