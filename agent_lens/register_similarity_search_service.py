@@ -11,7 +11,6 @@ import torch
 import clip
 from PIL import Image
 from agent_lens.artifact_manager import AgentLensArtifactManager
-from hypha_rpc.rpc import RemoteException
 
 class TorchConfig:
     def __init__(self):
