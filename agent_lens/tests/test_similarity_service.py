@@ -31,9 +31,12 @@ class TestSimilaritySearchService:
     async def test_find_similar_cells():
         cell_images = [TestSimilaritySearchService._generate_random_image() for _ in range(10)]
         annotations = TestSimilaritySearchService._generate_random_strings(10)
+        token = os.getenv("TEST_TOKEN")
+        if not token:
+            raise EnvironmentError("TEST_TOKEN not found in environment variables")
         server = await connect_to_server({
             "server_url": "https://hypha.aicell.io",
-            "token": os.getenv("TEST_TOKEN")
+            "token": token
         })
         await register_similarity_search_service.setup_service(server, "similarity-search-test")
         similarity_service = await server.get_service("similarity-search-test")
