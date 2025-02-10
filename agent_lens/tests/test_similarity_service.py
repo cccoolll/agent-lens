@@ -26,8 +26,9 @@ class TestSimilaritySearchService:
             
         return random_strings
 
+    @staticmethod
     @pytest.mark.asyncio
-    async def test_find_similar_cells(self):
+    async def test_find_similar_cells():
         cell_images = [TestSimilaritySearchService._generate_random_image() for _ in range(10)]
         annotations = TestSimilaritySearchService._generate_random_strings(10)
         server = await connect_to_server({
@@ -37,16 +38,18 @@ class TestSimilaritySearchService:
         await register_similarity_search_service.setup_service(server, "similarity-search-test")
         similarity_service = await server.get_service("similarity-search-test")
         workspace = server.config.workspace
-        await similarity_service.remove_vectors(workspace)
+        await similarity_service.remove_vectors(workspace, "similarity-search-test")
         await similarity_service.save_cell_images(
             cell_images,
             workspace,
+            "similarity-search-test",
             annotations,
         )
-        query_image = self._generate_random_image()
+        query_image = TestSimilaritySearchService._generate_random_image()
         results = await similarity_service.find_similar_cells(
             query_image,
             workspace,
+            "similarity-search-test",
             top_k=5
         )
         assert len(results) == 5
