@@ -10,4 +10,4 @@ httpx==0.28.1
 python-dotenv==1.0.1
 fastapi==0.106.0
 aiobotocore==2.19.0
-# clip @ git+https://github.com/openai/CLIP.git
+clip @ git+https://github.com/openai/CLIP.git
