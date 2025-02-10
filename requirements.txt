@@ -6,7 +6,7 @@ python-dotenv==1.0.1
 fastapi==0.106.0
 aiobotocore==2.19.0
 
-# Segmentation service:
+# Segmentation service (unused):
 # segment-anything==1.0
 # kaibu_utils==0.1.14
 # requests==2.32.3
