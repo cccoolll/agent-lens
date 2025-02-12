@@ -3,7 +3,7 @@
 # Create and activate conda environment
 echo "Creating and activating conda environment..."
 conda create -n agent-lens python=3.10.13 -y
-source activate agent-lens
+conda activate agent-lens
 
 # Install Python dependencies
 echo "Installing Python dependencies..."
