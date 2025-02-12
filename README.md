@@ -38,7 +38,7 @@
 Run the following command to install the application and its dependencies automatically:
 
   ```bash
-  bash scripts/install.sh
+  bash scripts/setup_dev.sh
   ```
 
 ### Manual Installation
