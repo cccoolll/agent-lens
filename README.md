@@ -38,7 +38,7 @@
 Run the following command to install the application and its dependencies automatically:
 
   ```bash
-  bash scripts/install.sh
+  bash scripts/setup_dev.sh
   ```
 
 ### Manual Installation
@@ -47,8 +47,8 @@ If you prefer to set up the application manually, follow the steps below:
 
 1. **Conda environment:**
    ```bash
-  conda create -n agent-lens python=3.10.13
-  conda activate agent-lens
+   conda create -n agent-lens python=3.10.13
+   conda activate agent-lens
    ```
 
 2. **Install Python dependencies:**
