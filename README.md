@@ -33,6 +33,13 @@
 
 ## Installation
 
+### Pre-requisites
+
+- Docker
+- Conda
+- NPM
+- Python 3.10
+
 ### Automatic Installation
 
 Run the following command to install the application and its dependencies automatically:
