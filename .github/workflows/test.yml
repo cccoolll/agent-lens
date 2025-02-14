@@ -17,9 +17,11 @@ jobs:
     
     - name: Install dependencies
       run: |
-        pip install -r requirements.txt
+        pip install -r requirements_test.txt
         pip install -e .
     
     - name: Run tests
+      env:
+        TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
       run: |
-        python -m unittest discover -s agent_lens/tests -p 'test_*.py'
+        pytest ./agent_lens/tests
