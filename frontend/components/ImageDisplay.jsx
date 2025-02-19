@@ -98,6 +98,7 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
         <ControlPanel
           map={map}
           setSnapshotImage={setSnapshotImage}
+          snapshotImage={snapshotImage}
           microscopeControlService={microscopeControlService}
           segmentService={segmentService}
           appendLog={appendLog}

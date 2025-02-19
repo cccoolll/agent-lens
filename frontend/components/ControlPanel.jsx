@@ -8,6 +8,7 @@ const ControlPanel = ({
   microscopeControlService,
   segmentService,
   setSnapshotImage,
+  snapshotImage,
   map,
   vectorLayer,
   appendLog,
@@ -102,7 +103,12 @@ const ControlPanel = ({
         </button>
       </div>
       <div id="manual-control-content">
-        <div id="image-display" className="mb-4">
+        <div
+          id="image-display"
+          className={`mb-4 w-full h-64 border ${
+            snapshotImage ? 'border-gray-300' : 'border-dotted border-gray-400'
+          } rounded flex items-center justify-center`}
+        >
           {snapshotImage ? (
             <canvas
               ref={canvasRef}
@@ -256,6 +262,7 @@ ControlPanel.propTypes = {
   microscopeControlService: PropTypes.object,
   segmentService: PropTypes.object,
   setSnapshotImage: PropTypes.func.isRequired,
+  snapshotImage: PropTypes.string,
   appendLog: PropTypes.func.isRequired,
   map: PropTypes.object,
   vectorLayer: PropTypes.object,
