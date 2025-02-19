@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { Rnd } from 'react-rnd';
 import ControlButton from './ControlButton';
@@ -13,6 +13,7 @@ const ControlPanel = ({
   appendLog,
   addTileLayer,
   channelNames,
+  onClose,
 }) => {
   const [isLightOn, setIsLightOn] = useState(false);
   const [xPosition, setXPosition] = useState(0);
@@ -24,9 +25,10 @@ const ControlPanel = ({
   const [illuminationIntensity, setIlluminationIntensity] = useState("50");
   const [illuminationChannel, setIlluminationChannel] = useState("0");
   const [cameraExposure, setCameraExposure] = useState(100);
+  const [cameraFPS, setCameraFPS] = useState(10);
+  const canvasRef = useRef(null);
 
   const moveMicroscope = (axis, direction) => {
-    // Implement the logic to move the microscope
     appendLog(`Moving microscope ${axis} by ${direction}`);
   };
 
@@ -54,10 +56,8 @@ const ControlPanel = ({
 
   const toggleLight = async () => {
     if (!isLightOn) {
-      // Implement logic to turn on the light
       appendLog('Light turned on.');
     } else {
-      // Implement logic to turn off the light
       appendLog('Light turned off.');
     }
     setIsLightOn(!isLightOn);
@@ -77,23 +77,79 @@ const ControlPanel = ({
     }
   };
 
+  const startLiveView = () => {
+    appendLog('Starting live view...');
+    // Implement live view logic
+  };
+
   return (
     <Rnd
       default={{
-        x: 0,
-        y: 0,
-        width: '30%',
-        height: '60%',
+        x: window.innerWidth - 500,
+        y: 20,
+        width: 500,
+        height: 600,
       }}
       minWidth={300}
       minHeight={400}
       bounds="window"
       className="bg-white bg-opacity-95 p-6 rounded-lg shadow-lg z-50 border-l border-gray-300 box-border overflow-y-auto"
     >
-      <h3 className="text-xl font-medium mb-4">Manual Control</h3>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-xl font-medium">Manual Control</h3>
+        <button onClick={onClose} className="text-red-500 hover:text-red-700">
+          <i className="fas fa-times"></i> Close
+        </button>
+      </div>
       <div id="manual-control-content">
+        <div id="image-display" className="mb-4">
+          {snapshotImage ? (
+            <canvas
+              ref={canvasRef}
+              width={500}
+              height={400}
+              className="border border-gray-300 rounded"
+            ></canvas>
+          ) : (
+            <p className="placeholder-text text-center">Image Display</p>
+          )}
+        </div>
+
+        <div className="control-group mb-4">
+          <div className="horizontal-buttons flex justify-between space-x-2">
+            <button
+              className="control-button bg-blue-500 text-white hover:bg-blue-600 w-1/4 p-2 rounded"
+              onClick={toggleLight}
+              disabled={!microscopeControlService}
+            >
+              <i className="fas fa-lightbulb icon"></i> {isLightOn ? 'Turn Light Off' : 'Turn Light On'}
+            </button>
+            <button
+              className="control-button bg-blue-500 text-white hover:bg-blue-600 w-1/4 p-2 rounded"
+              onClick={autoFocus}
+              disabled={!microscopeControlService}
+            >
+              <i className="fas fa-crosshairs icon"></i> Autofocus
+            </button>
+            <button
+              className="control-button snap-button bg-green-500 text-white hover:bg-green-600 w-1/4 p-2 rounded"
+              onClick={snapImage}
+              disabled={!microscopeControlService}
+            >
+              <i className="fas fa-camera icon"></i> Snap Image
+            </button>
+            <button
+              className="control-button live-button bg-purple-500 text-white hover:bg-purple-600 w-1/4 p-2 rounded"
+              onClick={startLiveView}
+              disabled={!microscopeControlService}
+            >
+              <i className="fas fa-video icon"></i> Live
+            </button>
+          </div>
+        </div>
+
         <div className="coordinate-container mb-4 flex justify-between">
-          {['x', 'y', 'z'].map((axis, index) => (
+          {['x', 'y', 'z'].map((axis) => (
             <div key={axis} className="coordinate-group p-2 border border-gray-300 rounded-lg w-1/3">
               <div className="flex justify-between mb-2">
                 <input
@@ -136,83 +192,59 @@ const ControlPanel = ({
           ))}
         </div>
 
-        <div className="illumination-settings mb-4 p-2 border border-gray-300 rounded-lg">
-          <div className="illumination-intensity mb-4">
-            <div className="intensity-label-row flex justify-between mb-2">
-              <label>Illumination Intensity: </label>
-              <span>{illuminationIntensity}%</span>
+        <div className="illumination-camera-container mb-4 flex justify-between">
+          <div className="illumination-settings p-2 border border-gray-300 rounded-lg w-1/2">
+            <div className="illumination-intensity mb-4">
+              <div className="intensity-label-row flex justify-between mb-2">
+                <label>Illumination Intensity: </label>
+                <span>{illuminationIntensity}%</span>
+              </div>
+              <input
+                type="range"
+                className="control-input w-full"
+                min="0"
+                max="100"
+                value={illuminationIntensity}
+                onChange={(e) => {
+                  const newIntensity = parseInt(e.target.value, 10);
+                  setIlluminationIntensity(newIntensity);
+                  // Update server with new intensity
+                }}
+              />
             </div>
+
+            <div className="illumination-channel">
+              <label>Illumination Channel:</label>
+              <select
+                className="control-input w-full mt-2 p-2 border border-gray-300 rounded"
+                value={illuminationChannel}
+                onChange={(e) => setIlluminationChannel(e.target.value)}
+              >
+                <option value="0">BF LED matrix full</option>
+                <option value="11">Fluorescence 405 nm Ex</option>
+                <option value="12">Fluorescence 488 nm Ex</option>
+                <option value="14">Fluorescence 561nm Ex</option>
+                <option value="13">Fluorescence 638nm Ex</option>
+                <option value="15">Fluorescence 730nm Ex</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="camera-exposure-settings p-2 border border-gray-300 rounded-lg w-1/2">
+            <label>Camera Exposure:</label>
             <input
-              type="range"
-              className="control-input w-full"
-              min="0"
-              max="100"
-              value={illuminationIntensity}
-              onChange={(e) => {
-                const newIntensity = parseInt(e.target.value, 10);
-                setIlluminationIntensity(newIntensity);
-                // Update server with new intensity
-              }}
-            />
-          </div>
-
-          <div className="illumination-channel">
-            <label>Illumination Channel:</label>
-            <select
+              type="number"
               className="control-input w-full mt-2 p-2 border border-gray-300 rounded"
-              value={illuminationChannel}
-              onChange={(e) => setIlluminationChannel(e.target.value)}
-            >
-              <option value="0">BF LED matrix full</option>
-              <option value="11">Fluorescence 405 nm Ex</option>
-              <option value="12">Fluorescence 488 nm Ex</option>
-              <option value="14">Fluorescence 561nm Ex</option>
-              <option value="13">Fluorescence 638nm Ex</option>
-              <option value="15">Fluorescence 730nm Ex</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="camera-exposure-settings mb-4 p-2 border border-gray-300 rounded-lg">
-          <label>Camera Exposure:</label>
-          <input
-            type="number"
-            className="control-input w-full mt-2 p-2 border border-gray-300 rounded"
-            value={cameraExposure}
-            onChange={(e) => setCameraExposure(parseInt(e.target.value, 10))}
-          />
-        </div>
-
-        <div className="control-group">
-          <div className="horizontal-buttons flex justify-between">
-            <button
-              className="control-button bg-blue-500 text-white hover:bg-blue-600 w-1/4 p-2 rounded"
-              onClick={toggleLight}
-              disabled={!microscopeControlService}
-            >
-              <i className="fas fa-lightbulb icon"></i> {isLightOn ? 'Turn Light Off' : 'Turn Light On'}
-            </button>
-            <button
-              className="control-button bg-blue-500 text-white hover:bg-blue-600 w-1/4 p-2 rounded"
-              onClick={autoFocus}
-              disabled={!microscopeControlService}
-            >
-              <i className="fas fa-crosshairs icon"></i> Autofocus
-            </button>
-            <button
-              className="control-button snap-button bg-green-500 text-white hover:bg-green-600 w-1/4 p-2 rounded"
-              onClick={snapImage}
-              disabled={!microscopeControlService}
-            >
-              <i className="fas fa-camera icon"></i> Snap Image
-            </button>
-            <button
-              className="control-button reset-button bg-yellow-500 text-white hover:bg-yellow-600 w-1/4 p-2 rounded"
-              onClick={() => resetEmbedding(map, vectorLayer)}
-              disabled={!segmentService}
-            >
-              <i className="fas fa-sync icon"></i> Reset
-            </button>
+              value={cameraExposure}
+              onChange={(e) => setCameraExposure(parseInt(e.target.value, 10))}
+            />
+            <label className="mt-4">Camera FPS:</label>
+            <input
+              type="number"
+              className="control-input w-full mt-2 p-2 border border-gray-300 rounded"
+              value={cameraFPS}
+              onChange={(e) => setCameraFPS(parseInt(e.target.value, 10))}
+            />
           </div>
         </div>
       </div>
@@ -229,6 +261,7 @@ ControlPanel.propTypes = {
   vectorLayer: PropTypes.object,
   addTileLayer: PropTypes.func,
   channelNames: PropTypes.object,
+  onClose: PropTypes.func.isRequired,
 };
 
 export default ControlPanel;

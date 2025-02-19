@@ -104,6 +104,7 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
           addTileLayer={addTileLayer}
           channelNames={channelNames}
           vectorLayer={vectorLayer}
+          onClose={() => setIsControlSectionOpen(false)}
         />
       )}
     </>
