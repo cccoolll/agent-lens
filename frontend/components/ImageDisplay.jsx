@@ -64,9 +64,10 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
     const tileLayer = new TileLayer({
       source: new XYZ({
         url: `https://hypha.aicell.io/agent-lens/services/microscope-tile-service/get_tile_base64?channel_name=${channelName}&z={z}&x={x}&y={y}`,
+
         crossOrigin: 'anonymous',
-        tileSize: 256,
-        maxZoom: 10,
+        tileSize: 2048,
+        maxZoom: 4,
         tileLoadFunction: function(tile, src) {
           fetch(src)
             .then(response => response.json())
@@ -97,12 +98,14 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
         <ControlPanel
           map={map}
           setSnapshotImage={setSnapshotImage}
+          snapshotImage={snapshotImage}
           microscopeControlService={microscopeControlService}
           segmentService={segmentService}
           appendLog={appendLog}
           addTileLayer={addTileLayer}
           channelNames={channelNames}
           vectorLayer={vectorLayer}
+          onClose={() => setIsControlSectionOpen(false)}
         />
       )}
     </>
