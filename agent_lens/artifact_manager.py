@@ -147,7 +147,6 @@ class AgentLensArtifactManager:
 
         return response.content
 
-
     async def remove_vectors(self, workspace, coll_name, vector_ids=None):
         """
         Clear the vectors in the collection.
