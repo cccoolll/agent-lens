@@ -182,7 +182,6 @@ async def save_cell_images(
     artifact_id,
     annotations=None,
 ):
-
     await try_create_collection(artifact_manager, workspace, artifact_id)
     cell_image_vectors = images_to_vectors(cell_images, torch_config)
     annotations = annotations or ["" for _ in range(len(cell_images))]
