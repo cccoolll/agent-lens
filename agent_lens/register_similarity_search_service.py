@@ -198,7 +198,6 @@ async def save_cell_images(
     await artifact_manager.add_vectors(workspace, artifact_id, cell_vectors)
 
 
-    
 async def remove_vectors(artifact_manager, workspace, artifact_id):
     await try_create_collection(artifact_manager, workspace, artifact_id)
     await artifact_manager.remove_vectors(workspace, artifact_id)
@@ -228,6 +227,5 @@ async def setup_service(server, service_id="similarity-search"):
             "remove_vectors": partial(remove_vectors, artifact_manager),
         }
     )
-
 
     print("Similarity search service registered successfully.")
