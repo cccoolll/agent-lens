@@ -11,7 +11,6 @@ from agent_lens import register_similarity_search_service
 dotenv.load_dotenv()
 
 
-
 class TestSimilaritySearchService:
     @staticmethod
     def _generate_random_image():
@@ -38,7 +37,6 @@ class TestSimilaritySearchService:
         cell_images = [
             TestSimilaritySearchService._generate_random_image() for _ in range(10)
         ]
-
         annotations = TestSimilaritySearchService._generate_random_strings(10)
         token = os.getenv("TEST_TOKEN")
         if not token:
@@ -49,7 +47,6 @@ class TestSimilaritySearchService:
         await register_similarity_search_service.setup_service(
             server, "similarity-search-test"
         )
-
         similarity_service = await server.get_service("similarity-search-test")
         workspace = server.config.workspace
         await similarity_service.remove_vectors(workspace, "similarity-search-test")
@@ -62,7 +59,6 @@ class TestSimilaritySearchService:
         query_image = TestSimilaritySearchService._generate_random_image()
         results = await similarity_service.find_similar_cells(
             query_image, workspace, "similarity-search-test", top_k=5
-
         )
         assert len(results) == 5
         for result in results:
