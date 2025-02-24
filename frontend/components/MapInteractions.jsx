@@ -60,9 +60,9 @@ const MapInteractions = ({ segmentService, snapshotImage, map, extent, appendLog
   return (
     <>
       <PenButton appendLog={appendLog} setIsFirstClick={setIsFirstClick} />
-      <SegmentControls segmentService={segmentService} snapshotImage={snapshotImage} selectedModel={selectedModel} setSelectedModel={setSelectedModel} map={map} extent={extent} appendLog={appendLog} />
-      <DrawButton drawType="Point" icon="fa-map-marker-alt" top="520" map={map} vectorLayer={vectorLayer} setIsDrawingActive={setIsDrawingActive} />
-      <DrawButton drawType="Polygon" icon="fa-draw-polygon" top="570" map={map} vectorLayer={vectorLayer} setIsDrawingActive={setIsDrawingActive} />
+      <SegmentControls segmentService={segmentService} snapshotImage={snapshotImage} selectedModel={selectedModel} vectorLayer={vectorLayer} setSelectedModel={setSelectedModel} map={map} extent={extent} appendLog={appendLog} />
+      <DrawButton drawType="Point" icon="fa-map-marker-alt" top="570" map={map} vectorLayer={vectorLayer} setIsDrawingActive={setIsDrawingActive} />
+      <DrawButton drawType="Polygon" icon="fa-draw-polygon" top="620" map={map} vectorLayer={vectorLayer} setIsDrawingActive={setIsDrawingActive} />
     </>
   );
 }
