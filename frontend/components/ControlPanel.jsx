@@ -26,6 +26,7 @@ const ControlPanel = ({
   const [illuminationIntensity, setIlluminationIntensity] = useState(50);
   const [illuminationChannel, setIlluminationChannel] = useState("0");
   const [cameraExposure, setCameraExposure] = useState(100);
+  const [isLiveView, setIsLiveView] = useState(false);
   const canvasRef = useRef(null);
 
   const fetchStatus = async () => {
@@ -77,6 +78,46 @@ const ControlPanel = ({
     }
   }, [illuminationChannel]);
 
+  useEffect(() => {
+    if (!snapshotImage || !canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    img.onload = () => {
+      console.log('Image loaded:', img.width, 'x', img.height);
+      canvas.width = 512;
+      canvas.height = 512;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    };
+
+    img.onerror = (error) => {
+      console.error('Error loading image:', error);
+      appendLog('Error loading image to canvas');
+    };
+
+    console.log('Setting image source (length):', snapshotImage.length);
+    img.src = snapshotImage;
+  }, [snapshotImage]);
+
+  useEffect(() => {
+    let liveViewInterval;
+    if (isLiveView) {
+      liveViewInterval = setInterval(async () => {
+        try {
+          const base64Image = await microscopeControlService.one_new_frame(cameraExposure, parseInt(illuminationChannel, 10), parseInt(illuminationIntensity, 10));
+          setSnapshotImage(`data:image/png;base64,${base64Image}`);
+        } catch (error) {
+          appendLog(`Error in live view: ${error.message}`);
+        }
+      }, 2000);
+    } else if (liveViewInterval) {
+      clearInterval(liveViewInterval);
+    }
+    return () => clearInterval(liveViewInterval);
+  }, [isLiveView, cameraExposure, illuminationChannel, illuminationIntensity]);
+
   const moveMicroscope = async (direction, multiplier) => {
     if (!microscopeControlService) return;
     try {
@@ -117,30 +158,18 @@ const ControlPanel = ({
   const snapImage = async () => {
     appendLog('Snapping image...');
     const exposureTime = cameraExposure;
-    const channel = parseInt(illuminationChannel, 10); // Convert to integer
-    const intensity = parseInt(illuminationIntensity, 10); // Convert to integer
-    let imageUrl = await microscopeControlService.snap(exposureTime, channel, intensity);
-    imageUrl = encodeURI(imageUrl);
-    const response = await fetch(imageUrl, { credentials: 'include' });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch image: ${response.statusText}`);
+    const channel = parseInt(illuminationChannel, 10);
+    const intensity = parseInt(illuminationIntensity, 10);
+    
+    try {
+      const base64Image = await microscopeControlService.one_new_frame(exposureTime, channel, intensity);
+      console.log('Received base64 image data of length:', base64Image.length);
+      setSnapshotImage(`data:image/png;base64,${base64Image}`);
+      appendLog('Image snapped and fetched successfully.');
+    } catch (error) {
+      console.error('Error in snapImage:', error);
+      appendLog(`Error in snapImage: ${error.message}`);
     }
-
-    const blob = await response.blob();
-    const imageObjectURL = URL.createObjectURL(blob);
-
-    setSnapshotImage(imageObjectURL);
-    appendLog('Image snapped and fetched successfully.');
-
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    const img = new Image();
-    img.onload = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    };
-    img.src = imageObjectURL;
   };
 
   const autoFocus = async () => {
@@ -173,7 +202,12 @@ const ControlPanel = ({
 
   const startLiveView = () => {
     appendLog('Starting live view...');
-    // Implement live view logic
+    setIsLiveView(true);
+  };
+
+  const stopLiveView = () => {
+    appendLog('Stopping live view...');
+    setIsLiveView(false);
   };
 
   return (
@@ -188,6 +222,11 @@ const ControlPanel = ({
       minHeight={400}
       bounds="window"
       className="bg-white bg-opacity-95 p-6 rounded-lg shadow-lg z-50 border-l border-gray-300 box-border overflow-y-auto"
+      enableResizing={{
+        bottom: true,
+        bottomRight: true,
+        right: true,
+      }}
     >
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-xl font-medium">Manual Control</h3>
@@ -238,11 +277,11 @@ const ControlPanel = ({
               <i className="fas fa-camera icon"></i> Snap Image
             </button>
             <button
-              className="control-button live-button bg-purple-500 text-white hover:bg-purple-600 w-1/4 p-2 rounded"
-              onClick={startLiveView}
+              className={`control-button live-button ${isLiveView ? 'bg-red-500 hover:bg-red-600' : 'bg-purple-500 hover:bg-purple-600'} text-white w-1/4 p-2 rounded`}
+              onClick={isLiveView ? stopLiveView : startLiveView}
               disabled={!microscopeControlService}
             >
-              <i className="fas fa-video icon"></i> Live
+              <i className="fas fa-video icon"></i> {isLiveView ? 'Stop Live' : 'Live'}
             </button>
           </div>
         </div>
