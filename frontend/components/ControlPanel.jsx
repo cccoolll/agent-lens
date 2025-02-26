@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { Rnd } from 'react-rnd';
 import ControlButton from './ControlButton';
@@ -20,22 +20,106 @@ const ControlPanel = ({
   const [xPosition, setXPosition] = useState(0);
   const [yPosition, setYPosition] = useState(0);
   const [zPosition, setZPosition] = useState(0);
-  const [xMove, setXMove] = useState(0);
-  const [yMove, setYMove] = useState(0);
-  const [zMove, setZMove] = useState(0);
-  const [illuminationIntensity, setIlluminationIntensity] = useState("50");
+  const [xMove, setXMove] = useState(1);
+  const [yMove, setYMove] = useState(1);
+  const [zMove, setZMove] = useState(0.1);
+  const [illuminationIntensity, setIlluminationIntensity] = useState(50);
   const [illuminationChannel, setIlluminationChannel] = useState("0");
   const [cameraExposure, setCameraExposure] = useState(100);
-  const [cameraFPS, setCameraFPS] = useState(10);
   const canvasRef = useRef(null);
 
-  const moveMicroscope = (axis, direction) => {
-    appendLog(`Moving microscope ${axis} by ${direction}`);
+  const fetchStatus = async () => {
+    try {
+      const status = await microscopeControlService.get_status();
+      setXPosition(status.current_x);
+      setYPosition(status.current_y);
+      setZPosition(status.current_z);
+      setIsLightOn(status.is_illumination_on);
+      // Update other states if needed
+    } catch (error) {
+      appendLog(`Failed to fetch status: ${error.message}`);
+    }
+  };
+
+  useEffect(() => {
+    const interval = setInterval(fetchStatus, 1000); // Fetch status every second
+    return () => clearInterval(interval); // Cleanup on unmount
+  }, []);
+
+  useEffect(() => {
+    switch (illuminationChannel) {
+      case "0":
+        setIlluminationIntensity(50);
+        setCameraExposure(100);
+        break;
+      case "11":
+        setIlluminationIntensity(50);
+        setCameraExposure(100);
+        break;
+      case "12":
+        setIlluminationIntensity(50);
+        setCameraExposure(100);
+        break;
+      case "14":
+        setIlluminationIntensity(50);
+        setCameraExposure(100);
+        break;
+      case "13":
+        setIlluminationIntensity(50);
+        setCameraExposure(100);
+        break;
+      case "15":
+        setIlluminationIntensity(50);
+        setCameraExposure(100);
+        break;
+      default:
+        break;
+    }
+  }, [illuminationChannel]);
+
+  const moveMicroscope = async (direction, multiplier) => {
+    if (!microscopeControlService) return;
+    try {
+      let moveX = 0, moveY = 0, moveZ = 0;
+      if (direction === 'x') moveX = xMove * multiplier;
+      else if (direction === 'y') moveY = yMove * multiplier;
+      else if (direction === 'z') moveZ = zMove * multiplier;
+
+      appendLog(`Attempting to move by: ${moveX}, ${moveY}, ${moveZ}`);
+      const result = await microscopeControlService.move_by_distance(moveX, moveY, moveZ);
+      if (result.success) {
+        appendLog(result.message);
+        appendLog(`Moved from (${result.initial_position.x}, ${result.initial_position.y}, ${result.initial_position.z}) to (${result.final_position.x}, ${result.final_position.y}, ${result.final_position.z})`);
+      } else {
+        appendLog(`Move failed: ${result.message}`);
+      }
+    } catch (error) {
+      appendLog(`Error in moveMicroscope: ${error.message}`);
+    }
+  };
+
+  const moveToPosition = async () => {
+    if (!microscopeControlService) return;
+    try {
+      appendLog(`Attempting to move to position: (${xMove}, ${yMove}, ${zMove})`);
+      const result = await microscopeControlService.move_to_position(xMove, yMove, zMove);
+      if (result.success) {
+        appendLog(result.message);
+        appendLog(`Moved from (${result.initial_position.x}, ${result.initial_position.y}, ${result.initial_position.z}) to (${result.final_position.x}, ${result.final_position.y}, ${result.final_position.z})`);
+      } else {
+        appendLog(`Move failed: ${result.message}`);
+      }
+    } catch (error) {
+      appendLog(`Error in moveToPosition: ${error.message}`);
+    }
   };
 
   const snapImage = async () => {
     appendLog('Snapping image...');
-    let imageUrl = await microscopeControlService.snap();
+    const exposureTime = cameraExposure;
+    const channel = parseInt(illuminationChannel, 10); // Convert to integer
+    const intensity = parseInt(illuminationIntensity, 10); // Convert to integer
+    let imageUrl = await microscopeControlService.snap(exposureTime, channel, intensity);
     imageUrl = encodeURI(imageUrl);
     const response = await fetch(imageUrl, { credentials: 'include' });
 
@@ -48,6 +132,15 @@ const ControlPanel = ({
 
     setSnapshotImage(imageObjectURL);
     appendLog('Image snapped and fetched successfully.');
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    img.onload = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    };
+    img.src = imageObjectURL;
   };
 
   const autoFocus = async () => {
@@ -243,13 +336,6 @@ const ControlPanel = ({
               className="control-input w-full mt-2 p-2 border border-gray-300 rounded"
               value={cameraExposure}
               onChange={(e) => setCameraExposure(parseInt(e.target.value, 10))}
-            />
-            <label className="mt-4">Camera FPS:</label>
-            <input
-              type="number"
-              className="control-input w-full mt-2 p-2 border border-gray-300 rounded"
-              value={cameraFPS}
-              onChange={(e) => setCameraFPS(parseInt(e.target.value, 10))}
             />
           </div>
         </div>
