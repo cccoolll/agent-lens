@@ -89,7 +89,6 @@ class AgentLensArtifactManager:
         """
         art_id = self._artifact_id(workspace, coll_name)
         await self._svc.add_vectors(artifact_id=art_id, vectors=vectors)
-        await self._svc.commit(art_id)
 
     async def search_vectors(self, workspace, coll_name, vector, top_k=None):
         """
@@ -120,6 +119,7 @@ class AgentLensArtifactManager:
             file_path (str): The file path.
         """
         art_id = self._artifact_id(workspace, coll_name)
+        await self._svc.edit(artifact_id=art_id, version="stage")
         put_url = await self._svc.put_file(art_id, file_path, download_weight=1.0)
         async with httpx.AsyncClient() as client:
             response = await client.put(put_url, data=file_content, timeout=500)
