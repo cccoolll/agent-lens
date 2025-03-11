@@ -63,17 +63,17 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
 
     const tileLayer = new TileLayer({
       source: new XYZ({
-        url: `https://hypha.aicell.io/agent-lens/services/microscope-tile-service/get_tile_base64?channel_name=${channelName}&z={z}&x={x}&y={y}`,
-
+        // updated URL endpoint to use our ASGI service
+        url: `/tile?channel_name=${channelName}&z={z}&x={x}&y={y}`,
         crossOrigin: 'anonymous',
         tileSize: 2048,
         maxZoom: 4,
         tileLoadFunction: function(tile, src) {
           fetch(src)
-            .then(response => response.json())
+            .then(response => response.text())
             .then(data => {
-              const base64Image = data;
-              tile.getImage().src = `data:image/png;base64,${base64Image}`;
+              // data is expected to be a base64 string
+              tile.getImage().src = `data:image/png;base64,${data}`;
             })
             .catch(error => {
               console.log(`Failed to load tile: ${src}`, error);
