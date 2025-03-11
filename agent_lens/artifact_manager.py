@@ -212,9 +212,9 @@ class TileManager:
             "name": "test-client",
             "server_url": SERVER_URL,
             "token": WORKSPACE_TOKEN,
-            "workspace": "agent-lens"
         })
         self.artifact_manager = await self.artifact_manager_server.get_service("public/artifact-manager")
+        print(f'Connected to Artifact Manager: {self.artifact_manager}')
 
     async def list_files(self, channel: str, scale: int):
         """List available files for a specific channel and scale"""
