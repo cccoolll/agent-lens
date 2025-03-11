@@ -189,7 +189,7 @@ DEFAULT_CHANNEL = "BF_LED_matrix_full"
 
 class TileManager:
     def __init__(self):
-        self.api = None
+        self.artifact_manager_server = None
         self.artifact_manager = None
         self.tile_size = 2048
         self.channels = [
@@ -208,12 +208,13 @@ class TileManager:
 
     async def connect(self):
         """Connect to the Artifact Manager service"""
-        self.api = await connect_to_server({
+        self.artifact_manager_server = await connect_to_server({
             "name": "test-client",
             "server_url": SERVER_URL,
-            "token": WORKSPACE_TOKEN
+            "token": WORKSPACE_TOKEN,
+            "workspace": "agent-lens"
         })
-        self.artifact_manager = await self.api.get_service("public/artifact-manager")
+        self.artifact_manager = await self.artifact_manager_server.get_service("public/artifact-manager")
 
     async def list_files(self, channel: str, scale: int):
         """List available files for a specific channel and scale"""
