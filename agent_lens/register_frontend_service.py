@@ -51,7 +51,7 @@ async def setup_service(server, server_id="microscope-control"):
         server (Server): The server instance.
     """
     # Ensure tile_manager is connected with the server (with proper token and so on)
-    await tile_manager.connect(server)
+    await tile_manager.connect()
     await server.register_service(
         {
             "id": server_id,
