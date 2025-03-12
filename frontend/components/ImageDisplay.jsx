@@ -91,6 +91,19 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, inc
     setImageLayer(tileLayer);
   };
 
+  const handleIncubatorControlOpen = async () => {
+    setIsIncubatorControlOpen(true);
+    if (incubatorControlService) {
+      try {
+        const temp = await incubatorControlService.get_temperature();
+        const co2 = await incubatorControlService.get_co2_level();
+        appendLog(`Incubator information updated: Temp ${temp}°C, CO2 ${co2}%`);
+      } catch (error) {
+        appendLog(`Failed to update incubator information: ${error.message}`);
+      }
+    }
+  };
+
   return (
     <>
       <div className="relative top-0 left-0 w-full h-screen bg-gray-100 flex items-center justify-center overflow-hidden">
@@ -107,7 +120,7 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, inc
         />
         {/* Incubator Control Button (positioned above the microscope control button) */}
         <button
-          onClick={() => setIsIncubatorControlOpen(!isIncubatorControlOpen)}
+          onClick={handleIncubatorControlOpen}
           className="absolute bg-green-500 text-white p-4 rounded-full shadow-lg hover:bg-green-600"
           style={{ bottom: '70px', right: '10px', fontSize: '24px', width: '30px', height: '30px' }}
         >

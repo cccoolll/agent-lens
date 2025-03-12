@@ -14,11 +14,11 @@ const IncubatorControl = ({ onClose, appendLog, incubatorService }) => {
       interval = setInterval(async () => {
         if (incubatorService) {
           try {
-            const temperature = await incubatorService.get_temperature();
-            const CO2 = await incubatorService.get_co2_level();
-            setTemperature(temperature);
-            setCO2(CO2);
-            appendLog(`Incubator information updated: Temp ${temperature}°C, CO2 ${CO2}%`);
+            const temp = await incubatorService.get_temperature();
+            const co2 = await incubatorService.get_co2_level();
+            setTemperature(temp);
+            setCO2(co2);
+            appendLog(`Incubator information updated: Temp ${temp}°C, CO2 ${co2}%`);
           } catch (error) {
             appendLog(`Failed to update incubator information: ${error.message}`);
           }
@@ -41,10 +41,11 @@ const IncubatorControl = ({ onClose, appendLog, incubatorService }) => {
     // Replace this with your actual incubator service call if available.
     if (incubatorService) {
       try {
-        // const result = await incubatorService.updateSettings({ temperature, CO2 });
-        const temperature = await incubatorService.get_temperature();
-        const CO2 = await incubatorService.get_co2_level();
-        appendLog(`Incubator information updated: Temp ${temperature}°C, CO2 ${CO2}%`);
+        const temp = await incubatorService.get_temperature();
+        const co2 = await incubatorService.get_co2_level();
+        setTemperature(temp);
+        setCO2(co2);
+        appendLog(`Incubator information updated: Temp ${temp}°C, CO2 ${co2}%`);
       } catch (error) {
         appendLog(`Failed to update incubator information: ${error.message}`);
       }
@@ -53,16 +54,31 @@ const IncubatorControl = ({ onClose, appendLog, incubatorService }) => {
     }
   };
 
+  const renderSlots = () => {
+    const slots = [];
+    for (let i = 1; i <= 42; i++) {
+      slots.push(
+        <button
+          key={i}
+          className="w-8 h-8 bg-green-500 m-1 rounded"
+        >
+          {i}
+        </button>
+      );
+    }
+    return slots;
+  };
+
   return (
     <Rnd
       default={{
-        x: window.innerWidth - 500,
+        x: window.innerWidth - 1500,
         y: 100,
-        width: 300,
-        height: 200,
+        width: 900,
+        height: 600,
       }}
-      minWidth={250}
-      minHeight={150}
+      minWidth={750}
+      minHeight={450}
       bounds="window"
       className="bg-white bg-opacity-95 p-4 rounded-lg shadow-lg z-50 border border-gray-300 overflow-y-auto"
       onDragStart={handleOpen}
@@ -99,6 +115,14 @@ const IncubatorControl = ({ onClose, appendLog, incubatorService }) => {
         >
           Update Settings
         </button>
+        <div className="grid grid-cols-2 gap-1 mt-4">
+          <div className="grid grid-cols-1">
+            {renderSlots().slice(0, 21).reverse()}
+          </div>
+          <div className="grid grid-cols-1">
+            {renderSlots().slice(21).reverse()}
+          </div>
+        </div>
       </div>
     </Rnd>
   );
