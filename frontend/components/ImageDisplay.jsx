@@ -98,7 +98,16 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
     <>
       <div className="relative top-0 left-0 w-full h-screen bg-gray-100 flex items-center justify-center overflow-hidden">
         <div ref={mapRef} className="w-full h-full"></div>
-        <MapInteractions segmentService={segmentService} snapshotImage={snapshotImage} map={map} extent={extent} appendLog={appendLog} vectorLayer={vectorLayer} />
+        <MapInteractions
+          segmentService={segmentService}
+          snapshotImage={snapshotImage}
+          map={map}
+          extent={extent}
+          appendLog={appendLog}
+          vectorLayer={vectorLayer}
+          channelNames={channelNames}
+          addTileLayer={addTileLayer}
+        />
         <MapButton onClick={() => setIsControlSectionOpen(!isControlSectionOpen)} icon="fa-cog" bottom="10" right="10" />
         <ChatbotButton microscopeControlService={microscopeControlService} appendLog={appendLog} bottom="10" />
       </div>

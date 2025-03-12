@@ -4,11 +4,14 @@ import DrawButton from './DrawButton';
 import PenButton from './PenButton';
 import SegmentControls from './SegmentControls';
 import { getSnapshotArray, overlaySegmentationMask } from './Segment';
+import MapButton from './MapButton';
 
-const MapInteractions = ({ segmentService, snapshotImage, map, extent, appendLog, vectorLayer }) => {
+const MapInteractions = ({ segmentService, snapshotImage, map, extent, appendLog, vectorLayer, channelNames, addTileLayer }) => {
   const [isFirstClick, setIsFirstClick] = useState(true); // Track if it's the first click for segmentation
   const [isDrawingActive, setIsDrawingActive] = useState(false);
   const [selectedModel, setSelectedModel] = useState('vit_b_lm');
+  const [isChannelSelectorOpen, setIsChannelSelectorOpen] = useState(false);
+  const [selectedChannel, setSelectedChannel] = useState(Object.keys(channelNames)[0]);
 
   useEffect(() => {
     if (map) {
@@ -57,12 +60,48 @@ const MapInteractions = ({ segmentService, snapshotImage, map, extent, appendLog
     appendLog('Segmentation completed and displayed.');
   };
 
+  const handleChannelChange = (event) => {
+    setSelectedChannel(event.target.value);
+  };
+
+  const handleApplyChannel = () => {
+    addTileLayer(map, selectedChannel);
+    setIsChannelSelectorOpen(false);
+  };
+
   return (
     <>
       <PenButton appendLog={appendLog} setIsFirstClick={setIsFirstClick} />
       <SegmentControls segmentService={segmentService} snapshotImage={snapshotImage} selectedModel={selectedModel} setSelectedModel={setSelectedModel} map={map} extent={extent} appendLog={appendLog} />
       <DrawButton drawType="Point" icon="fa-map-marker-alt" top="520" map={map} vectorLayer={vectorLayer} setIsDrawingActive={setIsDrawingActive} />
       <DrawButton drawType="Polygon" icon="fa-draw-polygon" top="570" map={map} vectorLayer={vectorLayer} setIsDrawingActive={setIsDrawingActive} />
+      <MapButton
+        onClick={() => setIsChannelSelectorOpen(!isChannelSelectorOpen)}
+        icon="fa-layer-group"
+        top="620"
+        left="10"
+        title="Select channels for tiles"
+      />
+      {isChannelSelectorOpen && (
+        <div className="absolute z-50 bg-white p-4 rounded shadow-md" style={{ top: '670px', left: '20px' }}>
+          <h4 className="text-sm font-medium mb-2">Select Channel</h4>
+          <select
+            className="w-full p-2 border rounded"
+            value={selectedChannel}
+            onChange={handleChannelChange}
+          >
+            {Object.entries(channelNames).map(([key, name]) => (
+              <option key={key} value={key}>{name}</option>
+            ))}
+          </select>
+          <button
+            className="mt-2 w-full bg-blue-600 text-white p-2 rounded"
+            onClick={handleApplyChannel}
+          >
+            Apply
+          </button>
+        </div>
+      )}
     </>
   );
 }
@@ -74,7 +113,8 @@ MapInteractions.propTypes = {
   extent: PropTypes.array.isRequired,
   appendLog: PropTypes.func.isRequired,
   vectorLayer: PropTypes.object,
-  selectedModel: PropTypes.string,
+  channelNames: PropTypes.object.isRequired,
+  addTileLayer: PropTypes.func.isRequired,
 };
 
 export default MapInteractions;

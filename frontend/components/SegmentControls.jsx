@@ -1,6 +1,5 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import MapButton from './MapButton';
 import { getSnapshotArray, overlaySegmentationMask } from './Segment';
 
 const SegmentButton = ({ appendLog, snapshotImage, segmentService, map, extent, selectedModel, setSelectedModel }) => {
@@ -48,7 +47,15 @@ const SegmentButton = ({ appendLog, snapshotImage, segmentService, map, extent, 
           <option value="vit_b">ViT-B</option>
           <option value="vit_b_em_organelles">ViT-B EM Organelles</option>
         </select>
-        <MapButton onClick={handleSegmentAllCells} icon="fa-layer-group" top="470" disabled={!snapshotImage || !segmentService}/>
+        <button
+          className="absolute w-16 h-8 z-40 bg-blue-600 text-white border-none rounded-md text-xs font-medium cursor-pointer shadow-inner transition-all duration-300 ease-in-out hover:bg-blue-800 hover:shadow-xl hover:translate-y-[-2px]"
+          style={{ top: '470px', left: '10px' }}
+          onClick={handleSegmentAllCells}
+          disabled={!snapshotImage || !segmentService}
+          title="Auto Segment"
+        >
+          Auto Segment
+        </button>
       </>
     );
 };
