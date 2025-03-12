@@ -4,6 +4,7 @@ import { makeMap, addMapMask, getTileGrid } from './MapSetup';
 import ChatbotButton from './ChatbotButton';
 import MapInteractions from './MapInteractions';
 import ControlPanel from './ControlPanel';
+import IncubatorControl from './IncubatorControl'; // New import
 import XYZ from 'ol/source/XYZ';
 import TileLayer from 'ol/layer/Tile';
 
@@ -13,6 +14,7 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
   const effectRan = useRef(false);
   const [vectorLayer, setVectorLayer] = useState(null);
   const [isControlSectionOpen, setIsControlSectionOpen] = useState(false);
+  const [isIncubatorControlOpen, setIsIncubatorControlOpen] = useState(false); // New state for incubator control
   const [snapshotImage, setSnapshotImage] = useState(null);
   const [imageLayer, setImageLayer] = useState(null);
 
@@ -62,22 +64,18 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
 
     const tileLayer = new TileLayer({
       source: new XYZ({
-        // Use a relative URL (without initial slash) so that the endpoint is resolved
-        // relative to the current mount path of the frontend service.
         url: `tile?channel_name=${channelName}&z={z}&x={x}&y={y}`,
         crossOrigin: 'anonymous',
         tileSize: 2048,
         maxZoom: 4,
-        tileGrid: getTileGrid(), // new: use custom tile grid
+        tileGrid: getTileGrid(),
         tileLoadFunction: function(tile, src) {
-          // Modified: Invert z before fetching
           const tileCoord = tile.getTileCoord(); // [z, x, y]
           const transformedZ = 3 - tileCoord[0];
           const newSrc = `tile?channel_name=${channelName}&z=${transformedZ}&x=${tileCoord[1]}&y=${tileCoord[2]}`;
           fetch(newSrc)
             .then(response => response.text())
             .then(data => {
-              // Trim any surrounding quotes from the data before setting it as an image src.
               const trimmed = data.replace(/^"|"$/g, '');
               tile.getImage().src = `data:image/png;base64,${trimmed}`;
               console.log(`Loaded tile at location: ${newSrc}`);
@@ -107,6 +105,14 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
           channelNames={channelNames}
           addTileLayer={addTileLayer}
         />
+        {/* Incubator Control Button (positioned above the microscope control button) */}
+        <button
+          onClick={() => setIsIncubatorControlOpen(!isIncubatorControlOpen)}
+          className="absolute bg-green-500 text-white p-4 rounded-full shadow-lg hover:bg-green-600"
+          style={{ bottom: '70px', right: '10px', fontSize: '24px', width: '30px', height: '30px' }}
+        >
+          <i className="fas fa-thermometer-half"></i>
+        </button>
         <button
           onClick={() => setIsControlSectionOpen(!isControlSectionOpen)}
           className="absolute bg-blue-500 text-white p-4 rounded-full shadow-lg hover:bg-blue-600"
@@ -128,6 +134,14 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
           channelNames={channelNames}
           vectorLayer={vectorLayer}
           onClose={() => setIsControlSectionOpen(false)}
+        />
+      )}
+      {isIncubatorControlOpen && (
+        <IncubatorControl
+          appendLog={appendLog}
+          // Pass your incubator service here if available; otherwise, you may pass null.
+          incubatorService={null}
+          onClose={() => setIsIncubatorControlOpen(false)}
         />
       )}
     </>
