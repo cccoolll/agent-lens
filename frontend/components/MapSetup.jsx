@@ -24,7 +24,7 @@ export const makeMap = (mapRef, extent) => {
 
   // Create the map view with the center at the middle of the image
   const view = new View({
-    center: [imageWidth / 2, imageHeight / 2],
+    center: [0, imageHeight],
     zoom: 0,
     minZoom: 0,
     maxZoom: resolutions.length - 1,

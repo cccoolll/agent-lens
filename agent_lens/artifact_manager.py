@@ -226,38 +226,61 @@ class TileManager:
             return []
 
     async def get_tile_np_data(self, channel: str, scale: int, x: int, y: int) -> np.ndarray:
-        """Get a specific tile from the artifact manager."""
+        """
+        Get a specific tile from the artifact manager.
+
+        Args:
+            channel (str): Channel name (e.g., "BF_LED_matrix_full")
+            scale (int): Scale level (0-3)
+            x (int): X coordinate of the tile
+            y (int): Y coordinate of the tile
+
+        Returns:
+            np.ndarray: The tile image as a numpy array
+        """
         try:
-            files = await self.list_files(channel, scale)
             file_path = f"{channel}/scale{scale}/{y}.{x}"
-
-            if not any(f['name'] == f"{y}.{x}" for f in files):
-                print(f"Tile not found: {file_path}")
-                return np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
-
+            # Get the pre-signed URL for the file
             get_url = await self.artifact_manager.get_file(
-                ARTIFACT_ALIAS,
-                file_path=file_path
+                ARTIFACT_ALIAS, file_path=file_path
             )
 
+            # Download the tile using aiohttp
             async with aiohttp.ClientSession() as session:
                 async with session.get(get_url) as response:
                     if response.status == 200:
+                        # Read the compressed binary data
                         compressed_data = await response.read()
-                        try:
-                            decompressed_data = self.compressor.decode(compressed_data)
-                            tile_data = np.frombuffer(decompressed_data, dtype=np.uint8)
-                            tile_data = tile_data.reshape((self.tile_size, self.tile_size))
-                            return tile_data
-                        except Exception as e:
-                            print(f"Error processing tile data: {str(e)}")
-                            return np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
-                    else:
-                        print(f"Failed to download tile: {response.status}")
-                        return np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
 
-        except Exception as e:
-            print(f"Error getting tile {file_path}: {str(e)}")
+                        try:
+                            # Decompress the data using blosc
+                            decompressed_data = self.compressor.decode(compressed_data)
+
+                            # Convert to numpy array with correct shape and dtype
+                            tile_data = np.frombuffer(decompressed_data, dtype=np.uint8)
+                            tile_data = tile_data.reshape(
+                                (self.tile_size, self.tile_size)
+                            )
+
+                            return tile_data
+
+                        except Exception:
+                            # simple notification
+                            print("Error processing tile data")
+                            return np.zeros(
+                                (self.tile_size, self.tile_size), dtype=np.uint8
+                            )
+                    else:
+                        print(f"Didn't get file, path is {file_path}")
+                        return np.zeros(
+                            (self.tile_size, self.tile_size), dtype=np.uint8
+                        )
+
+        except FileNotFoundError:
+            print(f"Didn't get file, path is {file_path}")
+            return np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
+        except Exception:
+            print(f"Couldn't get tile {file_path}")
             return np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
 
     async def get_tile_bytes(self, channel_name: str, z: int, x: int, y: int):
