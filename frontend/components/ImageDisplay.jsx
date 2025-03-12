@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { makeMap, addMapMask, getTileGrid } from './MapSetup';
-import MapButton from './MapButton';
 import ChatbotButton from './ChatbotButton';
 import MapInteractions from './MapInteractions';
 import ControlPanel from './ControlPanel';
@@ -108,7 +107,13 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
           channelNames={channelNames}
           addTileLayer={addTileLayer}
         />
-        <MapButton onClick={() => setIsControlSectionOpen(!isControlSectionOpen)} icon="fa-cog" bottom="10" right="10" />
+        <button
+          onClick={() => setIsControlSectionOpen(!isControlSectionOpen)}
+          className="absolute bg-blue-500 text-white p-4 rounded-full shadow-lg hover:bg-blue-600"
+          style={{ bottom: '10px', right: '10px', fontSize: '24px', width: '30px', height: '30px' }}
+        >
+          <i className="fas fa-microscope"></i>
+        </button>
         <ChatbotButton microscopeControlService={microscopeControlService} appendLog={appendLog} bottom="10" />
       </div>
       {isControlSectionOpen && (
