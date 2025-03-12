@@ -137,12 +137,16 @@ const IncubatorControl = ({ onClose, appendLog, incubatorService }) => {
         >
           Update Settings
         </button>
-        <div className="grid grid-cols-2 gap-1 mt-4">
-          <div className="grid grid-cols-1">
-            {renderSlots().slice(0, 21).reverse()}
-          </div>
-          <div className="grid grid-cols-1">
-            {renderSlots().slice(21).reverse()}
+        {/* New container for Microplate Racks */}
+        <div className="rounded-lg border border-gray-300 p-4 mt-4">
+          <h4 className="text-lg font-bold mb-2 text-center">Microplate Slots</h4>
+          <div className="grid grid-cols-2 gap-x-1 gap-y-1">
+            <div className="grid grid-cols-1">
+              {renderSlots().slice(0, 21).reverse()}
+            </div>
+            <div className="grid grid-cols-1">
+              {renderSlots().slice(21).reverse()}
+            </div>
           </div>
         </div>
       </div>
