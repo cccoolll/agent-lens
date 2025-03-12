@@ -11,13 +11,15 @@ const IncubatorControl = ({ onClose, appendLog, incubatorService }) => {
     // Replace this with your actual incubator service call if available.
     if (incubatorService) {
       try {
-        const result = await incubatorService.updateSettings({ temperature, CO2 });
-        appendLog(`Incubator settings updated: Temp ${temperature}°C, CO2 ${CO2}%`);
+        // const result = await incubatorService.updateSettings({ temperature, CO2 });
+        const temperature = await incubatorService.get_temperature();
+        const CO2 = await incubatorService.get_co2_level();
+        appendLog(`Incubator information updated: Temp ${temperature}°C, CO2 ${CO2}%`);
       } catch (error) {
-        appendLog(`Failed to update incubator settings: ${error.message}`);
+        appendLog(`Failed to update incubator information: ${error.message}`);
       }
     } else {
-      appendLog(`Updated incubator settings locally: Temp ${temperature}°C, CO2 ${CO2}%`);
+      appendLog(`Updated incubator information locally: Temp ${temperature}°C, CO2 ${CO2}%`);
     }
   };
 

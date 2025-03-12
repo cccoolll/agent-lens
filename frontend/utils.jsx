@@ -19,15 +19,48 @@ const getService = async (server, remoteId, localId = null) => {
   return svc;
 };
 
-export const initializeServices = async (server, setMicroscopeControlService, setSimilarityService, setSegmentService, appendLog) => {
+export const initializeServices = async (
+  server,
+  setMicroscopeControlService,
+  setSimilarityService,
+  setSegmentService,
+  setIncubatorControlService, // new parameter for incubator control service
+  appendLog
+) => {
   appendLog('Initializing connection to server...');
 
-  const segmentationService = await tryGetService(server, "Segmentation", "agent-lens/interactive-segmentation", "interactive-segmentation", appendLog);
+  const segmentationService = await tryGetService(
+    server,
+    "Segmentation",
+    "agent-lens/interactive-segmentation",
+    "interactive-segmentation",
+    appendLog
+  );
   setSegmentService(segmentationService);
-  const microscopeControlService = await tryGetService(server, "Microscope Control", "squid-control/microscope-control-squid-simulation-reef", null, appendLog);
+  const microscopeControlService = await tryGetService(
+    server,
+    "Microscope Control",
+    "squid-control/microscope-control-squid-simulation-reef",
+    null,
+    appendLog
+  );
   setMicroscopeControlService(microscopeControlService);
-  const similarityService = await tryGetService(server, "Similarity Search", "agent-lens/similarity-search", "similarity-search", appendLog);
+  const similarityService = await tryGetService(
+    server,
+    "Similarity Search",
+    "agent-lens/similarity-search",
+    "similarity-search",
+    appendLog
+  );
   setSimilarityService(similarityService);
+  const incubatorControlService = await tryGetService(
+    server,
+    "Incubator Control",
+    "reef-imaging/incubator-control",
+    null,
+    appendLog
+  );
+  setIncubatorControlService(incubatorControlService);
 };
 
 const tryGetService = async (server, name, remoteId, localId, appendLog) => {

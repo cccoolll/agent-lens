@@ -5,6 +5,7 @@ import '@fortawesome/fontawesome-free/css/all.min.css';
 import LogSection from './components/LogSection';
 import LoginPrompt from './components/LoginPrompt';
 import ImageDisplay from './components/ImageDisplay';
+import IncubatorControl from './components/IncubatorControl'; // new import
 import { login, initializeServices, getServer } from './utils';
 import 'ol/ol.css';
 
@@ -14,6 +15,7 @@ const MicroscopeControl = () => {
   const [similarityService, setSimilarityService] = useState(null);
   const [log, setLog] = useState('');
   const [segmentService, setSegmentService] = useState(null);
+  const [incubatorControlService, setIncubatorControlService] = useState(null); // new state
 
   useEffect(() => {
     const checkToken = async () => {
@@ -30,6 +32,7 @@ const MicroscopeControl = () => {
     const server = await getServer(token);
     await initializeServices(server,
       setMicroscopeControlService, setSimilarityService, setSegmentService,
+      setIncubatorControlService, // pass setter for incubator control service
       appendLog);
     appendLog("Logged in.");
     setIsAuthenticated(true);
@@ -45,11 +48,19 @@ const MicroscopeControl = () => {
         {!isAuthenticated ? (
           <LoginPrompt onLogin={handleLogin} />
         ) : (
-          <ImageDisplay
-            appendLog={appendLog}
-            segmentService={segmentService}
-            microscopeControlService={microscopeControlService}
-          />
+          <>
+            <ImageDisplay
+              appendLog={appendLog}
+              segmentService={segmentService}
+              microscopeControlService={microscopeControlService}
+            />
+            {/* Render IncubatorControl and pass incubatorService */}
+            <IncubatorControl
+              onClose={() => {}}
+              appendLog={appendLog}
+              incubatorService={incubatorControlService}
+            />
+          </>
         )}
         <LogSection log={log} />
       </div>
