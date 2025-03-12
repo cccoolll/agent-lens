@@ -7,23 +7,30 @@ const IncubatorControl = ({ onClose, appendLog, incubatorService }) => {
   const [temperature, setTemperature] = useState(37);
   const [CO2, setCO2] = useState(5);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [slotsInfo, setSlotsInfo] = useState(Array(42).fill({}));
+  // New state for selected slot details
+  const [selectedSlot, setSelectedSlot] = useState(null);
 
   useEffect(() => {
+    const fetchSlotInformation = async () => {
+      if (incubatorService) {
+        try {
+          const updatedSlotsInfo = [];
+          for (let i = 1; i <= 42; i++) {
+            const slotInfo = await incubatorService.get_slot_information(i);
+            updatedSlotsInfo.push(slotInfo);
+          }
+          setSlotsInfo(updatedSlotsInfo);
+          appendLog(`Slots information updated`);
+        } catch (error) {
+          appendLog(`Failed to update slots information: ${error.message}`);
+        }
+      }
+    };
+
     let interval;
     if (isUpdating) {
-      interval = setInterval(async () => {
-        if (incubatorService) {
-          try {
-            const temp = await incubatorService.get_temperature();
-            const co2 = await incubatorService.get_co2_level();
-            setTemperature(temp);
-            setCO2(co2);
-            appendLog(`Incubator information updated: Temp ${temp}°C, CO2 ${co2}%`);
-          } catch (error) {
-            appendLog(`Failed to update incubator information: ${error.message}`);
-          }
-        }
-      }, 10000);
+      interval = setInterval(fetchSlotInformation, 10000);
     }
     return () => clearInterval(interval);
   }, [isUpdating, incubatorService, appendLog]);
@@ -46,6 +53,14 @@ const IncubatorControl = ({ onClose, appendLog, incubatorService }) => {
         setTemperature(temp);
         setCO2(co2);
         appendLog(`Incubator information updated: Temp ${temp}°C, CO2 ${co2}%`);
+
+        const updatedSlotsInfo = [];
+        for (let i = 1; i <= 42; i++) {
+          const slotInfo = await incubatorService.get_slot_information(i);
+          updatedSlotsInfo.push(slotInfo);
+        }
+        setSlotsInfo(updatedSlotsInfo);
+        appendLog(`Slots information updated`);
       } catch (error) {
         appendLog(`Failed to update incubator information: ${error.message}`);
       }
@@ -54,19 +69,26 @@ const IncubatorControl = ({ onClose, appendLog, incubatorService }) => {
     }
   };
 
+  // New handler to show slot details
+  const handleSlotClick = (slot) => {
+    setSelectedSlot(slot);
+  };
+
   const renderSlots = () => {
-    const slots = [];
-    for (let i = 1; i <= 42; i++) {
-      slots.push(
+    return slotsInfo.map((slot, index) => {
+      const isOrange = slot.name && slot.name.trim();
+      const bgColor = isOrange ? '#f97316' : '#22c55e'; // orange vs green
+      return (
         <button
-          key={i}
-          className="w-8 h-8 bg-green-500 m-1 rounded"
+          key={index + 1}
+          style={{ backgroundColor: bgColor }}
+          className="w-8 h-8 m-1 rounded"
+          onClick={isOrange ? () => handleSlotClick(slot) : undefined}
         >
-          {i}
+          {index + 1}
         </button>
       );
-    }
-    return slots;
+    });
   };
 
   return (
@@ -124,6 +146,26 @@ const IncubatorControl = ({ onClose, appendLog, incubatorService }) => {
           </div>
         </div>
       </div>
+      {/* New small window for slot details */}
+      {selectedSlot && (
+        <div
+          className="absolute bg-white border border-gray-300 shadow-md p-4 rounded m-4"
+          style={{ zIndex: 60 }}
+        >
+          <button onClick={() => setSelectedSlot(null)} className="text-red-500 float-right">
+            X
+          </button>
+          <h4 className="font-bold mb-2">
+            Slot {selectedSlot.incubator_slot || '?'} Details
+          </h4>
+          <p>Name: {selectedSlot.name}</p>
+          <p>Date to Incubator: {selectedSlot.date_to_incubator}</p>
+          <p>Start Imaging: {selectedSlot.start_imaging}</p>
+          <p>End Imaging: {selectedSlot.end_imaging}</p>
+          <p>Time Lapse Hours: {selectedSlot.time_lapse_hours}</p>
+          <p>Allocated Microscope: {selectedSlot.allocated_microscope}</p>
+        </div>
+      )}
     </Rnd>
   );
 };
