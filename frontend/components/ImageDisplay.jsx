@@ -8,7 +8,7 @@ import IncubatorControl from './IncubatorControl'; // New import
 import XYZ from 'ol/source/XYZ';
 import TileLayer from 'ol/layer/Tile';
 
-const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) => {
+const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, incubatorControlService }) => {
   const [map, setMap] = useState(null);
   const mapRef = useRef(null); // Reference to the map container
   const effectRan = useRef(false);
@@ -139,8 +139,7 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
       {isIncubatorControlOpen && (
         <IncubatorControl
           appendLog={appendLog}
-          // Pass your incubator service here if available; otherwise, you may pass null.
-          incubatorService={null}
+          incubatorService={incubatorControlService} // pass incubator service
           onClose={() => setIsIncubatorControlOpen(false)}
         />
       )}
@@ -152,6 +151,7 @@ ImageDisplay.propTypes = {
   appendLog: PropTypes.func.isRequired,
   segmentService: PropTypes.object,
   microscopeControlService: PropTypes.object,
+  incubatorControlService: PropTypes.object,
 };
 
 export default ImageDisplay;

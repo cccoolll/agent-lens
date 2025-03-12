@@ -53,12 +53,7 @@ const MicroscopeControl = () => {
               appendLog={appendLog}
               segmentService={segmentService}
               microscopeControlService={microscopeControlService}
-            />
-            {/* Render IncubatorControl and pass incubatorService */}
-            <IncubatorControl
-              onClose={() => {}}
-              appendLog={appendLog}
-              incubatorService={incubatorControlService}
+              incubatorControlService={incubatorControlService} // pass incubator service
             />
           </>
         )}
