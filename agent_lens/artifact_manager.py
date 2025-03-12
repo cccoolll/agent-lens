@@ -214,7 +214,6 @@ class TileManager:
             "token": WORKSPACE_TOKEN,
         })
         self.artifact_manager = await self.artifact_manager_server.get_service("public/artifact-manager")
-        print(f'Connected to Artifact Manager: {self.artifact_manager}')
 
     async def list_files(self, channel: str, scale: int):
         """List available files for a specific channel and scale"""
@@ -226,7 +225,7 @@ class TileManager:
             print(f"Error listing files: {str(e)}")
             return []
 
-    async def get_tile(self, channel: str, scale: int, x: int, y: int) -> np.ndarray:
+    async def get_tile_np_data(self, channel: str, scale: int, x: int, y: int) -> np.ndarray:
         """Get a specific tile from the artifact manager."""
         try:
             files = await self.list_files(channel, scale)
@@ -261,3 +260,30 @@ class TileManager:
             print(f"Error getting tile {file_path}: {str(e)}")
             return np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
 
+    async def get_tile_bytes(self, channel_name: str, z: int, x: int, y: int):
+        """Serve a tile as bytes"""
+        try:
+            print(f"Backend: Fetching tile z={z}, x={x}, y={y}")
+            if channel_name is None:
+                channel_name = DEFAULT_CHANNEL
+
+            # Get tile data using TileManager
+            tile_data = await self.get_tile_np_data(channel_name, z, x, y)
+
+            # Convert to PNG bytes
+            image = Image.fromarray(tile_data)
+            buffer = io.BytesIO()
+            image.save(buffer, format="PNG")
+            return buffer.getvalue()
+
+        except Exception as e:
+            print(f"Error in get_tile: {str(e)}")
+            blank_image = Image.new("L", (self.tile_size, self.tile_size), color=0)
+            buffer = io.BytesIO()
+            blank_image.save(buffer, format="PNG")
+            return buffer.getvalue()
+
+    async def get_tile_base64(self, channel_name: str, z: int, x: int, y: int):
+        """Serve a tile as base64 string"""
+        tile_bytes = await self.get_tile_bytes(channel_name, z, x, y)
+        return base64.b64encode(tile_bytes).decode('utf-8')

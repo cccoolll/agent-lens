@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
-import { makeMap, addMapMask } from './MapSetup';
+import { makeMap, addMapMask, getTileGrid } from './MapSetup';
 import MapButton from './MapButton';
 import ChatbotButton from './ChatbotButton';
 import MapInteractions from './MapInteractions';
@@ -63,20 +63,28 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService }) =
 
     const tileLayer = new TileLayer({
       source: new XYZ({
-        // updated URL endpoint to use our ASGI service
-        url: `/tile?channel_name=${channelName}&z={z}&x={x}&y={y}`,
+        // Use a relative URL (without initial slash) so that the endpoint is resolved
+        // relative to the current mount path of the frontend service.
+        url: `tile?channel_name=${channelName}&z={z}&x={x}&y={y}`,
         crossOrigin: 'anonymous',
         tileSize: 2048,
         maxZoom: 4,
+        tileGrid: getTileGrid(), // new: use custom tile grid
         tileLoadFunction: function(tile, src) {
-          fetch(src)
+          // Modified: Invert z before fetching
+          const tileCoord = tile.getTileCoord(); // [z, x, y]
+          const transformedZ = 3 - tileCoord[0];
+          const newSrc = `tile?channel_name=${channelName}&z=${transformedZ}&x=${tileCoord[1]}&y=${tileCoord[2]}`;
+          fetch(newSrc)
             .then(response => response.text())
             .then(data => {
-              // data is expected to be a base64 string
-              tile.getImage().src = `data:image/png;base64,${data}`;
+              // Trim any surrounding quotes from the data before setting it as an image src.
+              const trimmed = data.replace(/^"|"$/g, '');
+              tile.getImage().src = `data:image/png;base64,${trimmed}`;
+              console.log(`Loaded tile at location: ${newSrc}`);
             })
             .catch(error => {
-              console.log(`Failed to load tile: ${src}`, error);
+              console.log(`Failed to load tile: ${newSrc}`, error);
             });
         }
       }),
