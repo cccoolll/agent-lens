@@ -83,7 +83,7 @@ const MapInteractions = ({ segmentService, snapshotImage, map, extent, appendLog
         title="Select channels for tiles"
       />
       {isChannelSelectorOpen && (
-        <div className="absolute z-50 bg-white p-4 rounded shadow-md" style={{ top: '670px', left: '20px' }}>
+        <div className="absolute z-50 bg-white p-4 rounded shadow-md" style={{ top: '550px', left: '20px' }}>
           <h4 className="text-sm font-medium mb-2">Select Channel</h4>
           <select
             className="w-full p-2 border rounded"
