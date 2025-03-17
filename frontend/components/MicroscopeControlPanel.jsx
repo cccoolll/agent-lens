@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { Rnd } from 'react-rnd';
 import ControlButton from './ControlButton';
 import CameraSettings from './CameraSettings';
 import ChatbotButton from './ChatbotButton';
@@ -212,35 +211,14 @@ const MicroscopeControlPanel = ({
   };
 
   return (
-    <Rnd
-      default={{
-        x: window.innerWidth - 500,
-        y: 20,
-        width: 500,
-        height: 600,
-      }}
-      minWidth={300}
-      minHeight={400}
-      bounds="window"
-      className="bg-white bg-opacity-95 p-6 rounded-lg shadow-lg z-50 border-l border-gray-300 box-border overflow-y-auto"
-      enableResizing={{
-        bottom: true,
-        bottomRight: true,
-        right: true,
-      }}
-    >
+    <div className="bg-white bg-opacity-95 p-6 rounded-lg shadow-lg border-l border-gray-300 box-border overflow-y-auto">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-xl font-medium">Manual Control</h3>
-        <div className="flex items-center">
-          <ChatbotButton 
-            microscopeControlService={microscopeControlService} 
-            appendLog={appendLog} 
-            className="mr-4"
-          />
-          <button onClick={onClose} className="text-red-500 hover:text-red-700">
-            <i className="fas fa-times"></i> Close
-          </button>
-        </div>
+        <h3 className="text-xl font-medium">Microscope Control</h3>
+        <ChatbotButton 
+          microscopeControlService={microscopeControlService} 
+          appendLog={appendLog} 
+          className="mr-4"
+        />
       </div>
       <div id="manual-control-content">
         <div
@@ -387,7 +365,7 @@ const MicroscopeControlPanel = ({
           </div>
         </div>
       </div>
-    </Rnd>
+    </div>
   );
 };
 

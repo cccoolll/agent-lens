@@ -6,11 +6,11 @@ import LogSection from './components/LogSection';
 import LoginPrompt from './components/LoginPrompt';
 import ImageDisplay from './components/ImageDisplay';
 import IncubatorControl from './components/IncubatorControl';
+import MicroscopeControlPanel from './components/MicroscopeControlPanel';
 import Sidebar from './components/Sidebar';
 import { login, initializeServices, getServer } from './utils';
 import 'ol/ol.css';
 import './main.css';
-import MicroscopeControlPanel from './components/MicroscopeControlPanel';
 
 const MicroscopeControl = () => {    
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -21,6 +21,10 @@ const MicroscopeControl = () => {
   const [incubatorControlService, setIncubatorControlService] = useState(null);
   const [activeTab, setActiveTab] = useState('main');
   const [currentMap, setCurrentMap] = useState(null);
+  const [snapshotImage, setSnapshotImage] = useState(null);
+  const [addTileLayer, setAddTileLayer] = useState(null);
+  const [channelNames, setChannelNames] = useState(null);
+  const [vectorLayer, setVectorLayer] = useState(null);
 
   useEffect(() => {
     const checkToken = async () => {
@@ -66,6 +70,13 @@ const MicroscopeControl = () => {
               microscopeControlService={microscopeControlService}
               appendLog={appendLog}
               map={currentMap}
+              setSnapshotImage={setSnapshotImage}
+              snapshotImage={snapshotImage}
+              segmentService={segmentService}
+              addTileLayer={addTileLayer}
+              channelNames={channelNames}
+              vectorLayer={vectorLayer}
+              onClose={() => {}}
             />
           </div>
         );
