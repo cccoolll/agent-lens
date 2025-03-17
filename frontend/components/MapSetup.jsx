@@ -29,7 +29,6 @@ export const makeMap = (mapRef, extent) => {
     minZoom: 0,
     maxZoom: resolutions.length - 1,
     resolutions: resolutions,
-    constrainResolution: true, 
   });
 
   return new Map({
