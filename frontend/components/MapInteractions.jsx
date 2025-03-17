@@ -102,6 +102,8 @@ const MapInteractions = ({ segmentService, snapshotImage, map, extent, appendLog
           </button>
         </div>
       )}
+
+
     </>
   );
 }

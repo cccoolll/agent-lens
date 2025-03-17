@@ -54,7 +54,7 @@ If you prefer to set up the application manually, follow the steps below:
 
 1. **Conda environment:**
    ```bash
-   conda create -n agent-lens python=3.10.13
+   conda create -n agent-lens python=3.11
    conda activate agent-lens
    ```
 

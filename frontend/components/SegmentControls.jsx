@@ -2,7 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { getSnapshotArray, overlaySegmentationMask } from './Segment';
 
-const SegmentButton = ({ appendLog, snapshotImage, segmentService, map, extent, selectedModel, setSelectedModel }) => {
+const SegmentButton = ({ appendLog, snapshotImage, segmentService, map, extent, selectedModel, setSelectedModel, vectorLayer }) => {
 
     const handleSegmentAllCells = async () => {
         if (!segmentService || !snapshotImage || !map) return;
@@ -34,6 +34,20 @@ const SegmentButton = ({ appendLog, snapshotImage, segmentService, map, extent, 
         }
     };
 
+    const resetEmbedding = (map, vectorLayer) => {
+      map.getLayers()
+        .getArray()
+        .slice()
+        .filter((layer) => layer.get('isSegmentationLayer'))
+        .forEach((layer) => {
+        map.removeLayer(layer);
+      });
+
+      if (vectorLayer && vectorLayer.getSource()) {
+          vectorLayer.getSource().clear();
+      }
+    };
+
     return (
       <>
         <select
@@ -56,6 +70,7 @@ const SegmentButton = ({ appendLog, snapshotImage, segmentService, map, extent, 
         >
           Auto Segment
         </button>
+
       </>
     );
 };
@@ -68,6 +83,7 @@ SegmentButton.propTypes = {
     extent: PropTypes.array.isRequired,
     selectedModel: PropTypes.string,
     setSelectedModel: PropTypes.func.isRequired,
+    vectorLayer: PropTypes.object,
 };
 
 export default SegmentButton;

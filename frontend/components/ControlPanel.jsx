@@ -6,11 +6,9 @@ import CameraSettings from './CameraSettings';
 
 const ControlPanel = ({
   microscopeControlService,
-  segmentService,
   setSnapshotImage,
   snapshotImage,
   map,
-  vectorLayer,
   appendLog,
   addTileLayer,
   channelNames,
@@ -186,20 +184,6 @@ const ControlPanel = ({
     setIsLightOn(!isLightOn);
   };
 
-  const resetEmbedding = (map, vectorLayer) => {
-    map.getLayers()
-      .getArray()
-      .slice()
-      .filter((layer) => layer.get('isSegmentationLayer'))
-      .forEach((layer) => {
-      map.removeLayer(layer);
-    });
-
-    if (vectorLayer && vectorLayer.getSource()) {
-        vectorLayer.getSource().clear();
-    }
-  };
-
   const startLiveView = () => {
     appendLog('Starting live view...');
     setIsLiveView(true);
@@ -255,24 +239,27 @@ const ControlPanel = ({
 
         <div className="control-group mb-4">
           <div className="horizontal-buttons flex justify-between space-x-2">
-            <button
+            <ControlButton
               className="control-button bg-blue-500 text-white hover:bg-blue-600 w-1/4 p-2 rounded"
               onClick={toggleLight}
               disabled={!microscopeControlService}
+              iconClass="fas fa-lightbulb"
             >
-              <i className="fas fa-lightbulb icon"></i> {isLightOn ? 'Turn Light Off' : 'Turn Light On'}
-            </button>
-            <button
-              className="control-button bg-blue-500 text-white hover:bg-blue-600 w-1/4 p-2 rounded"
+              {isLightOn ? 'Turn Light Off' : 'Turn Light On'}
+            </ControlButton>
+            <ControlButton
+              className="bg-blue-500 text-white hover:bg-blue-600 w-1/4 p-2 rounded"
               onClick={autoFocus}
               disabled={!microscopeControlService}
+              iconClass="fas fa-crosshairs"
             >
-              <i className="fas fa-crosshairs icon"></i> Autofocus
-            </button>
-            <button
+              Autofocus
+            </ControlButton>
+            <ControlButton
               className="control-button snap-button bg-green-500 text-white hover:bg-green-600 w-1/4 p-2 rounded"
               onClick={snapImage}
               disabled={!microscopeControlService}
+              iconClass="fas fa-camera"
             >
               <i className="fas fa-camera icon"></i> Snap Image
             </button>
@@ -280,6 +267,7 @@ const ControlPanel = ({
               className={`control-button live-button ${isLiveView ? 'bg-red-500 hover:bg-red-600' : 'bg-purple-500 hover:bg-purple-600'} text-white w-1/4 p-2 rounded`}
               onClick={isLiveView ? stopLiveView : startLiveView}
               disabled={!microscopeControlService}
+              iconClass="fas fa-video"
             >
               <i className="fas fa-video icon"></i> {isLiveView ? 'Stop Live' : 'Live'}
             </button>
@@ -294,19 +282,17 @@ const ControlPanel = ({
                   type="text"
                   className="control-input w-1/2 p-2 border border-gray-300 rounded"
                   placeholder={`${axis.toUpperCase()}(mm)`}
-                  value={axis === 'x' ? xPosition : axis === 'y' ? yPosition : zPosition}
+                  value={0}
                   readOnly
                 />
                 <input
                   type="number"
                   className="control-input w-1/2 p-2 border border-gray-300 rounded"
                   placeholder={`d${axis.toUpperCase()}(mm)`}
-                  value={axis === 'x' ? xMove : axis === 'y' ? yMove : zMove}
+                  value={move[axis]}
                   onChange={(e) => {
                     const value = parseFloat(e.target.value);
-                    if (axis === 'x') setXMove(value);
-                    else if (axis === 'y') setYMove(value);
-                    else setZMove(value);
+                    setMove(prev => ({ ...prev, [axis]: value }));
                   }}
                 />
               </div>
@@ -329,7 +315,6 @@ const ControlPanel = ({
             </div>
           ))}
         </div>
-
         <div className="illumination-camera-container mb-4 flex justify-between">
           <div className="illumination-settings p-2 border border-gray-300 rounded-lg w-1/2">
             <div className="illumination-intensity mb-4">
