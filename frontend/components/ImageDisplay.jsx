@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { makeMap, addMapMask, getTileGrid } from './MapSetup';
-import ChatbotButton from './ChatbotButton';
 import MapInteractions from './MapInteractions';
 import XYZ from 'ol/source/XYZ';
 import TileLayer from 'ol/layer/Tile';
@@ -103,11 +102,6 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, inc
           vectorLayer={vectorLayer}
           channelNames={channelNames}
           addTileLayer={addTileLayer}
-        />
-        <ChatbotButton 
-          microscopeControlService={microscopeControlService} 
-          appendLog={appendLog} 
-          bottom="10" 
         />
       </div>
     </>

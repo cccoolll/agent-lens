@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { Rnd } from 'react-rnd';
 import ControlButton from './ControlButton';
 import CameraSettings from './CameraSettings';
+import ChatbotButton from './ChatbotButton';
 
 const MicroscopeControlPanel = ({
   map,
@@ -230,9 +231,16 @@ const MicroscopeControlPanel = ({
     >
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-xl font-medium">Manual Control</h3>
-        <button onClick={onClose} className="text-red-500 hover:text-red-700">
-          <i className="fas fa-times"></i> Close
-        </button>
+        <div className="flex items-center">
+          <ChatbotButton 
+            microscopeControlService={microscopeControlService} 
+            appendLog={appendLog} 
+            className="mr-4"
+          />
+          <button onClick={onClose} className="text-red-500 hover:text-red-700">
+            <i className="fas fa-times"></i> Close
+          </button>
+        </div>
       </div>
       <div id="manual-control-content">
         <div
