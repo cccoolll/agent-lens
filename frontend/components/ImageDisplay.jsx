@@ -7,8 +7,9 @@ import ControlPanel from './ControlPanel';
 import IncubatorControl from './IncubatorControl'; // New import
 import XYZ from 'ol/source/XYZ';
 import TileLayer from 'ol/layer/Tile';
+import MicroscopeControlPanel from './MicroscopeControlPanel';
 
-const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, incubatorControlService }) => {
+const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, incubatorControlService, setCurrentMap }) => {
   const [map, setMap] = useState(null);
   const mapRef = useRef(null); // Reference to the map container
   const effectRan = useRef(false);
@@ -26,6 +27,7 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, inc
     if (!map && mapRef.current && !effectRan.current) {
       const newMap = makeMap(mapRef, extent);
       setMap(newMap);
+      setCurrentMap(newMap);
       addTileLayer(newMap, 0);
       addMapMask(newMap, setVectorLayer);
       effectRan.current = true;
@@ -34,6 +36,7 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, inc
     return () => {
       if (map) {
         map.setTarget(null);
+        setCurrentMap(null);
       }
     };
   }, [mapRef.current]);
@@ -136,7 +139,7 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, inc
         <ChatbotButton microscopeControlService={microscopeControlService} appendLog={appendLog} bottom="10" />
       </div>
       {isControlSectionOpen && (
-        <ControlPanel
+        <MicroscopeControlPanel
           map={map}
           setSnapshotImage={setSnapshotImage}
           snapshotImage={snapshotImage}
@@ -165,6 +168,7 @@ ImageDisplay.propTypes = {
   segmentService: PropTypes.object,
   microscopeControlService: PropTypes.object,
   incubatorControlService: PropTypes.object,
+  setCurrentMap: PropTypes.func.isRequired,
 };
 
 export default ImageDisplay;

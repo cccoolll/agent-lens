@@ -14,19 +14,25 @@ const MapInteractions = ({ segmentService, snapshotImage, map, extent, appendLog
   const [selectedChannel, setSelectedChannel] = useState(Object.keys(channelNames)[0]);
 
   useEffect(() => {
+    let clickListener;
+    
     if (map) {
-      map.on('click', async (event) => {
-          if (isDrawingActive) {
-              return;
-          }
-          await handleImageClick(event.coordinate)
-      });
-
-      return () => {
-        map.un('click');
+      clickListener = async (event) => {
+        if (isDrawingActive) {
+          return;
+        }
+        await handleImageClick(event.coordinate);
       };
+      
+      map.on('click', clickListener);
     }
-  }, [map]);
+
+    return () => {
+      if (map && clickListener) {
+        map.un('click', clickListener);
+      }
+    };
+  }, [map, isDrawingActive]);
 
   const getSegmentedResult = async (pointCoordinates, snapshotArray) => {
     if (isFirstClick) {
@@ -71,39 +77,63 @@ const MapInteractions = ({ segmentService, snapshotImage, map, extent, appendLog
 
   return (
     <>
-      <PenButton appendLog={appendLog} setIsFirstClick={setIsFirstClick} />
-      <SegmentControls segmentService={segmentService} snapshotImage={snapshotImage} selectedModel={selectedModel} setSelectedModel={setSelectedModel} map={map} extent={extent} appendLog={appendLog} />
-      <DrawButton drawType="Point" icon="fa-map-marker-alt" top="520" map={map} vectorLayer={vectorLayer} setIsDrawingActive={setIsDrawingActive} />
-      <DrawButton drawType="Polygon" icon="fa-draw-polygon" top="570" map={map} vectorLayer={vectorLayer} setIsDrawingActive={setIsDrawingActive} />
-      <MapButton
-        onClick={() => setIsChannelSelectorOpen(!isChannelSelectorOpen)}
-        icon="fa-layer-group"
-        top="620"
-        left="10"
-        title="Select channels for tiles"
-      />
-      {isChannelSelectorOpen && (
-        <div className="absolute z-50 bg-white p-4 rounded shadow-md" style={{ top: '550px', left: '20px' }}>
-          <h4 className="text-sm font-medium mb-2">Select Channel</h4>
-          <select
-            className="w-full p-2 border rounded"
-            value={selectedChannel}
-            onChange={handleChannelChange}
-          >
-            {Object.entries(channelNames).map(([key, name]) => (
-              <option key={key} value={key}>{name}</option>
-            ))}
-          </select>
-          <button
-            className="mt-2 w-full bg-blue-600 text-white p-2 rounded"
-            onClick={handleApplyChannel}
-          >
-            Apply
-          </button>
-        </div>
+      {map && ( // Only render controls if map is available
+        <>
+          <PenButton appendLog={appendLog} setIsFirstClick={setIsFirstClick} />
+          <SegmentControls 
+            segmentService={segmentService} 
+            snapshotImage={snapshotImage} 
+            selectedModel={selectedModel} 
+            setSelectedModel={setSelectedModel} 
+            map={map} 
+            extent={extent} 
+            appendLog={appendLog} 
+          />
+          <DrawButton 
+            drawType="Point" 
+            icon="fa-map-marker-alt" 
+            top="520" 
+            map={map} 
+            vectorLayer={vectorLayer} 
+            setIsDrawingActive={setIsDrawingActive} 
+          />
+          <DrawButton 
+            drawType="Polygon" 
+            icon="fa-draw-polygon" 
+            top="570" 
+            map={map} 
+            vectorLayer={vectorLayer} 
+            setIsDrawingActive={setIsDrawingActive} 
+          />
+          <MapButton
+            onClick={() => setIsChannelSelectorOpen(!isChannelSelectorOpen)}
+            icon="fa-layer-group"
+            top="620"
+            left="10"
+            title="Select channels for tiles"
+          />
+          {isChannelSelectorOpen && (
+            <div className="absolute z-50 bg-white p-4 rounded shadow-md" style={{ top: '550px', left: '20px' }}>
+              <h4 className="text-sm font-medium mb-2">Select Channel</h4>
+              <select
+                className="w-full p-2 border rounded"
+                value={selectedChannel}
+                onChange={handleChannelChange}
+              >
+                {Object.entries(channelNames).map(([key, name]) => (
+                  <option key={key} value={key}>{name}</option>
+                ))}
+              </select>
+              <button
+                className="mt-2 w-full bg-blue-600 text-white p-2 rounded"
+                onClick={handleApplyChannel}
+              >
+                Apply
+              </button>
+            </div>
+          )}
+        </>
       )}
-
-
     </>
   );
 }

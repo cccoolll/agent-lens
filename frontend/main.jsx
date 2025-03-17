@@ -5,9 +5,12 @@ import '@fortawesome/fontawesome-free/css/all.min.css';
 import LogSection from './components/LogSection';
 import LoginPrompt from './components/LoginPrompt';
 import ImageDisplay from './components/ImageDisplay';
-import IncubatorControl from './components/IncubatorControl'; // new import
+import IncubatorControl from './components/IncubatorControl';
+import Sidebar from './components/Sidebar';
 import { login, initializeServices, getServer } from './utils';
 import 'ol/ol.css';
+import './main.css';
+import MicroscopeControlPanel from './components/MicroscopeControlPanel';
 
 const MicroscopeControl = () => {    
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -15,7 +18,9 @@ const MicroscopeControl = () => {
   const [similarityService, setSimilarityService] = useState(null);
   const [log, setLog] = useState('');
   const [segmentService, setSegmentService] = useState(null);
-  const [incubatorControlService, setIncubatorControlService] = useState(null); // new state
+  const [incubatorControlService, setIncubatorControlService] = useState(null);
+  const [activeTab, setActiveTab] = useState('main');
+  const [currentMap, setCurrentMap] = useState(null);
 
   useEffect(() => {
     const checkToken = async () => {
@@ -32,7 +37,7 @@ const MicroscopeControl = () => {
     const server = await getServer(token);
     await initializeServices(server,
       setMicroscopeControlService, setSimilarityService, setSegmentService,
-      setIncubatorControlService, // pass setter for incubator control service
+      setIncubatorControlService,
       appendLog);
     appendLog("Logged in.");
     setIsAuthenticated(true);
@@ -42,22 +47,56 @@ const MicroscopeControl = () => {
       setLog((prevLog) => prevLog + message + '\n');
   };  
 
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'main':
+        return (
+          <ImageDisplay
+            appendLog={appendLog}
+            segmentService={segmentService}
+            microscopeControlService={microscopeControlService}
+            incubatorControlService={incubatorControlService}
+            setCurrentMap={setCurrentMap}
+          />
+        );
+      case 'microscope':
+        return (
+          <div className="control-view">
+            <MicroscopeControlPanel
+              microscopeControlService={microscopeControlService}
+              appendLog={appendLog}
+              map={currentMap}
+            />
+          </div>
+        );
+      case 'incubator':
+        return (
+          <div className="control-view">
+            <IncubatorControl
+              incubatorControlService={incubatorControlService}
+              appendLog={appendLog}
+            />
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <StrictMode>
-      <div className="main-container relative">
+      <div className="app-container">
         {!isAuthenticated ? (
           <LoginPrompt onLogin={handleLogin} />
         ) : (
-          <>
-            <ImageDisplay
-              appendLog={appendLog}
-              segmentService={segmentService}
-              microscopeControlService={microscopeControlService}
-              incubatorControlService={incubatorControlService} // pass incubator service
-            />
-          </>
+          <div className="main-layout">
+            <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+            <div className="content-area">
+              {renderContent()}
+              <LogSection log={log} />
+            </div>
+          </div>
         )}
-        <LogSection log={log} />
       </div>
     </StrictMode>
   );
