@@ -262,7 +262,7 @@ const ControlPanel = ({
               iconClass="fas fa-camera"
             >
               <i className="fas fa-camera icon"></i> Snap Image
-            </button>
+            </ControlButton>
             <button
               className={`control-button live-button ${isLiveView ? 'bg-red-500 hover:bg-red-600' : 'bg-purple-500 hover:bg-purple-600'} text-white w-1/4 p-2 rounded`}
               onClick={isLiveView ? stopLiveView : startLiveView}
