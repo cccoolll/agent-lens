@@ -7,7 +7,12 @@ import os
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from agent_lens.artifact_manager import TileManager
 
+ARTIFACT_ALIAS = "microscopy-tiles-complete"
+DEFAULT_CHANNEL = "BF_LED_matrix_full"
+# Create a global TileManager instance
+tile_manager = TileManager()
 
 def get_frontend_api():
     """
@@ -22,12 +27,18 @@ def get_frontend_api():
     assets_dir = os.path.join(dist_dir, "assets")
     app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
-    async def serve_fastapi(args):
-        await app(args["scope"], args["receive"], args["send"])
-
     @app.get("/", response_class=HTMLResponse)
     async def root():
         return FileResponse(os.path.join(dist_dir, "index.html"))
+
+    # New endpoint to serve tiles from the new TileManager
+    @app.get("/tile")
+    async def tile_endpoint(channel_name: str = DEFAULT_CHANNEL, z: int = 0, x: int = 0, y: int = 0):
+        tile_b64 = await tile_manager.get_tile_base64(channel_name, z, x, y)
+        return tile_b64
+
+    async def serve_fastapi(args):
+        await app(args["scope"], args["receive"], args["send"])
 
     return serve_fastapi
 
@@ -39,6 +50,8 @@ async def setup_service(server, server_id="microscope-control"):
     Args:
         server (Server): The server instance.
     """
+    # Ensure tile_manager is connected with the server (with proper token and so on)
+    await tile_manager.connect()
     await server.register_service(
         {
             "id": server_id,
