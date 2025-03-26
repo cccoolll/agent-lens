@@ -218,17 +218,17 @@ const MicroscopeControlPanel = ({
       <div id="manual-control-content">
         <div
           id="image-display"
-          className={`mb-4 w-full h-64 border ${
+          className={`mb-4 w-full border ${
             snapshotImage ? 'border-gray-300' : 'border-dotted border-gray-400'
           } rounded flex items-center justify-center`}
+          style={{ maxHeight: '400px', overflow: 'auto' }}
         >
           {snapshotImage ? (
-            <canvas
-              ref={canvasRef}
-              width={500}
-              height={400}
-              className="border border-gray-300 rounded"
-            ></canvas>
+            <img
+              src={snapshotImage}
+              alt="Microscope Snapshot"
+              className="max-w-full max-h-full"
+            />
           ) : (
             <p className="placeholder-text text-center">Image Display</p>
           )}
