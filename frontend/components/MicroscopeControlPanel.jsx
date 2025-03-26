@@ -221,13 +221,13 @@ const MicroscopeControlPanel = ({
           className={`mb-4 w-full border ${
             snapshotImage ? 'border-gray-300' : 'border-dotted border-gray-400'
           } rounded flex items-center justify-center`}
-          style={{ maxHeight: '400px', overflow: 'auto' }}
+          style={{ height: '400px' }}
         >
           {snapshotImage ? (
             <img
               src={snapshotImage}
               alt="Microscope Snapshot"
-              className="max-w-full max-h-full"
+              className="object-contain w-full h-full"
             />
           ) : (
             <p className="placeholder-text text-center">Image Display</p>
