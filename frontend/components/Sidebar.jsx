@@ -26,6 +26,13 @@ const Sidebar = ({ activeTab, onTabChange }) => {
           <i className="fas fa-temperature-high"></i>
           <span>Incubator</span>
         </button>
+        <button 
+          className={`sidebar-tab ${activeTab === 'dashboard' ? 'active' : ''}`}
+          onClick={() => onTabChange('dashboard')}
+        >
+          <i className="fas fa-tachometer-alt"></i>
+          <span>Dashboard</span>
+        </button>
       </div>
     </div>
   );

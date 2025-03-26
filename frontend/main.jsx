@@ -89,6 +89,12 @@ const MicroscopeControl = () => {
             />
           </div>
         );
+      case 'dashboard':
+        return (
+          <div className="control-view">
+            <LogSection log={log} />
+          </div>
+        );
       default:
         return null;
     }
@@ -104,7 +110,6 @@ const MicroscopeControl = () => {
             <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
             <div className="content-area">
               {renderContent()}
-              <LogSection log={log} />
             </div>
           </div>
         )}
