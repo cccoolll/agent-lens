@@ -10,29 +10,48 @@ const IncubatorControl = ({ incubatorControlService, appendLog }) => {
   // New state for selected slot details
   const [selectedSlot, setSelectedSlot] = useState(null);
 
-  useEffect(() => {
-    const fetchSlotInformation = async () => {
-      if (incubatorControlService) {
-        try {
-          const updatedSlotsInfo = [];
-          for (let i = 1; i <= 42; i++) {
-            const slotInfo = await incubatorControlService.get_slot_information(i);
-            updatedSlotsInfo.push(slotInfo);
-          }
-          setSlotsInfo(updatedSlotsInfo);
-          appendLog(`Slots information updated`);
-        } catch (error) {
-          appendLog(`Failed to update slots information: ${error.message}`);
-        }
+  const updateSettings = async () => {
+    if (incubatorControlService) {
+      try {
+        const temp = await incubatorControlService.get_temperature();
+        const co2 = await incubatorControlService.get_co2_level();
+        setTemperature(temp);
+        setCO2(co2);
+        appendLog(`Incubator information updated: Temp ${temp}°C, CO2 ${co2}%`);
+      } catch (error) {
+        appendLog(`Failed to update incubator information: ${error.message}`);
       }
-    };
-
-    let interval;
-    if (isUpdating) {
-      interval = setInterval(fetchSlotInformation, 10000);
+    } else {
+      appendLog(`Updated incubator information locally: Temp ${temperature}°C, CO2 ${CO2}%`);
     }
+  };
+
+  const fetchSlotInformation = async () => {
+    if (incubatorControlService) {
+      try {
+        const updatedSlotsInfo = [];
+        for (let i = 1; i <= 42; i++) {
+          const slotInfo = await incubatorControlService.get_slot_information(i);
+          updatedSlotsInfo.push(slotInfo);
+        }
+        setSlotsInfo(updatedSlotsInfo);
+        appendLog(`Slots information updated`);
+      } catch (error) {
+        appendLog(`Failed to update slots information: ${error.message}`);
+      }
+    }
+  };
+
+  useEffect(() => {
+    // Call updateSettings and fetchSlotInformation once when the component mounts
+    updateSettings();
+    fetchSlotInformation();
+
+    // Set an interval to update slots information every 10 seconds
+    const interval = setInterval(fetchSlotInformation, 10000);
+
     return () => clearInterval(interval);
-  }, [isUpdating, incubatorControlService, appendLog]);
+  }, []); // Empty dependency array ensures this runs only once on mount
 
   const handleOpen = () => {
     setIsUpdating(true);
@@ -42,32 +61,6 @@ const IncubatorControl = ({ incubatorControlService, appendLog }) => {
     setIsUpdating(false);
   };
 
-  const updateSettings = async () => {
-    // Replace this with your actual incubator service call if available.
-    if (incubatorControlService) {
-      try {
-        const temp = await incubatorControlService.get_temperature();
-        const co2 = await incubatorControlService.get_co2_level();
-        setTemperature(temp);
-        setCO2(co2);
-        appendLog(`Incubator information updated: Temp ${temp}°C, CO2 ${co2}%`);
-
-        const updatedSlotsInfo = [];
-        for (let i = 1; i <= 42; i++) {
-          const slotInfo = await incubatorControlService.get_slot_information(i);
-          updatedSlotsInfo.push(slotInfo);
-        }
-        setSlotsInfo(updatedSlotsInfo);
-        appendLog(`Slots information updated`);
-      } catch (error) {
-        appendLog(`Failed to update incubator information: ${error.message}`);
-      }
-    } else {
-      appendLog(`Updated incubator information locally: Temp ${temperature}°C, CO2 ${CO2}%`);
-    }
-  };
-
-  // New handler to show slot details
   const handleSlotClick = (slot) => {
     setSelectedSlot(slot);
   };
