@@ -214,11 +214,6 @@ const MicroscopeControlPanel = ({
     <div className="bg-white bg-opacity-95 p-6 rounded-lg shadow-lg border-l border-gray-300 box-border overflow-y-auto">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-xl font-medium">Microscope Control</h3>
-        <ChatbotButton 
-          microscopeControlService={microscopeControlService} 
-          appendLog={appendLog} 
-          className="mr-4"
-        />
       </div>
       <div id="manual-control-content">
         <div
@@ -364,6 +359,12 @@ const MicroscopeControlPanel = ({
             />
           </div>
         </div>
+      </div>
+      <div className="flex justify-end mt-4">
+        <ChatbotButton 
+          microscopeControlService={microscopeControlService} 
+          appendLog={appendLog} 
+        />
       </div>
     </div>
   );

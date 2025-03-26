@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import MapButton from './MapButton';
 import WinBox from 'winbox/src/js/winbox';
 
-const ChatbotButton = ({ microscopeControlService, appendLog, bottom }) => {
+const ChatbotButton = ({ microscopeControlService, appendLog }) => {
     const hyphaCoreInitialized = React.useRef(false);
 
     useEffect(() => {
@@ -52,44 +52,45 @@ const ChatbotButton = ({ microscopeControlService, appendLog, bottom }) => {
         return wb;
     };
 
-    const openChatbot = async (microscopeControlService, appendLog) => {
+    const openChatbot = async () => {
         try {
-        // Ensure HyphaCore is initialized
-        if (!window.hyphaCore || !window.hyphaApi) {
-            appendLog('HyphaCore is not initialized.');
-            return;
-        }
-    
-        if (window.chatbotWindow && !window.chatbotWindow.closed) {
-            // If the window is minimized, restore it
-            if (window.chatbotWindow.minimized) {
-            window.chatbotWindow.restore();
-            } else {
-            // Bring the window to front
-            window.chatbotWindow.focus();
+            if (!window.hyphaCore || !window.hyphaApi) {
+                appendLog('HyphaCore is not initialized.');
+                return;
             }
-        } else {
-            appendLog('Opening chatbot window...');
-            const url = await microscopeControlService.get_chatbot_url();
-            window.chatbotWindow = await window.hyphaApi.createWindow({
-            src: url,
-            name: 'Chatbot',
-            });
-        }
+        
+            if (window.chatbotWindow && !window.chatbotWindow.closed) {
+                if (window.chatbotWindow.minimized) {
+                    window.chatbotWindow.restore();
+                } else {
+                    window.chatbotWindow.focus();
+                }
+            } else {
+                appendLog('Opening chatbot window...');
+                const url = await microscopeControlService.get_chatbot_url();
+                window.chatbotWindow = await window.hyphaApi.createWindow({
+                    src: url,
+                    name: 'Chatbot',
+                });
+            }
         } catch (error) {
-        appendLog(`Failed to open chatbot window: ${error.message}`);
+            appendLog(`Failed to open chatbot window: ${error.message}`);
         }
     };
 
     return (
-        <MapButton onClick={() => openChatbot(microscopeControlService, appendLog)} icon="fa-comments" bottom={bottom} />
+        <button
+            className="control-button bg-blue-500 text-white hover:bg-blue-600 p-2 rounded"
+            onClick={openChatbot}
+        >
+            <i className="fas fa-comments"></i> Open Chat
+        </button>
     );
 }
 
 ChatbotButton.propTypes = {
     microscopeControlService: PropTypes.object,
     appendLog: PropTypes.func.isRequired,
-    bottom: PropTypes.string,
 };
 
 export default ChatbotButton;
