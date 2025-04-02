@@ -183,7 +183,7 @@ class AgentLensArtifactManager:
 
 # Constants
 SERVER_URL = "https://hypha.aicell.io"
-WORKSPACE_TOKEN = os.environ.get("AGENT_LENS_WORKSPACE_TOKEN")
+WORKSPACE_TOKEN = os.environ.get("WORKSPACE_TOKEN")
 ARTIFACT_ALIAS = "microscopy-tiles-complete"
 DEFAULT_CHANNEL = "BF_LED_matrix_full"
 
@@ -208,12 +208,16 @@ class TileManager:
 
     async def connect(self):
         """Connect to the Artifact Manager service"""
-        self.artifact_manager_server = await connect_to_server({
-            "name": "test-client",
-            "server_url": SERVER_URL,
-            "token": WORKSPACE_TOKEN,
-        })
-        self.artifact_manager = await self.artifact_manager_server.get_service("public/artifact-manager")
+        try:
+            self.artifact_manager_server = await connect_to_server({
+                "name": "test-client",
+                "server_url": SERVER_URL,
+                "token": WORKSPACE_TOKEN,
+            })
+            self.artifact_manager = await self.artifact_manager_server.get_service("public/artifact-manager")
+        except Exception as e:
+            print(f"Error connecting to artifact manager: {str(e)}")
+            raise e
 
     async def list_files(self, channel: str, scale: int):
         """List available files for a specific channel and scale"""
