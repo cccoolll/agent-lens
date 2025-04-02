@@ -9,7 +9,10 @@ httpx==0.28.1
 python-dotenv==1.0.1
 fastapi==0.106.0
 aiobotocore==2.19.0
-
+# artifact manager
+numcodecs==0.15.1
+blosc==1.11.2
+aiohttp==3.11.14
 # Segmentation service (unused):
 # segment-anything==1.0
 # kaibu_utils==0.1.14
