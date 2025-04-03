@@ -55,7 +55,7 @@ async def setup_service(server, server_id="agent-lens"):
     await server.register_service(
         {
             "id": server_id,
-            "name": "Microscope Control",
+            "name": "Agent Lens",
             "type": "asgi",
             "serve": get_frontend_api(),
             "config": {"visibility": "public"},
