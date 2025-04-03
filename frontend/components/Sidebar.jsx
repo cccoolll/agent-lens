@@ -33,6 +33,13 @@ const Sidebar = ({ activeTab, onTabChange }) => {
           <i className="fas fa-tachometer-alt"></i>
           <span>Dashboard</span>
         </button>
+        <button 
+          className={`sidebar-tab ${activeTab === 'data-management' ? 'active' : ''}`}
+          onClick={() => onTabChange('data-management')}
+        >
+          <i className="fas fa-database"></i>
+          <span>Data Management</span>
+        </button>
       </div>
     </div>
   );

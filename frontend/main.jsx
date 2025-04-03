@@ -11,6 +11,7 @@ import Sidebar from './components/Sidebar';
 import { login, initializeServices, getServer } from './utils';
 import 'ol/ol.css';
 import './main.css';
+import DataManagement from './components/DataManagement';
 
 const MicroscopeControl = () => {    
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -93,6 +94,12 @@ const MicroscopeControl = () => {
         return (
           <div className="control-view">
             <LogSection log={log} />
+          </div>
+        );
+      case 'data-management':
+        return (
+          <div className="control-view">
+            <DataManagement appendLog={appendLog} />
           </div>
         );
       default:
