@@ -43,7 +43,7 @@ def get_frontend_api():
     return serve_fastapi
 
 
-async def setup_service(server, server_id="microscope-control"):
+async def setup_service(server, server_id="agent-lens"):
     """
     Set up the frontend service.
 

@@ -57,7 +57,7 @@ def start_server(args):
     subprocess.run(command, check=True)
 
     print(
-        f"Hypha server started. Access at {args.host}:{args.port}/public/apps/microscope-control"
+        f"Hypha server started. Access at {args.host}:{args.port}/public/apps/agent-lens"
     )
 
 
