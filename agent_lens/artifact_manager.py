@@ -180,6 +180,78 @@ class AgentLensArtifactManager:
         else:
             await self._svc.remove_vectors(art_id, vector_ids)
 
+    async def list_files_in_dataset(self, dataset_id):
+        """
+        List all files in a dataset.
+
+        Args:
+            dataset_id (str): The ID of the dataset.
+
+        Returns:
+            list: A list of files in the dataset.
+        """
+        files = await self._svc.list_files(dataset_id)
+        return files
+
+    async def navigate_collections(self, parent_id=None):
+        """
+        Navigate through collections and datasets.
+
+        Args:
+            parent_id (str, optional): The ID of the parent collection. Defaults to None for top-level collections.
+
+        Returns:
+            list: A list of collections and datasets under the specified parent.
+        """
+        collections = await self._svc.list(artifact_id=parent_id)
+        return collections
+
+    async def get_file_details(self, dataset_id, file_path):
+        """
+        Get details of a specific file in a dataset.
+
+        Args:
+            dataset_id (str): The ID of the dataset.
+            file_path (str): The path to the file in the dataset.
+
+        Returns:
+            dict: Details of the file, including size, type, and last modified date.
+        """
+        files = await self._svc.list_files(dataset_id)
+        for file in files:
+            if file['name'] == file_path:
+                return file
+        return None
+
+    async def download_file(self, dataset_id, file_path, local_path):
+        """
+        Download a file from a dataset.
+
+        Args:
+            dataset_id (str): The ID of the dataset.
+            file_path (str): The path to the file in the dataset.
+            local_path (str): The local path to save the downloaded file.
+        """
+        get_url = await self._svc.get_file(dataset_id, file_path)
+        async with httpx.AsyncClient() as client:
+            response = await client.get(get_url)
+            response.raise_for_status()
+            with open(local_path, 'wb') as f:
+                f.write(response.content)
+
+    async def search_datasets(self, keywords=None, filters=None):
+        """
+        Search and filter datasets based on keywords and filters.
+
+        Args:
+            keywords (list, optional): A list of keywords for searching datasets.
+            filters (dict, optional): A dictionary of filters to apply.
+
+        Returns:
+            list: A list of datasets matching the search criteria.
+        """
+        datasets = await self._svc.list(keywords=keywords, filters=filters)
+        return datasets
 
 # Constants
 SERVER_URL = "https://hypha.aicell.io"

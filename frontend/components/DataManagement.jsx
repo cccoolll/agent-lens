@@ -7,9 +7,11 @@ const DataManagement = ({ appendLog }) => {
   useEffect(() => {
     const fetchDatasets = async () => {
       try {
-        // Assume getArtifactManager is a function that returns the artifact manager
-        const { artifact_manager } = await getArtifactManager();
-        const datasets = await artifact_manager.list(artifact_id="dataset-gallery");
+        const response = await fetch('/datasets');
+        if (!response.ok) {
+          throw new Error('Failed to fetch datasets');
+        }
+        const datasets = await response.json();
         setDatasets(datasets);
         appendLog('Datasets fetched successfully.');
       } catch (error) {
