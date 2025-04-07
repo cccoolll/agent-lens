@@ -92,11 +92,11 @@ If you prefer to set up the application manually, follow the steps below:
 
 2. **Access the application:**
 
-  Open the browser and navigate to `http://localhost:9527/public/apps/microscope-control`.
+  Open the browser and navigate to `http://localhost:9527/public/apps/agent-lens`.
 
 ## Configuration
 
-- **Microscope Control Service**: Ensure that the microscope control backend service (`microscope-control-squid-simulation`) is running and accessible.
+- **Microscope Control Service**: Ensure that the microscope control backend service (`agent-lens-squid-simulation`) is running and accessible.
 - **Segmentation Service**: The application connects to an AI segmentation service (`interactive-segmentation`) for image analysis.
 - **Similarity Search Service**: The application uses the `similarity-search` service to find similar images.
 

@@ -38,4 +38,8 @@
 
 .sidebar-tab i {
   width: 20px;
+}
+
+.sidebar-tab .fas.fa-database {
+  color: #6c757d;
 } 
