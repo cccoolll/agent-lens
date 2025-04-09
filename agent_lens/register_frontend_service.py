@@ -79,31 +79,95 @@ def get_frontend_api():
     @app.get("/subfolders")
     async def get_subfolders(dataset_id: str, dir_path: str = None):
         """
-        Endpoint to fetch subfolders from a specified directory within a dataset.
+        Endpoint to fetch contents (files and subfolders) from a specified directory within a dataset.
 
         Args:
             dataset_id (str): The ID of the dataset.
-            dir_path (str, optional): The directory path within the dataset to list subfolders. Defaults to None for the root directory.
+            dir_path (str, optional): The directory path within the dataset to list contents. Defaults to None for the root directory.
 
         Returns:
-            list: A list of subfolders in the specified directory.
+            list: A list of files and folders in the specified directory.
         """
-        print(f"Fetching subfolders for dataset: {dataset_id}, dir_path: {dir_path}")
+        print(f"Fetching contents for dataset: {dataset_id}, dir_path: {dir_path}")
         # Ensure the artifact manager is connected
         if artifact_manager_instance.server is None:
             _, artifact_manager_instance._svc = await get_artifact_manager()
         try:
-            # For debugging, let's list all files first
-            all_files = await artifact_manager_instance._svc.list_files(dataset_id, dir_path=dir_path)
-            print(f"All files in {dataset_id}: {all_files}")
+            # Get all files and directories in the current path
+            all_items = await artifact_manager_instance._svc.list_files(dataset_id, dir_path=dir_path)
+            print(f"All items in {dataset_id} at {dir_path or 'root'}: {all_items}")
             
-            # Filter to get only directories
-            subfolders = [file for file in all_files if file.get('type') == 'directory']
-            print(f"Subfolders: {subfolders}")
-            return subfolders
+            # Sort: directories first, then files, both alphabetically
+            directories = [item for item in all_items if item.get('type') == 'directory']
+            directories.sort(key=lambda x: x.get('name', ''))
+            
+            files = [item for item in all_items if item.get('type') == 'file']
+            files.sort(key=lambda x: x.get('name', ''))
+            
+            # Combine the sorted lists
+            sorted_items = directories + files
+            
+            print(f"Returning {len(sorted_items)} items ({len(directories)} directories, {len(files)} files)")
+            return sorted_items
         except Exception as e:
-            print(f"Error fetching subfolders: {e}")
+            print(f"Error fetching contents: {e}")
+            import traceback
+            print(traceback.format_exc())
             return []
+
+    @app.get("/file")
+    async def get_file_url(dataset_id: str, file_path: str):
+        """
+        Endpoint to get a pre-signed URL for a file in a dataset.
+
+        Args:
+            dataset_id (str): The ID of the dataset.
+            file_path (str): The path to the file within the dataset.
+
+        Returns:
+            dict: A dictionary containing the pre-signed URL for the file.
+        """
+        print(f"Getting file URL for dataset: {dataset_id}, file_path: {file_path}")
+        # Ensure the artifact manager is connected
+        if artifact_manager_instance.server is None:
+            _, artifact_manager_instance._svc = await get_artifact_manager()
+        try:
+            # Get the pre-signed URL for the file
+            url = await artifact_manager_instance._svc.get_file(dataset_id, file_path)
+            return {"url": url}
+        except Exception as e:
+            print(f"Error getting file URL: {e}")
+            import traceback
+            print(traceback.format_exc())
+            return {"error": str(e)}
+
+    @app.get("/download")
+    async def download_file(dataset_id: str, file_path: str):
+        """
+        Endpoint to download a file from a dataset.
+
+        Args:
+            dataset_id (str): The ID of the dataset.
+            file_path (str): The path to the file within the dataset.
+
+        Returns:
+            Response: A redirect to the pre-signed URL for downloading the file.
+        """
+        print(f"Downloading file from dataset: {dataset_id}, file_path: {file_path}")
+        # Ensure the artifact manager is connected
+        if artifact_manager_instance.server is None:
+            _, artifact_manager_instance._svc = await get_artifact_manager()
+        try:
+            # Get the pre-signed URL for the file
+            url = await artifact_manager_instance._svc.get_file(dataset_id, file_path)
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse(url=url)
+        except Exception as e:
+            print(f"Error downloading file: {e}")
+            import traceback
+            print(traceback.format_exc())
+            from fastapi.responses import JSONResponse
+            return JSONResponse(content={"error": str(e)}, status_code=404)
 
     async def serve_fastapi(args):
         await app(args["scope"], args["receive"], args["send"])
