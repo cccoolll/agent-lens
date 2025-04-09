@@ -94,9 +94,8 @@ def get_frontend_api():
             _, artifact_manager_instance._svc = await get_artifact_manager()
         try:
             # Get all files and directories in the current path
-            all_items = await artifact_manager_instance._svc.list_files(dataset_id, dir_path=dir_path)
-            print(f"All items in {dataset_id} at {dir_path or 'root'}: {all_items}")
-            
+            all_items = await artifact_manager_instance._svc.list_files(dataset_id, dir_path=dir_path)     
+            print(f"All items, length: {len(all_items)}")
             # Sort: directories first, then files, both alphabetically
             directories = [item for item in all_items if item.get('type') == 'directory']
             directories.sort(key=lambda x: x.get('name', ''))

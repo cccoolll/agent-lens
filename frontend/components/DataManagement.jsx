@@ -56,14 +56,33 @@ const DataManagement = ({ appendLog }) => {
   };
 
   const handleFolderClick = (folderName) => {
-    const newPath = currentPath ? `${currentPath}/${folderName}` : folderName;
+    // Prevent clicking on non-directory items or empty folder names
+    if (!folderName || typeof folderName !== 'string') {
+      appendLog('Invalid folder name');
+      return;
+    }
+    
+    // Check if we're already in this folder to prevent duplicates
+    if (currentPath.split('/').pop() === folderName) {
+      appendLog(`Already in folder: ${folderName}`);
+      return;
+    }
+    
+    // Create new path, ensuring no duplicate slashes
+    const newPath = currentPath 
+      ? (currentPath.endsWith('/') ? `${currentPath}${folderName}` : `${currentPath}/${folderName}`)
+      : folderName;
+    
     setCurrentPath(newPath);
     
     // Update breadcrumbs
     if (currentPath === '') {
       setBreadcrumbs([{ name: folderName, path: folderName }]);
     } else {
-      setBreadcrumbs([...breadcrumbs, { name: folderName, path: newPath }]);
+      // Ensure we're not creating duplicate breadcrumbs
+      if (!breadcrumbs.some(b => b.path === newPath)) {
+        setBreadcrumbs([...breadcrumbs, { name: folderName, path: newPath }]);
+      }
     }
     
     appendLog(`Navigating to folder: ${newPath}`);
@@ -74,11 +93,15 @@ const DataManagement = ({ appendLog }) => {
       // Navigate to root
       setCurrentPath('');
       setBreadcrumbs([]);
-    } else {
+      appendLog('Navigated to root directory');
+    } else if (index >= 0 && index < breadcrumbs.length) {
       // Navigate to specific breadcrumb
       const breadcrumb = breadcrumbs[index];
       setCurrentPath(breadcrumb.path);
       setBreadcrumbs(breadcrumbs.slice(0, index + 1));
+      appendLog(`Navigated to: ${breadcrumb.path}`);
+    } else {
+      appendLog('Invalid breadcrumb navigation');
     }
   };
 
@@ -177,7 +200,11 @@ const DataManagement = ({ appendLog }) => {
               {subfolders.map((item, index) => (
                 <li 
                   key={index} 
-                  className="py-1 cursor-pointer hover:bg-gray-100"
+                  className={`py-1 cursor-pointer hover:bg-gray-100 ${
+                    item.type === 'directory' && currentPath.split('/').pop() === item.name 
+                      ? 'bg-blue-50 border-l-4 border-blue-500 pl-1' 
+                      : ''
+                  }`}
                   onClick={() => item.type === 'directory' 
                     ? handleFolderClick(item.name) 
                     : handleFileClick(item)
@@ -185,8 +212,15 @@ const DataManagement = ({ appendLog }) => {
                 >
                   {item.type === 'directory' ? (
                     <>
-                      <i className="fas fa-folder mr-2 text-yellow-500"></i>
+                      <i className={`fas fa-folder mr-2 ${
+                        currentPath.split('/').pop() === item.name 
+                          ? 'text-blue-500' 
+                          : 'text-yellow-500'
+                      }`}></i>
                       {item.name}
+                      {currentPath.split('/').pop() === item.name && 
+                        <span className="ml-2 text-xs text-blue-500">(current)</span>
+                      }
                     </>
                   ) : (
                     <>

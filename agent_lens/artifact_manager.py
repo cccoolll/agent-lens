@@ -267,9 +267,9 @@ class AgentLensArtifactManager:
         try:
             print(f"Listing files for dataset_id={dataset_id}, dir_path={dir_path}")
             files = await self._svc.list_files(dataset_id, dir_path=dir_path)
-            print(f"Files received: {files}")
+            print(f"Files received, length: {len(files)}")
             subfolders = [file for file in files if file.get('type') == 'directory']
-            print(f"Subfolders filtered: {subfolders}")
+            print(f"Subfolders filtered, length: {len(subfolders)}")
             return subfolders
         except Exception as e:
             print(f"Error listing subfolders for {dataset_id}: {e}")
