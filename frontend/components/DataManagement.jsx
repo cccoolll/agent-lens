@@ -12,6 +12,7 @@ const DataManagement = ({ appendLog }) => {
   const [offset, setOffset] = useState(0);
   const [limit, setLimit] = useState(20);
   const [totalItems, setTotalItems] = useState(0);
+  const [showDevMessage, setShowDevMessage] = useState(false);
 
   useEffect(() => {
     const fetchDatasets = async () => {
@@ -183,12 +184,30 @@ const DataManagement = ({ appendLog }) => {
     return count === 1000 ? "999+" : count;
   };
 
+  // Function to handle the map view button click
+  const handleMapViewClick = () => {
+    setShowDevMessage(true);
+    // Auto-hide the message after 3 seconds
+    setTimeout(() => {
+      setShowDevMessage(false);
+    }, 3000);
+    appendLog('Map View feature was clicked - currently under development');
+  };
+
   return (
     <div className="data-management-view">
       <h3 className="text-xl font-medium mb-4">Data Management</h3>
       <div className="grid grid-cols-1 gap-4">
         <div className="border rounded p-4">
-          <h4 className="text-lg font-medium mb-2">Datasets</h4>
+          <div className="flex justify-between items-center mb-2">
+            <h4 className="text-lg font-medium">Datasets</h4>
+            <button 
+              className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center"
+              onClick={handleMapViewClick}
+            >
+              <i className="fas fa-map mr-1"></i> Map View
+            </button>
+          </div>
           <ul className="cursor-pointer">
             {datasets.map((dataset, index) => (
               <li 
@@ -201,6 +220,21 @@ const DataManagement = ({ appendLog }) => {
             ))}
           </ul>
         </div>
+        
+        {/* Development message toast */}
+        {showDevMessage && (
+          <div className="fixed top-4 right-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded shadow-md z-50 animate-fade-in-out">
+            <div className="flex">
+              <div className="py-1">
+                <i className="fas fa-tools mr-2"></i>
+              </div>
+              <div>
+                <p className="font-bold">Feature in Development</p>
+                <p>The Map View feature is currently being developed. Please check back later!</p>
+              </div>
+            </div>
+          </div>
+        )}
         
         <div className="border rounded p-4">
           <h4 className="text-lg font-medium mb-2">
