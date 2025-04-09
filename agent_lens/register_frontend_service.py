@@ -88,12 +88,19 @@ def get_frontend_api():
         Returns:
             list: A list of subfolders in the specified directory.
         """
+        print(f"Fetching subfolders for dataset: {dataset_id}, dir_path: {dir_path}")
         # Ensure the artifact manager is connected
         if artifact_manager_instance.server is None:
             _, artifact_manager_instance._svc = await get_artifact_manager()
         try:
-            subfolders = await artifact_manager_instance.list_subfolders(dataset_id, dir_path)
-            return subfolders  # Already in the correct format with 'name' property
+            # For debugging, let's list all files first
+            all_files = await artifact_manager_instance._svc.list_files(dataset_id, dir_path=dir_path)
+            print(f"All files in {dataset_id}: {all_files}")
+            
+            # Filter to get only directories
+            subfolders = [file for file in all_files if file.get('type') == 'directory']
+            print(f"Subfolders: {subfolders}")
+            return subfolders
         except Exception as e:
             print(f"Error fetching subfolders: {e}")
             return []
