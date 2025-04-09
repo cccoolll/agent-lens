@@ -77,25 +77,29 @@ def get_frontend_api():
             return []
 
     @app.get("/subfolders")
-    async def get_subfolders(dataset_id: str, dir_path: str = None):
+    async def get_subfolders(dataset_id: str, dir_path: str = None, offset: int = 0, limit: int = 20):
         """
-        Endpoint to fetch contents (files and subfolders) from a specified directory within a dataset.
+        Endpoint to fetch contents (files and subfolders) from a specified directory within a dataset,
+        with pagination support.
 
         Args:
             dataset_id (str): The ID of the dataset.
             dir_path (str, optional): The directory path within the dataset to list contents. Defaults to None for the root directory.
+            offset (int, optional): Number of items to skip. Defaults to 0.
+            limit (int, optional): Maximum number of items to return. Defaults to 20.
 
         Returns:
-            list: A list of files and folders in the specified directory.
+            dict: A dictionary containing paginated items and total count.
         """
-        print(f"Fetching contents for dataset: {dataset_id}, dir_path: {dir_path}")
+        print(f"Fetching contents for dataset: {dataset_id}, dir_path: {dir_path}, offset: {offset}, limit: {limit}")
         # Ensure the artifact manager is connected
         if artifact_manager_instance.server is None:
             _, artifact_manager_instance._svc = await get_artifact_manager()
         try:
             # Get all files and directories in the current path
-            all_items = await artifact_manager_instance._svc.list_files(dataset_id, dir_path=dir_path)     
+            all_items = await artifact_manager_instance._svc.list_files(dataset_id, dir_path=dir_path)
             print(f"All items, length: {len(all_items)}")
+            
             # Sort: directories first, then files, both alphabetically
             directories = [item for item in all_items if item.get('type') == 'directory']
             directories.sort(key=lambda x: x.get('name', ''))
@@ -106,13 +110,24 @@ def get_frontend_api():
             # Combine the sorted lists
             sorted_items = directories + files
             
-            print(f"Returning {len(sorted_items)} items ({len(directories)} directories, {len(files)} files)")
-            return sorted_items
+            # Apply pagination
+            total_count = len(sorted_items)
+            paginated_items = sorted_items[offset:offset + limit] if offset < total_count else []
+            
+            print(f"Returning {len(paginated_items)} of {total_count} items (offset: {offset}, limit: {limit})")
+            
+            # Return both the items and the total count
+            return {
+                "items": paginated_items,
+                "total": total_count,
+                "offset": offset,
+                "limit": limit
+            }
         except Exception as e:
             print(f"Error fetching contents: {e}")
             import traceback
             print(traceback.format_exc())
-            return []
+            return {"items": [], "total": 0, "offset": offset, "limit": limit, "error": str(e)}
 
     @app.get("/file")
     async def get_file_url(dataset_id: str, file_path: str):

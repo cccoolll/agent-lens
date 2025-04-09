@@ -9,6 +9,9 @@ const DataManagement = ({ appendLog }) => {
   const [breadcrumbs, setBreadcrumbs] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState(null);
+  const [offset, setOffset] = useState(0);
+  const [limit, setLimit] = useState(20);
+  const [totalItems, setTotalItems] = useState(0);
 
   useEffect(() => {
     const fetchDatasets = async () => {
@@ -32,13 +35,15 @@ const DataManagement = ({ appendLog }) => {
     const fetchSubfolders = async () => {
       try {
         const pathParam = currentPath ? `&dir_path=${currentPath}` : '';
-        const response = await fetch(`/public/apps/agent-lens/subfolders?dataset_id=${selectedDataset}${pathParam}`);
+        const paginationParams = `&offset=${offset}&limit=${limit}`;
+        const response = await fetch(`/public/apps/agent-lens/subfolders?dataset_id=${selectedDataset}${pathParam}${paginationParams}`);
         if (!response.ok) {
           throw new Error('Failed to fetch subfolders');
         }
-        const subfolders = await response.json();
-        setSubfolders(subfolders);
-        appendLog(`Subfolders fetched successfully for path: ${currentPath || 'root'}`);
+        const data = await response.json();
+        setSubfolders(data.items || []);
+        setTotalItems(data.total || data.items?.length || 0);
+        appendLog(`Fetched ${data.items?.length} of ${data.total} items (offset: ${offset}, limit: ${limit})`);
       } catch (error) {
         appendLog(`Failed to fetch subfolders: ${error.message}`);
       }
@@ -47,12 +52,13 @@ const DataManagement = ({ appendLog }) => {
     if (selectedDataset) {
       fetchSubfolders();
     }
-  }, [selectedDataset, currentPath]);
+  }, [selectedDataset, currentPath, offset, limit]);
 
   const handleDatasetClick = (datasetId) => {
     setSelectedDataset(datasetId);
     setCurrentPath('');
     setBreadcrumbs([]);
+    setOffset(0); // Reset pagination when changing dataset
   };
 
   const handleFolderClick = (folderName) => {
@@ -85,6 +91,7 @@ const DataManagement = ({ appendLog }) => {
       }
     }
     
+    setOffset(0); // Reset pagination when navigating to a new folder
     appendLog(`Navigating to folder: ${newPath}`);
   };
 
@@ -102,6 +109,27 @@ const DataManagement = ({ appendLog }) => {
       appendLog(`Navigated to: ${breadcrumb.path}`);
     } else {
       appendLog('Invalid breadcrumb navigation');
+    }
+    setOffset(0); // Reset pagination when navigating with breadcrumbs
+  };
+
+  const handlePrevPage = () => {
+    if (offset - limit >= 0) {
+      setOffset(offset - limit);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (offset + limit < totalItems) {
+      setOffset(offset + limit);
+    }
+  };
+
+  const handleLimitChange = (e) => {
+    const newLimit = parseInt(e.target.value, 10);
+    if (!isNaN(newLimit) && newLimit > 0) {
+      setLimit(newLimit);
+      setOffset(0); // Reset offset when changing limit
     }
   };
 
@@ -150,6 +178,11 @@ const DataManagement = ({ appendLog }) => {
     return date.toLocaleString();
   };
 
+  // Function to format the total count, showing "999+" when the count is exactly 1000
+  const formatTotalCount = (count) => {
+    return count === 1000 ? "999+" : count;
+  };
+
   return (
     <div className="data-management-view">
       <h3 className="text-xl font-medium mb-4">Data Management</h3>
@@ -193,6 +226,40 @@ const DataManagement = ({ appendLog }) => {
                 </span>
               </React.Fragment>
             ))}
+          </div>
+          
+          {/* Pagination controls */}
+          <div className="flex items-center justify-between mb-3 text-sm bg-gray-50 p-2 rounded">
+            <div className="flex items-center space-x-2">
+              <button 
+                onClick={handlePrevPage} 
+                disabled={offset === 0}
+                className={`px-2 py-1 border rounded ${offset === 0 ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-50'}`}
+              >
+                Previous
+              </button>
+              <span>
+                Showing {offset + 1} - {Math.min(offset + limit, totalItems)} of {formatTotalCount(totalItems)}
+              </span>
+              <button 
+                onClick={handleNextPage}
+                disabled={offset + limit >= totalItems}
+                className={`px-2 py-1 border rounded ${offset + limit >= totalItems ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-50'}`}
+              >
+                Next
+              </button>
+            </div>
+            <div className="flex items-center space-x-2">
+              <label htmlFor="limit">Items per page:</label>
+              <input
+                id="limit"
+                type="number"
+                min="1"
+                value={limit}
+                onChange={handleLimitChange}
+                className="border rounded w-16 px-2 py-1"
+              />
+            </div>
           </div>
           
           {subfolders.length > 0 ? (
