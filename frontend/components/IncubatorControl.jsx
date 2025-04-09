@@ -150,7 +150,7 @@ const IncubatorControl = ({ incubatorControlService, appendLog }) => {
 };
 
 IncubatorControl.propTypes = {
-  incubatorControlService: PropTypes.object.isRequired,
+  incubatorControlService: PropTypes.object,
   appendLog: PropTypes.func.isRequired,
 };
 
