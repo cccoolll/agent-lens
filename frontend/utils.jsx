@@ -53,14 +53,18 @@ export const initializeServices = async (
     appendLog
   );
   setSimilarityService(similarityService);
-  const incubatorControlService = await tryGetService(
-    server,
-    "Incubator Control",
-    "reef-imaging/incubator-control",
-    null,
-    appendLog
-  );
-  setIncubatorControlService(incubatorControlService);
+  
+  // Connect to the separate incubator server
+  try {
+    appendLog(`Acquiring Incubator Control service from local server...`);
+    const incubatorServer = await getIncubatorServer();
+    const incubatorControlService = await incubatorServer.getService("reef-imaging-local/incubator-control");
+    appendLog(`Incubator Control service acquired from local server.`);
+    setIncubatorControlService(incubatorControlService);
+  } catch (error) {
+    appendLog(`Error acquiring Incubator Control service: ${error.message}`);
+    setIncubatorControlService(null);
+  }
 };
 
 const tryGetService = async (server, name, remoteId, localId, appendLog) => {
@@ -81,6 +85,16 @@ export const getServer = async (token) => {
 		token: token,
 		method_timeout: 500,
 	});
+}
+
+export const getIncubatorServer = async () => {
+  // Get token from .env file via environment variable
+  const token = import.meta.env.VITE_REEF_LOCAL_TOKEN || "";
+  return await hyphaWebsocketClient.connectToServer({
+    server_url: "http://reef.dyn.scilifelab.se:9527/",
+    token: token,
+    method_timeout: 500,
+  });
 }
 
 const login_callback = (context) => {
