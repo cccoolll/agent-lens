@@ -7,13 +7,16 @@ import os
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from agent_lens.artifact_manager import TileManager
+from agent_lens.artifact_manager import TileManager, AgentLensArtifactManager
 from hypha_rpc import connect_to_server
 
 ARTIFACT_ALIAS = "microscopy-tiles-complete"
 DEFAULT_CHANNEL = "BF_LED_matrix_full"
 # Create a global TileManager instance
 tile_manager = TileManager()
+
+# Create a global AgentLensArtifactManager instance
+artifact_manager_instance = AgentLensArtifactManager()
 
 SERVER_URL = "https://hypha.aicell.io"
 WORKSPACE_TOKEN = os.getenv("REEF_WORKSPACE_TOKEN")
@@ -55,11 +58,45 @@ def get_frontend_api():
         Endpoint to fetch datasets from the artifact manager using the correct collection ID.
 
         Returns:
-            list: A list of datasets.
+            list: A list of datasets (child artifacts).
         """
-        _, artifact_manager = await get_artifact_manager()
-        datasets = await artifact_manager.list(artifact_id="reef-imaging/u2os-fucci-drug-treatment")
-        return datasets
+        # Ensure the artifact manager is connected
+        if artifact_manager_instance.server is None:
+            _, artifact_manager_instance._svc = await get_artifact_manager()
+        try:
+            # Use the list method to get children of the specified artifact_id
+            datasets = await artifact_manager_instance._svc.list(parent_id="reef-imaging/u2os-fucci-drug-treatment")
+            # Format the response to match the expected keys in the frontend
+            formatted_datasets = []
+            for dataset in datasets:
+                name = dataset.get("manifest", {}).get("name", dataset.get("alias", "Unknown"))
+                formatted_datasets.append({"id": dataset.get("id"), "name": name})
+            return formatted_datasets
+        except Exception as e:
+            print(f"Error fetching datasets: {e}")
+            return []
+
+    @app.get("/subfolders")
+    async def get_subfolders(dataset_id: str, dir_path: str = None):
+        """
+        Endpoint to fetch subfolders from a specified directory within a dataset.
+
+        Args:
+            dataset_id (str): The ID of the dataset.
+            dir_path (str, optional): The directory path within the dataset to list subfolders. Defaults to None for the root directory.
+
+        Returns:
+            list: A list of subfolders in the specified directory.
+        """
+        # Ensure the artifact manager is connected
+        if artifact_manager_instance.server is None:
+            _, artifact_manager_instance._svc = await get_artifact_manager()
+        try:
+            subfolders = await artifact_manager_instance.list_subfolders(dataset_id, dir_path)
+            return subfolders  # Already in the correct format with 'name' property
+        except Exception as e:
+            print(f"Error fetching subfolders: {e}")
+            return []
 
     async def serve_fastapi(args):
         await app(args["scope"], args["receive"], args["send"])
