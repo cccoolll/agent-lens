@@ -253,6 +253,30 @@ class AgentLensArtifactManager:
         datasets = await self._svc.list(keywords=keywords, filters=filters)
         return datasets
 
+    async def list_subfolders(self, dataset_id, dir_path=None):
+        """
+        List all subfolders in a specified directory within a dataset.
+
+        Args:
+            dataset_id (str): The ID of the dataset.
+            dir_path (str, optional): The directory path within the dataset to list subfolders. Defaults to None for the root directory.
+
+        Returns:
+            list: A list of subfolders in the specified directory.
+        """
+        try:
+            print(f"Listing files for dataset_id={dataset_id}, dir_path={dir_path}")
+            files = await self._svc.list_files(dataset_id, dir_path=dir_path)
+            print(f"Files received, length: {len(files)}")
+            subfolders = [file for file in files if file.get('type') == 'directory']
+            print(f"Subfolders filtered, length: {len(subfolders)}")
+            return subfolders
+        except Exception as e:
+            print(f"Error listing subfolders for {dataset_id}: {e}")
+            import traceback
+            print(traceback.format_exc())
+            return []
+
 # Constants
 SERVER_URL = "https://hypha.aicell.io"
 WORKSPACE_TOKEN = os.environ.get("WORKSPACE_TOKEN")
