@@ -13,6 +13,8 @@ const DataManagement = ({ appendLog }) => {
   const [limit, setLimit] = useState(20);
   const [totalItems, setTotalItems] = useState(0);
   const [showDevMessage, setShowDevMessage] = useState(false);
+  const [mapSetupStatus, setMapSetupStatus] = useState({ isSetup: false, message: '', isError: false });
+  const [isSettingUpMap, setIsSettingUpMap] = useState(false);
 
   useEffect(() => {
     const fetchDatasets = async () => {
@@ -185,13 +187,53 @@ const DataManagement = ({ appendLog }) => {
   };
 
   // Function to handle the map view button click
-  const handleMapViewClick = () => {
-    setShowDevMessage(true);
-    // Auto-hide the message after 3 seconds
-    setTimeout(() => {
-      setShowDevMessage(false);
-    }, 3000);
-    appendLog('Map View feature was clicked - currently under development');
+  const handleMapViewClick = async () => {
+    if (isSettingUpMap) return;
+    
+    setIsSettingUpMap(true);
+    appendLog('Setting up Map View for dataset: ' + selectedDataset);
+    
+    try {
+      // Extract the dataset name from the full dataset ID (e.g., 'reef-imaging/20250410-treatment')
+      const datasetName = selectedDataset.split('/').pop();
+      
+      // Call the backend endpoint to setup the image map
+      const response = await fetch(`/public/apps/agent-lens/setup-image-map?dataset_name=${datasetName}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        // Store the successful setup in local storage so other components can access it
+        localStorage.setItem('imageMapDataset', data.dataset_id);
+        setMapSetupStatus({
+          isSetup: true,
+          message: data.message + '. Go to the main page to view the map.',
+          isError: false
+        });
+        appendLog(`Map View setup successful: ${data.message}`);
+      } else {
+        setMapSetupStatus({
+          isSetup: false,
+          message: data.message,
+          isError: true
+        });
+        appendLog(`Map View setup failed: ${data.message}`);
+      }
+    } catch (error) {
+      setMapSetupStatus({
+        isSetup: false, 
+        message: `Error setting up Map View: ${error.message}`,
+        isError: true
+      });
+      appendLog(`Error setting up Map View: ${error.message}`);
+    } finally {
+      setIsSettingUpMap(false);
+      // Show the status message
+      setShowDevMessage(true);
+      // Auto-hide the message after 5 seconds
+      setTimeout(() => {
+        setShowDevMessage(false);
+      }, 5000);
+    }
   };
 
   return (
@@ -202,10 +244,19 @@ const DataManagement = ({ appendLog }) => {
           <div className="flex justify-between items-center mb-2">
             <h4 className="text-lg font-medium">Datasets</h4>
             <button 
-              className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center"
+              className={`bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center ${isSettingUpMap ? 'opacity-50 cursor-not-allowed' : ''}`}
               onClick={handleMapViewClick}
+              disabled={isSettingUpMap}
             >
-              <i className="fas fa-map mr-1"></i> Map View
+              {isSettingUpMap ? (
+                <>
+                  <i className="fas fa-spinner fa-spin mr-1"></i> Setting Up Map...
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-map mr-1"></i> Map View
+                </>
+              )}
             </button>
           </div>
           <ul className="cursor-pointer">
@@ -223,14 +274,14 @@ const DataManagement = ({ appendLog }) => {
         
         {/* Development message toast */}
         {showDevMessage && (
-          <div className="fixed top-4 right-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded shadow-md z-50 animate-fade-in-out">
+          <div className={`fixed top-4 right-4 ${mapSetupStatus.isError ? 'bg-red-100 border-l-4 border-red-500 text-red-700' : 'bg-green-100 border-l-4 border-green-500 text-green-700'} p-4 rounded shadow-md z-50 animate-fade-in-out`}>
             <div className="flex">
               <div className="py-1">
-                <i className="fas fa-tools mr-2"></i>
+                <i className={`fas ${mapSetupStatus.isError ? 'fa-exclamation-circle' : 'fa-check-circle'} mr-2`}></i>
               </div>
               <div>
-                <p className="font-bold">Feature in Development</p>
-                <p>The Map View feature is currently being developed. Please check back later!</p>
+                <p className="font-bold">{mapSetupStatus.isError ? 'Setup Failed' : 'Setup Successful'}</p>
+                <p>{mapSetupStatus.message || 'The Map View feature is currently being developed. Please check back later!'}</p>
               </div>
             </div>
           </div>

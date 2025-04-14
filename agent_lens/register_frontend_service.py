@@ -9,6 +9,11 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from agent_lens.artifact_manager import TileManager, AgentLensArtifactManager
 from hypha_rpc import connect_to_server
+import base64
+import io
+import httpx
+import numpy as np
+from PIL import Image
 
 ARTIFACT_ALIAS = "microscopy-tiles-complete"
 DEFAULT_CHANNEL = "BF_LED_matrix_full"
@@ -182,6 +187,171 @@ def get_frontend_api():
             print(traceback.format_exc())
             from fastapi.responses import JSONResponse
             return JSONResponse(content={"error": str(e)}, status_code=404)
+
+    @app.get("/setup-image-map")
+    async def setup_image_map(dataset_name: str):
+        """
+        Endpoint to setup the image map access for a specific dataset.
+        Checks if the corresponding dataset exists in the image-map gallery.
+
+        Args:
+            dataset_name (str): The name of the current dataset (e.g., "20250410-treatment").
+
+        Returns:
+            dict: A dictionary containing success status and message.
+        """
+        print(f"Setting up image map for dataset: {dataset_name}")
+        # Ensure the artifact manager is connected
+        if artifact_manager_instance.server is None:
+            _, artifact_manager_instance._svc = await get_artifact_manager()
+        
+        try:
+            # Target gallery for image maps
+            gallery_id = "reef-imaging/image-map-of-u2os-fucci-drug-treatment"
+            # Expected dataset name pattern
+            image_map_dataset = f"reef-imaging/image-map-{dataset_name}"
+            
+            # Check if the specific dataset exists in the gallery
+            try:
+                # List all datasets in the gallery
+                datasets = await artifact_manager_instance._svc.list(parent_id=gallery_id)
+                dataset_exists = any(dataset.get("id") == image_map_dataset for dataset in datasets)
+                
+                if dataset_exists:
+                    print(f"Image map dataset found: {image_map_dataset}")
+                    return {
+                        "success": True, 
+                        "message": f"Image map setup successful for {dataset_name}",
+                        "dataset_id": image_map_dataset
+                    }
+                else:
+                    print(f"Image map dataset not found: {image_map_dataset}")
+                    return {"success": False, "message": f"Image map dataset not found: {image_map_dataset}"}
+            except Exception as e:
+                print(f"Error checking dataset: {e}")
+                return {"success": False, "message": f"Error checking image map dataset: {str(e)}"}
+        except Exception as e:
+            print(f"Error setting up image map: {e}")
+            import traceback
+            print(traceback.format_exc())
+            return {"success": False, "message": f"Error setting up image map: {str(e)}"}
+
+    @app.get("/list-timepoints")
+    async def list_timepoints(dataset_id: str):
+        """
+        Endpoint to list timepoints (subfolders) in an image map dataset.
+        These timepoints are typically folders named by datetime.
+
+        Args:
+            dataset_id (str): The ID of the image map dataset.
+
+        Returns:
+            dict: A dictionary containing timepoints (subfolders) in the dataset.
+        """
+        print(f"Listing timepoints for dataset: {dataset_id}")
+        # Ensure the artifact manager is connected
+        if artifact_manager_instance.server is None:
+            _, artifact_manager_instance._svc = await get_artifact_manager()
+        
+        try:
+            # List all files at the root level of the dataset (should be timepoint folders)
+            files = await artifact_manager_instance._svc.list_files(dataset_id)
+            
+            # Filter for directories only and sort them (they should be in timestamp format)
+            timepoints = [
+                item for item in files 
+                if item.get('type') == 'directory'
+            ]
+            
+            # Sort timepoints chronologically (assuming they're in YYYY-MM-DD_HH-MM-SS format)
+            timepoints.sort(key=lambda x: x.get('name', ''))
+            
+            return {
+                "success": True,
+                "timepoints": timepoints
+            }
+        except Exception as e:
+            print(f"Error listing timepoints: {e}")
+            import traceback
+            print(traceback.format_exc())
+            return {
+                "success": False, 
+                "message": f"Error listing timepoints: {str(e)}",
+                "timepoints": []
+            }
+
+    @app.get("/tile-for-timepoint")
+    async def tile_for_timepoint(dataset_id: str, timepoint: str, channel_name: str = DEFAULT_CHANNEL, z: int = 0, x: int = 0, y: int = 0):
+        """
+        Endpoint to serve tiles for a specific timepoint from an image map dataset.
+
+        Args:
+            dataset_id (str): The ID of the image map dataset.
+            timepoint (str): The timepoint folder name (e.g., "2025-04-10_13-50-7").
+            channel_name (str): The channel name.
+            z (int): The zoom level.
+            x (int): The x coordinate.
+            y (int): The y coordinate.
+
+        Returns:
+            str: Base64 encoded tile image.
+        """
+        print(f"Fetching tile for timepoint: {timepoint}, z={z}, x={x}, y={y}")
+        # Ensure the artifact manager is connected
+        if artifact_manager_instance.server is None:
+            _, artifact_manager_instance._svc = await get_artifact_manager()
+        
+        try:
+            # Construct the full file path including timepoint directory
+            file_path = f"{timepoint}/{channel_name}/scale{z}/{y}.{x}"
+            
+            # Get the file URL
+            get_url = await artifact_manager_instance._svc.get_file(dataset_id, file_path)
+            
+            # Download and process the tile
+            async with httpx.AsyncClient() as client:
+                response = await client.get(get_url)
+                if response.status_code == 200:
+                    # Process the image data
+                    try:
+                        # For OME-Zarr tiles, we might need to decompress them as in TileManager.get_tile_np_data
+                        if tile_manager.compressor:
+                            compressed_data = response.content
+                            decompressed_data = tile_manager.compressor.decode(compressed_data)
+                            tile_data = np.frombuffer(decompressed_data, dtype=np.uint8)
+                            tile_data = tile_data.reshape((tile_manager.tile_size, tile_manager.tile_size))
+                            
+                            # Convert to PNG
+                            image = Image.fromarray(tile_data)
+                            buffer = io.BytesIO()
+                            image.save(buffer, format="PNG")
+                            
+                            # Return as base64
+                            return base64.b64encode(buffer.getvalue()).decode('utf-8')
+                        else:
+                            # If not compressed, return as is (already PNG)
+                            return base64.b64encode(response.content).decode('utf-8')
+                    except Exception as e:
+                        print(f"Error processing tile: {e}")
+                        # Return a blank tile
+                        blank_image = Image.new("L", (tile_manager.tile_size, tile_manager.tile_size), color=0)
+                        buffer = io.BytesIO()
+                        blank_image.save(buffer, format="PNG")
+                        return base64.b64encode(buffer.getvalue()).decode('utf-8')
+                else:
+                    print(f"Failed to fetch tile: {response.status_code}")
+                    blank_image = Image.new("L", (tile_manager.tile_size, tile_manager.tile_size), color=0)
+                    buffer = io.BytesIO()
+                    blank_image.save(buffer, format="PNG")
+                    return base64.b64encode(buffer.getvalue()).decode('utf-8')
+        except Exception as e:
+            print(f"Error fetching tile for timepoint: {e}")
+            import traceback
+            print(traceback.format_exc())
+            blank_image = Image.new("L", (tile_manager.tile_size, tile_manager.tile_size), color=0)
+            buffer = io.BytesIO()
+            blank_image.save(buffer, format="PNG")
+            return base64.b64encode(buffer.getvalue()).decode('utf-8')
 
     async def serve_fastapi(args):
         await app(args["scope"], args["receive"], args["send"])

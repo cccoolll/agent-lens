@@ -13,17 +13,37 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, inc
   const [vectorLayer, setVectorLayer] = useState(null);
   const [snapshotImage, setSnapshotImage] = useState(null);
   const [imageLayer, setImageLayer] = useState(null);
+  const [isMapViewEnabled, setIsMapViewEnabled] = useState(false);
+  const [mapDatasetId, setMapDatasetId] = useState(null);
+  const [timepoints, setTimepoints] = useState([]);
+  const [selectedTimepoint, setSelectedTimepoint] = useState(null);
+  const [isLoadingTimepoints, setIsLoadingTimepoints] = useState(false);
+  const [showTimepointSelector, setShowTimepointSelector] = useState(false);
 
   const imageWidth = 2048;
   const imageHeight = 2048;
   const extent = [0, 0, imageWidth, imageHeight];
 
   useEffect(() => {
+    // Check if an image map dataset has been set up
+    const imageMapDataset = localStorage.getItem('imageMapDataset');
+    if (imageMapDataset) {
+      setMapDatasetId(imageMapDataset);
+      setIsMapViewEnabled(true);
+      appendLog(`Image map dataset found: ${imageMapDataset}`);
+      // We don't automatically load timepoints here anymore
+    }
+  }, []);
+
+  useEffect(() => {
     if (!map && mapRef.current && !effectRan.current) {
       const newMap = makeMap(mapRef, extent);
       setMap(newMap);
       setCurrentMap(newMap);
+      
+      // Always load regular tile layer first
       addTileLayer(newMap, 0);
+      
       addMapMask(newMap, setVectorLayer);
       effectRan.current = true;
     }
@@ -43,6 +63,75 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, inc
       }
     };
   }, [snapshotImage]);
+
+  const loadTimepoints = async (datasetId) => {
+    if (!datasetId) return;
+    
+    setIsLoadingTimepoints(true);
+    try {
+      const response = await fetch(`/public/apps/agent-lens/list-timepoints?dataset_id=${datasetId}`);
+      const data = await response.json();
+      
+      if (data.success && data.timepoints.length > 0) {
+        setTimepoints(data.timepoints);
+        // Set the first timepoint as selected by default
+        setSelectedTimepoint(data.timepoints[0].name);
+        appendLog(`Loaded ${data.timepoints.length} timepoints for dataset ${datasetId}`);
+        
+        // Now load the first timepoint map
+        if (map && data.timepoints.length > 0) {
+          loadTimepointMap(data.timepoints[0].name);
+        }
+      } else {
+        appendLog(`No timepoints found for dataset ${datasetId}`);
+      }
+    } catch (error) {
+      appendLog(`Error loading timepoints: ${error.message}`);
+    } finally {
+      setIsLoadingTimepoints(false);
+    }
+  };
+
+  const loadTimepointMap = (timepoint) => {
+    if (!timepoint || !mapDatasetId || !map) return;
+    
+    appendLog(`Loading map for timepoint: ${timepoint}`);
+    setSelectedTimepoint(timepoint);
+    
+    // Remove any existing layers
+    if (imageLayer) {
+      map.removeLayer(imageLayer);
+    }
+    
+    // Create a new tile layer for the selected timepoint
+    const newTileLayer = new TileLayer({
+      source: new XYZ({
+        url: `tile-for-timepoint?dataset_id=${mapDatasetId}&timepoint=${timepoint}&channel_name=BF_LED_matrix_full&z={z}&x={x}&y={y}`,
+        crossOrigin: 'anonymous',
+        tileSize: 2048,
+        maxZoom: 4,
+        tileGrid: getTileGrid(),
+        tileLoadFunction: function(tile, src) {
+          const tileCoord = tile.getTileCoord(); // [z, x, y]
+          const transformedZ = 3 - tileCoord[0];
+          const newSrc = `tile-for-timepoint?dataset_id=${mapDatasetId}&timepoint=${timepoint}&channel_name=BF_LED_matrix_full&z=${transformedZ}&x=${tileCoord[1]}&y=${tileCoord[2]}`;
+          fetch(newSrc)
+            .then(response => response.text())
+            .then(data => {
+              const trimmed = data.replace(/^"|"$/g, '');
+              tile.getImage().src = `data:image/png;base64,${trimmed}`;
+              console.log(`Loaded timepoint tile at: ${newSrc}`);
+            })
+            .catch(error => {
+              console.log(`Failed to load timepoint tile: ${newSrc}`, error);
+            });
+        }
+      }),
+    });
+  
+    map.addLayer(newTileLayer);
+    setImageLayer(newTileLayer);
+  };
 
   const channelNames = {
     0: 'BF_LED_matrix_full',
@@ -89,6 +178,15 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, inc
     setImageLayer(tileLayer);
   };
 
+  const toggleTimepointSelector = () => {
+    // If this is the first time showing the selector and we haven't loaded timepoints yet
+    if (!showTimepointSelector && timepoints.length === 0 && mapDatasetId) {
+      loadTimepoints(mapDatasetId);
+    }
+    
+    setShowTimepointSelector(!showTimepointSelector);
+  };
+
   return (
     <>
       <div className="relative top-0 left-0 w-full h-screen bg-gray-100 flex items-center justify-center overflow-hidden">
@@ -103,6 +201,60 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, inc
           channelNames={channelNames}
           addTileLayer={addTileLayer}
         />
+        
+        {/* Image Map Time Point Selector */}
+        {isMapViewEnabled && (
+          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center">
+            <button 
+              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-l text-sm flex items-center" 
+              onClick={toggleTimepointSelector}
+              disabled={isLoadingTimepoints}
+            >
+              {isLoadingTimepoints ? (
+                <>
+                  <i className="fas fa-spinner fa-spin mr-2"></i> Loading...
+                </>
+              ) : (
+                <>
+                  <i className="fas fa-clock mr-2"></i>
+                  {showTimepointSelector ? 'Hide Timepoints' : 'Select Timepoint'}
+                </>
+              )}
+            </button>
+            {selectedTimepoint && (
+              <div className="bg-white px-4 py-2 rounded-r border-l border-blue-300 text-sm">
+                Current: {selectedTimepoint}
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Time Point Selection Dropdown */}
+        {isMapViewEnabled && showTimepointSelector && (
+          <div className="absolute bottom-16 left-1/2 transform -translate-x-1/2 bg-white rounded shadow-lg p-4 max-h-60 overflow-y-auto z-10 w-96">
+            <h4 className="text-lg font-medium mb-2">Select Timepoint</h4>
+            {isLoadingTimepoints ? (
+              <div className="flex items-center justify-center p-4">
+                <i className="fas fa-spinner fa-spin mr-2"></i> Loading timepoints...
+              </div>
+            ) : timepoints.length > 0 ? (
+              <ul className="space-y-1">
+                {timepoints.map((timepoint, index) => (
+                  <li 
+                    key={index}
+                    className={`p-2 cursor-pointer hover:bg-blue-50 rounded ${selectedTimepoint === timepoint.name ? 'bg-blue-100 font-medium' : ''}`}
+                    onClick={() => loadTimepointMap(timepoint.name)}
+                  >
+                    <i className={`fas fa-clock mr-2 ${selectedTimepoint === timepoint.name ? 'text-blue-500' : 'text-gray-500'}`}></i>
+                    {timepoint.name}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-gray-500">No timepoints available</p>
+            )}
+          </div>
+        )}
       </div>
     </>
   );
