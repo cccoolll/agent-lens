@@ -17,13 +17,15 @@ const MapInteractions = ({
   addTileLayer,
   isMapViewEnabled,
   selectedTimepoint,
-  loadTimepointMap
+  loadTimepointMap,
+  currentChannel,
+  setCurrentChannel
 }) => {
   const [isFirstClick, setIsFirstClick] = useState(true); // Track if it's the first click for segmentation
   const [isDrawingActive, setIsDrawingActive] = useState(false);
   const [selectedModel, setSelectedModel] = useState('vit_b_lm');
   const [isChannelSelectorOpen, setIsChannelSelectorOpen] = useState(false);
-  const [selectedChannel, setSelectedChannel] = useState(Object.keys(channelNames)[0]);
+  const [selectedChannel, setSelectedChannel] = useState(currentChannel.toString());
 
   useEffect(() => {
     let clickListener;
@@ -45,6 +47,10 @@ const MapInteractions = ({
       }
     };
   }, [map, isDrawingActive]);
+
+  useEffect(() => {
+    setSelectedChannel(currentChannel.toString());
+  }, [currentChannel]);
 
   const getSegmentedResult = async (pointCoordinates, snapshotArray) => {
     if (isFirstClick) {
@@ -83,14 +89,20 @@ const MapInteractions = ({
   };
 
   const handleApplyChannel = () => {
+    const channelValue = parseInt(selectedChannel);
+    
+    if (setCurrentChannel) {
+      setCurrentChannel(channelValue);
+    }
+    
     if (isMapViewEnabled && selectedTimepoint) {
-      // Use the loadTimepointMap function for map view
-      loadTimepointMap(selectedTimepoint, selectedChannel);
+      loadTimepointMap(selectedTimepoint, channelValue);
     } else {
-      // Use the regular addTileLayer for normal view
-      addTileLayer(map, selectedChannel);
+      addTileLayer(map, channelValue);
     }
     setIsChannelSelectorOpen(false);
+    
+    appendLog(`Channel changed to: ${channelNames[channelValue]}`);
   };
 
   return (
@@ -148,6 +160,11 @@ const MapInteractions = ({
               >
                 Apply
               </button>
+              {isMapViewEnabled && (
+                <div className="mt-2 text-xs text-gray-500">
+                  Current: {channelNames[currentChannel] || 'Unknown'}
+                </div>
+              )}
             </div>
           )}
         </>
@@ -167,13 +184,17 @@ MapInteractions.propTypes = {
   addTileLayer: PropTypes.func.isRequired,
   isMapViewEnabled: PropTypes.bool,
   selectedTimepoint: PropTypes.string,
-  loadTimepointMap: PropTypes.func
+  loadTimepointMap: PropTypes.func,
+  currentChannel: PropTypes.number,
+  setCurrentChannel: PropTypes.func
 };
 
 MapInteractions.defaultProps = {
   isMapViewEnabled: false,
   selectedTimepoint: null,
-  loadTimepointMap: () => {}
+  loadTimepointMap: () => {},
+  currentChannel: 0,
+  setCurrentChannel: () => {}
 };
 
 export default MapInteractions;

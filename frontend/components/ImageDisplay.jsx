@@ -20,6 +20,7 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, inc
   const [isLoadingTimepoints, setIsLoadingTimepoints] = useState(false);
   const [showTimepointSelector, setShowTimepointSelector] = useState(false);
   const [shouldShowMap, setShouldShowMap] = useState(false);
+  const [currentChannel, setCurrentChannel] = useState(0);
 
   const imageWidth = 2048;
   const imageHeight = 2048;
@@ -71,10 +72,10 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, inc
   // Effect to update the map when timepoints are loaded
   useEffect(() => {
     if (map && shouldShowMap && timepoints.length > 0 && !selectedTimepoint) {
-      // When timepoints are loaded and we should show the map, load the first timepoint
-      loadTimepointMap(timepoints[0].name);
+      // When timepoints are loaded and we should show the map, load the first timepoint with current channel
+      loadTimepointMap(timepoints[0].name, currentChannel);
     }
-  }, [map, shouldShowMap, timepoints]);
+  }, [map, shouldShowMap, timepoints, currentChannel]);
 
   useEffect(() => {
     return () => {
@@ -108,7 +109,18 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, inc
   const loadTimepointMap = (timepoint, channelKey = 0) => {
     if (!timepoint || !mapDatasetId || !map) return;
     
-    const channelName = channelNames[channelKey] || 'BF_LED_matrix_full';
+    // Convert channelKey to number if it's a string
+    const channelKeyNum = typeof channelKey === 'string' ? parseInt(channelKey) : channelKey;
+    
+    // If channelKey is provided, update the current channel
+    if (channelKeyNum !== undefined && channelKeyNum !== currentChannel) {
+      setCurrentChannel(channelKeyNum);
+    }
+    
+    // Always use the current channel unless explicitly specified
+    const channelToUse = channelKeyNum !== undefined ? channelKeyNum : currentChannel;
+    const channelName = channelNames[channelToUse] || 'BF_LED_matrix_full';
+    
     appendLog(`Loading map for timepoint: ${timepoint}, channel: ${channelName}`);
     setSelectedTimepoint(timepoint);
     
@@ -217,6 +229,8 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, inc
           isMapViewEnabled={isMapViewEnabled}
           selectedTimepoint={selectedTimepoint}
           loadTimepointMap={loadTimepointMap}
+          currentChannel={currentChannel}
+          setCurrentChannel={setCurrentChannel}
         />
         
         {/* Image Map Time Point Selector */}
@@ -260,7 +274,7 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, inc
                   <li 
                     key={index}
                     className={`p-2 cursor-pointer hover:bg-blue-50 rounded ${selectedTimepoint === timepoint.name ? 'bg-blue-100 font-medium' : ''}`}
-                    onClick={() => loadTimepointMap(timepoint.name)}
+                    onClick={() => loadTimepointMap(timepoint.name, currentChannel)}
                   >
                     <i className={`fas fa-clock mr-2 ${selectedTimepoint === timepoint.name ? 'text-blue-500' : 'text-gray-500'}`}></i>
                     {timepoint.name}
