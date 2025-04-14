@@ -204,6 +204,9 @@ const DataManagement = ({ appendLog }) => {
       if (data.success) {
         // Store the successful setup in local storage so other components can access it
         localStorage.setItem('imageMapDataset', data.dataset_id);
+        // Also store in session storage to track this was explicitly set in this session
+        sessionStorage.setItem('mapSetupExplicit', 'true');
+        
         setMapSetupStatus({
           isSetup: true,
           message: data.message + '. Go to the main page to view the map.',

@@ -19,21 +19,31 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, inc
   const [selectedTimepoint, setSelectedTimepoint] = useState(null);
   const [isLoadingTimepoints, setIsLoadingTimepoints] = useState(false);
   const [showTimepointSelector, setShowTimepointSelector] = useState(false);
+  const [shouldShowMap, setShouldShowMap] = useState(false);
 
   const imageWidth = 2048;
   const imageHeight = 2048;
   const extent = [0, 0, imageWidth, imageHeight];
 
   useEffect(() => {
-    // Check if an image map dataset has been set up
+    // Check if an image map dataset has been set up in this session
     const imageMapDataset = localStorage.getItem('imageMapDataset');
-    if (imageMapDataset) {
+    const wasExplicitlySetup = sessionStorage.getItem('mapSetupExplicit') === 'true';
+    
+    if (imageMapDataset && wasExplicitlySetup) {
       setMapDatasetId(imageMapDataset);
       setIsMapViewEnabled(true);
+      setShouldShowMap(true);
       appendLog(`Image map dataset found: ${imageMapDataset}`);
-      // We don't automatically load timepoints here anymore
     }
   }, []);
+
+  // Effect to load timepoints when we should show the map
+  useEffect(() => {
+    if (shouldShowMap && mapDatasetId && !timepoints.length) {
+      loadTimepoints(mapDatasetId);
+    }
+  }, [shouldShowMap, mapDatasetId]);
 
   useEffect(() => {
     if (!map && mapRef.current && !effectRan.current) {
@@ -41,11 +51,13 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, inc
       setMap(newMap);
       setCurrentMap(newMap);
       
-      // Always load regular tile layer first
-      addTileLayer(newMap, 0);
-      
+      // Always add map mask regardless
       addMapMask(newMap, setVectorLayer);
       effectRan.current = true;
+      
+      // Load the default tile layer initially
+      // We'll replace it with the map view if needed
+      addTileLayer(newMap, 0);
     }
 
     return () => {
@@ -55,6 +67,14 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, inc
       }
     };
   }, [mapRef.current]);
+
+  // Effect to update the map when timepoints are loaded
+  useEffect(() => {
+    if (map && shouldShowMap && timepoints.length > 0 && !selectedTimepoint) {
+      // When timepoints are loaded and we should show the map, load the first timepoint
+      loadTimepointMap(timepoints[0].name);
+    }
+  }, [map, shouldShowMap, timepoints]);
 
   useEffect(() => {
     return () => {
@@ -74,14 +94,7 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, inc
       
       if (data.success && data.timepoints.length > 0) {
         setTimepoints(data.timepoints);
-        // Set the first timepoint as selected by default
-        setSelectedTimepoint(data.timepoints[0].name);
         appendLog(`Loaded ${data.timepoints.length} timepoints for dataset ${datasetId}`);
-        
-        // Now load the first timepoint map
-        if (map && data.timepoints.length > 0) {
-          loadTimepointMap(data.timepoints[0].name);
-        }
       } else {
         appendLog(`No timepoints found for dataset ${datasetId}`);
       }

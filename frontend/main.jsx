@@ -34,6 +34,14 @@ const MicroscopeControl = () => {
       }
     }
 
+    // Clear any previous map setup on fresh page load
+    const currentSession = sessionStorage.getItem('mapSetupSession');
+    if (!currentSession) {
+      // This is a fresh login/page load, clear any previous map setup
+      localStorage.removeItem('imageMapDataset');
+      sessionStorage.setItem('mapSetupSession', Date.now().toString());
+    }
+
     checkToken();
   }, []);
 
