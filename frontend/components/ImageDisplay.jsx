@@ -105,10 +105,11 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, inc
     }
   };
 
-  const loadTimepointMap = (timepoint) => {
+  const loadTimepointMap = (timepoint, channelKey = 0) => {
     if (!timepoint || !mapDatasetId || !map) return;
     
-    appendLog(`Loading map for timepoint: ${timepoint}`);
+    const channelName = channelNames[channelKey] || 'BF_LED_matrix_full';
+    appendLog(`Loading map for timepoint: ${timepoint}, channel: ${channelName}`);
     setSelectedTimepoint(timepoint);
     
     // Remove any existing layers
@@ -119,7 +120,7 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, inc
     // Create a new tile layer for the selected timepoint
     const newTileLayer = new TileLayer({
       source: new XYZ({
-        url: `tile-for-timepoint?dataset_id=${mapDatasetId}&timepoint=${timepoint}&channel_name=BF_LED_matrix_full&z={z}&x={x}&y={y}`,
+        url: `tile-for-timepoint?dataset_id=${mapDatasetId}&timepoint=${timepoint}&channel_name=${channelName}&z={z}&x={x}&y={y}`,
         crossOrigin: 'anonymous',
         tileSize: 2048,
         maxZoom: 4,
@@ -127,7 +128,7 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, inc
         tileLoadFunction: function(tile, src) {
           const tileCoord = tile.getTileCoord(); // [z, x, y]
           const transformedZ = 3 - tileCoord[0];
-          const newSrc = `tile-for-timepoint?dataset_id=${mapDatasetId}&timepoint=${timepoint}&channel_name=BF_LED_matrix_full&z=${transformedZ}&x=${tileCoord[1]}&y=${tileCoord[2]}`;
+          const newSrc = `tile-for-timepoint?dataset_id=${mapDatasetId}&timepoint=${timepoint}&channel_name=${channelName}&z=${transformedZ}&x=${tileCoord[1]}&y=${tileCoord[2]}`;
           fetch(newSrc)
             .then(response => response.text())
             .then(data => {
@@ -213,6 +214,9 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, inc
           vectorLayer={vectorLayer}
           channelNames={channelNames}
           addTileLayer={addTileLayer}
+          isMapViewEnabled={isMapViewEnabled}
+          selectedTimepoint={selectedTimepoint}
+          loadTimepointMap={loadTimepointMap}
         />
         
         {/* Image Map Time Point Selector */}

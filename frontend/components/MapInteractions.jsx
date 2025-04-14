@@ -6,7 +6,19 @@ import SegmentControls from './SegmentControls';
 import { getSnapshotArray, overlaySegmentationMask } from './Segment';
 import MapButton from './MapButton';
 
-const MapInteractions = ({ segmentService, snapshotImage, map, extent, appendLog, vectorLayer, channelNames, addTileLayer }) => {
+const MapInteractions = ({ 
+  segmentService, 
+  snapshotImage, 
+  map, 
+  extent, 
+  appendLog, 
+  vectorLayer, 
+  channelNames, 
+  addTileLayer,
+  isMapViewEnabled,
+  selectedTimepoint,
+  loadTimepointMap
+}) => {
   const [isFirstClick, setIsFirstClick] = useState(true); // Track if it's the first click for segmentation
   const [isDrawingActive, setIsDrawingActive] = useState(false);
   const [selectedModel, setSelectedModel] = useState('vit_b_lm');
@@ -71,7 +83,13 @@ const MapInteractions = ({ segmentService, snapshotImage, map, extent, appendLog
   };
 
   const handleApplyChannel = () => {
-    addTileLayer(map, selectedChannel);
+    if (isMapViewEnabled && selectedTimepoint) {
+      // Use the loadTimepointMap function for map view
+      loadTimepointMap(selectedTimepoint, selectedChannel);
+    } else {
+      // Use the regular addTileLayer for normal view
+      addTileLayer(map, selectedChannel);
+    }
     setIsChannelSelectorOpen(false);
   };
 
@@ -147,6 +165,15 @@ MapInteractions.propTypes = {
   vectorLayer: PropTypes.object,
   channelNames: PropTypes.object.isRequired,
   addTileLayer: PropTypes.func.isRequired,
+  isMapViewEnabled: PropTypes.bool,
+  selectedTimepoint: PropTypes.string,
+  loadTimepointMap: PropTypes.func
+};
+
+MapInteractions.defaultProps = {
+  isMapViewEnabled: false,
+  selectedTimepoint: null,
+  loadTimepointMap: () => {}
 };
 
 export default MapInteractions;
