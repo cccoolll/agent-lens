@@ -4,7 +4,7 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 import LogSection from './components/LogSection';
 import LoginPrompt from './components/LoginPrompt';
-import ImageDisplay from './components/ImageDisplay';
+import MapDisplay from './components/MapDisplay';
 import IncubatorControl from './components/IncubatorControl';
 import MicroscopeControlPanel from './components/MicroscopeControlPanel';
 import Sidebar from './components/Sidebar';
@@ -64,7 +64,7 @@ const MicroscopeControl = () => {
     switch (activeTab) {
       case 'main':
         return (
-          <ImageDisplay
+          <MapDisplay
             appendLog={appendLog}
             segmentService={segmentService}
             microscopeControlService={microscopeControlService}

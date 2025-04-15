@@ -6,7 +6,7 @@ import XYZ from 'ol/source/XYZ';
 import TileLayer from 'ol/layer/Tile';
 import MicroscopeControlPanel from './MicroscopeControlPanel';
 
-const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, incubatorControlService, setCurrentMap }) => {
+const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incubatorControlService, setCurrentMap }) => {
   const [map, setMap] = useState(null);
   const mapRef = useRef(null);
   const effectRan = useRef(false);
@@ -291,7 +291,7 @@ const ImageDisplay = ({ appendLog, segmentService, microscopeControlService, inc
   );
 };
 
-ImageDisplay.propTypes = {
+MapDisplay.propTypes = {
   appendLog: PropTypes.func.isRequired,
   segmentService: PropTypes.object,
   microscopeControlService: PropTypes.object,
@@ -299,4 +299,4 @@ ImageDisplay.propTypes = {
   setCurrentMap: PropTypes.func.isRequired,
 };
 
-export default ImageDisplay;
+export default MapDisplay;
