@@ -148,16 +148,6 @@ const MapInteractions = ({
       
       {/* Bottom control buttons */}
       <div className="absolute bottom-4 left-4 flex space-x-2">
-        {/* Segmentation Button */}
-        <button
-          className={`rounded-full p-3 shadow-lg ${segmentActive ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-500 hover:bg-blue-600'} text-white transition-colors`}
-          onClick={handleSegmentClick}
-          title={segmentActive ? 'Deactivate Segmentation' : 'Activate Segmentation'}
-          disabled={isProcessing}
-        >
-          <i className={`fas ${segmentActive ? 'fa-stop' : 'fa-cut'}`}></i>
-        </button>
-
         {/* Channel Selector Button */}
         <div className="relative">
           <button
@@ -208,20 +198,6 @@ const MapInteractions = ({
                   onClick={applyChannelSelection}
                 >
                   Apply Selection
-                </button>
-              </div>
-
-              {/* Processing Settings Button */}
-              <div className="mt-3 pt-3 border-t border-gray-200">
-                <button
-                  className="w-full bg-purple-500 hover:bg-purple-600 text-white py-1 px-3 rounded text-sm flex items-center justify-center"
-                  onClick={() => {
-                    toggleChannelSelector();
-                    openChannelSettings();
-                  }}
-                >
-                  <i className="fas fa-sliders-h mr-2"></i>
-                  Image Processing Settings
                 </button>
               </div>
             </div>
