@@ -7,8 +7,8 @@ import { Style, Stroke, Fill, Circle as CircleStyle } from 'ol/style'; // Added 
 import 'ol/ol.css';
 
 // Define custom image dimensions and resolutions (from the sample HTML)
-const imageWidth = 20000;      // Width of the full image
-const imageHeight = 20000;     // Height of the full image
+const imageWidth = 4096;      // Width of the full image
+const imageHeight = 4096;     // Height of the full image
 const resolutions = [1, 1/4, 1/16, 1/64]; // Resolutions for each scale
 
 export const makeMap = (mapRef, extent) => {
@@ -29,6 +29,7 @@ export const makeMap = (mapRef, extent) => {
     minZoom: 0,
     maxZoom: resolutions.length - 1,
     resolutions: resolutions,
+    maxResolution: 16,
   });
 
   return new Map({
