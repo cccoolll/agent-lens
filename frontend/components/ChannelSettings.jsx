@@ -33,35 +33,62 @@ const ChannelSettings = ({
   const [activeTab, setActiveTab] = useState('0');
   const [showColorPicker, setShowColorPicker] = useState(false);
 
+  // Get a stringified version of initialSettings to detect deep changes
+  const initialSettingsKey = JSON.stringify(initialSettings);
+
   useEffect(() => {
     // Initialize settings with defaults or passed in initial values
     const initializedSettings = {};
     
     selectedChannels.forEach(channelKey => {
       const channelKeyStr = channelKey.toString();
-      initializedSettings[channelKeyStr] = {
-        contrast: initialSettings[channelKeyStr]?.contrast || 0.03,
-        brightness: initialSettings[channelKeyStr]?.brightness || 1.0,
-        threshold: {
-          min: initialSettings[channelKeyStr]?.threshold?.min || 2,
-          max: initialSettings[channelKeyStr]?.threshold?.max || 98,
-        },
-        color: initialSettings[channelKeyStr]?.color || rgbToHex(channelColors[channelKey] || [255, 255, 255])
-      };
+      const channelInitialSettings = initialSettings.contrast && 
+                                     initialSettings.brightness && 
+                                     initialSettings.threshold && 
+                                     initialSettings.color 
+                                     ? {
+                                         contrast: initialSettings.contrast[channelKeyStr] || 0.03,
+                                         brightness: initialSettings.brightness[channelKeyStr] || 1.0,
+                                         threshold: {
+                                           min: initialSettings.threshold[channelKeyStr]?.min || 2,
+                                           max: initialSettings.threshold[channelKeyStr]?.max || 98,
+                                         },
+                                         color: initialSettings.color[channelKeyStr] 
+                                           ? rgbToHex(initialSettings.color[channelKeyStr]) 
+                                           : rgbToHex(channelColors[channelKey] || [255, 255, 255])
+                                       }
+                                     : {
+                                         contrast: 0.03,
+                                         brightness: 1.0,
+                                         threshold: {
+                                           min: 2,
+                                           max: 98,
+                                         },
+                                         color: rgbToHex(channelColors[channelKey] || [255, 255, 255])
+                                       };
+      
+      initializedSettings[channelKeyStr] = channelInitialSettings;
     });
     
     setSettings(initializedSettings);
     
     // Set active tab to first selected channel
-    if (selectedChannels.length > 0) {
+    if (selectedChannels.length > 0 && !settings[selectedChannels[0].toString()]) {
       setActiveTab(selectedChannels[0].toString());
     }
-  }, [selectedChannels, initialSettings]);
+  }, [selectedChannels, initialSettingsKey]); // Add initialSettingsKey to dependency array
 
   // Convert RGB array to hex color
   const rgbToHex = (rgb) => {
     if (!rgb) return '#FFFFFF';
-    return `#${rgb[0].toString(16).padStart(2, '0')}${rgb[1].toString(16).padStart(2, '0')}${rgb[2].toString(16).padStart(2, '0')}`;
+    if (typeof rgb === 'string' && rgb.startsWith('#')) return rgb;
+    
+    try {
+      return `#${rgb[0].toString(16).padStart(2, '0')}${rgb[1].toString(16).padStart(2, '0')}${rgb[2].toString(16).padStart(2, '0')}`;
+    } catch (e) {
+      console.warn('Error converting RGB to hex:', e);
+      return '#FFFFFF';
+    }
   };
 
   // Convert hex color to RGB array
