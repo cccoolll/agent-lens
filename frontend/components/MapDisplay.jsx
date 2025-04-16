@@ -535,15 +535,6 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
             />
           </div>
         )}
-        
-        {/* Image Processing Button */}
-        <button 
-          className="absolute top-4 right-16 bg-purple-600 hover:bg-purple-700 text-white rounded-full p-3 shadow-lg"
-          onClick={openChannelSettings}
-          title="Image Processing Settings"
-        >
-          <i className="fas fa-sliders-h"></i>
-        </button>
       </div>
     </>
   );

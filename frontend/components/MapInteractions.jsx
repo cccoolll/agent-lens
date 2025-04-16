@@ -143,61 +143,11 @@ const MapInteractions = ({
             vectorLayer={vectorLayer} 
             setIsDrawingActive={setIsDrawingActive} 
           />
-          <MapButton
-            onClick={toggleChannelSelector}
-            icon="fa-layer-group"
-            top="620"
-            left="10"
-            title={isMergeMode ? "Edit merged channels" : "Select channels for tiles"}
-            className={isMergeMode ? "bg-indigo-600" : ""}
-          />
-          
-          {isChannelSelectorOpen && (
-            <div className="absolute z-50 bg-white p-4 rounded shadow-lg" style={{ top: '550px', left: '60px', width: '280px' }}>
-              <h4 className="text-sm font-medium mb-2">Select Channels</h4>
-              <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">
-                {Object.entries(channelLabels).map(([key, label]) => (
-                  <div 
-                    key={key} 
-                    className="flex items-center"
-                  >
-                    <input
-                      type="checkbox"
-                      id={`channel-${key}`}
-                      checked={selectedChannels.includes(parseInt(key))}
-                      onChange={() => handleChannelToggle(parseInt(key))}
-                      className="mr-2"
-                    />
-                    <label 
-                      htmlFor={`channel-${key}`}
-                      className="flex items-center text-sm"
-                    >
-                      <span 
-                        className="w-3 h-3 inline-block mr-2 rounded-full"
-                        style={{ backgroundColor: channelColors[key] }}
-                      ></span>
-                      {label}
-                    </label>
-                  </div>
-                ))}
-              </div>
-              <div className="text-xs text-gray-600 mb-2">
-                {selectedChannels.length === 1 ? 
-                  "Single channel mode" : 
-                  `Merge mode: ${selectedChannels.length} channels selected`}
-              </div>
-              <button
-                className="w-full bg-blue-600 text-white p-2 rounded text-sm"
-                onClick={applyChannelSelection}
-                disabled={selectedChannels.length === 0}
-              >
-                Apply
-              </button>
-            </div>
-          )}
         </>
       )}
-      <div className="absolute top-4 left-4 space-y-2">
+      
+      {/* Bottom control buttons */}
+      <div className="absolute bottom-4 left-4 flex space-x-2">
         {/* Segmentation Button */}
         <button
           className={`rounded-full p-3 shadow-lg ${segmentActive ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-500 hover:bg-blue-600'} text-white transition-colors`}
@@ -211,16 +161,16 @@ const MapInteractions = ({
         {/* Channel Selector Button */}
         <div className="relative">
           <button
-            className="rounded-full p-3 shadow-lg bg-green-500 hover:bg-green-600 text-white"
+            className={`rounded-full p-3 shadow-lg ${isMergeMode ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-green-500 hover:bg-green-600'} text-white`}
             onClick={toggleChannelSelector}
-            title="Select Channels"
+            title={isMergeMode ? "Edit merged channels" : "Select channels"}
           >
             <i className="fas fa-layer-group"></i>
           </button>
 
           {/* Channel Selection Dropdown */}
           {isChannelSelectorOpen && (
-            <div className="absolute top-full left-0 mt-2 bg-white rounded shadow-lg p-3 z-10 w-60">
+            <div className="absolute bottom-full left-0 mb-2 bg-white rounded shadow-lg p-3 z-10 w-60">
               <h5 className="font-medium text-gray-800 mb-2">Select Channels</h5>
               <div className="space-y-2 mb-3">
                 {Object.entries(channelLabels).map(([key, label]) => (
@@ -277,30 +227,39 @@ const MapInteractions = ({
             </div>
           )}
         </div>
-
-        {/* Legend showing active channels in merge mode */}
-        {isMergeMode && selectedChannels.length > 1 && (
-          <div className="bg-white rounded shadow-lg p-2 mt-2 w-48">
-            <h6 className="text-xs font-medium text-gray-700 mb-1">Active Channels</h6>
-            <div className="space-y-1">
-              {selectedChannels.map(channelKey => (
-                <div key={channelKey} className="flex items-center text-xs">
-                  <div 
-                    className="w-3 h-3 rounded-full mr-2"
-                    style={{
-                      backgroundColor: channelKey === 0 ? '#ffffff' : channelColors[channelKey],
-                      border: channelKey === 0 ? '1px solid #ccc' : 'none'
-                    }}
-                  ></div>
-                  <span style={{ color: channelKey === 0 ? 'inherit' : channelColors[channelKey] }}>
-                    {channelLabels[channelKey]}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        
+        {/* Image Processing Button */}
+        <button
+          className="rounded-full p-3 shadow-lg bg-purple-600 hover:bg-purple-700 text-white"
+          onClick={openChannelSettings}
+          title="Image Processing Settings"
+        >
+          <i className="fas fa-sliders-h"></i>
+        </button>
       </div>
+
+      {/* Legend showing active channels in merge mode - positioned above the buttons */}
+      {isMergeMode && selectedChannels.length > 1 && (
+        <div className="absolute bottom-16 left-4 bg-white rounded shadow-lg p-2 w-48">
+          <h6 className="text-xs font-medium text-gray-700 mb-1">Active Channels</h6>
+          <div className="space-y-1">
+            {selectedChannels.map(channelKey => (
+              <div key={channelKey} className="flex items-center text-xs">
+                <div 
+                  className="w-3 h-3 rounded-full mr-2"
+                  style={{
+                    backgroundColor: channelKey === 0 ? '#ffffff' : channelColors[channelKey],
+                    border: channelKey === 0 ? '1px solid #ccc' : 'none'
+                  }}
+                ></div>
+                <span style={{ color: channelKey === 0 ? 'inherit' : channelColors[channelKey] }}>
+                  {channelLabels[channelKey]}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </>
   );
 }
