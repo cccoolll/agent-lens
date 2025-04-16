@@ -19,13 +19,20 @@ const MapInteractions = ({
   selectedTimepoint,
   loadTimepointMap,
   currentChannel,
-  setCurrentChannel
+  setCurrentChannel,
+  toggleChannelSelector,
+  isChannelSelectorOpen,
+  selectedChannels,
+  handleChannelToggle,
+  applyChannelSelection,
+  isMergeMode,
+  loadTimepointMapMerged,
+  addMergedTileLayer,
+  channelColors
 }) => {
   const [isFirstClick, setIsFirstClick] = useState(true); // Track if it's the first click for segmentation
   const [isDrawingActive, setIsDrawingActive] = useState(false);
   const [selectedModel, setSelectedModel] = useState('vit_b_lm');
-  const [isChannelSelectorOpen, setIsChannelSelectorOpen] = useState(false);
-  const [selectedChannel, setSelectedChannel] = useState(currentChannel.toString());
 
   useEffect(() => {
     let clickListener;
@@ -47,10 +54,6 @@ const MapInteractions = ({
       }
     };
   }, [map, isDrawingActive]);
-
-  useEffect(() => {
-    setSelectedChannel(currentChannel.toString());
-  }, [currentChannel]);
 
   const getSegmentedResult = async (pointCoordinates, snapshotArray) => {
     if (isFirstClick) {
@@ -84,27 +87,6 @@ const MapInteractions = ({
     appendLog('Segmentation completed and displayed.');
   };
 
-  const handleChannelChange = (event) => {
-    setSelectedChannel(event.target.value);
-  };
-
-  const handleApplyChannel = () => {
-    const channelValue = parseInt(selectedChannel);
-    
-    if (setCurrentChannel) {
-      setCurrentChannel(channelValue);
-    }
-    
-    if (isMapViewEnabled && selectedTimepoint) {
-      loadTimepointMap(selectedTimepoint, channelValue);
-    } else {
-      addTileLayer(map, channelValue);
-    }
-    setIsChannelSelectorOpen(false);
-    
-    appendLog(`Channel changed to: ${channelNames[channelValue]}`);
-  };
-
   return (
     <>
       {map && ( // Only render controls if map is available
@@ -136,35 +118,55 @@ const MapInteractions = ({
             setIsDrawingActive={setIsDrawingActive} 
           />
           <MapButton
-            onClick={() => setIsChannelSelectorOpen(!isChannelSelectorOpen)}
+            onClick={toggleChannelSelector}
             icon="fa-layer-group"
             top="620"
             left="10"
-            title="Select channels for tiles"
+            title={isMergeMode ? "Edit merged channels" : "Select channels for tiles"}
+            className={isMergeMode ? "bg-indigo-600" : ""}
           />
+          
           {isChannelSelectorOpen && (
-            <div className="absolute z-50 bg-white p-4 rounded shadow-md" style={{ top: '550px', left: '20px' }}>
-              <h4 className="text-sm font-medium mb-2">Select Channel</h4>
-              <select
-                className="w-full p-2 border rounded"
-                value={selectedChannel}
-                onChange={handleChannelChange}
-              >
+            <div className="absolute z-50 bg-white p-4 rounded shadow-lg" style={{ top: '550px', left: '60px', width: '280px' }}>
+              <h4 className="text-sm font-medium mb-2">Select Channels</h4>
+              <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">
                 {Object.entries(channelNames).map(([key, name]) => (
-                  <option key={key} value={key}>{name}</option>
+                  <div 
+                    key={key} 
+                    className="flex items-center"
+                  >
+                    <input
+                      type="checkbox"
+                      id={`channel-${key}`}
+                      checked={selectedChannels.includes(parseInt(key))}
+                      onChange={() => handleChannelToggle(parseInt(key))}
+                      className="mr-2"
+                    />
+                    <label 
+                      htmlFor={`channel-${key}`}
+                      className="flex items-center text-sm"
+                    >
+                      <span 
+                        className="w-3 h-3 inline-block mr-2 rounded-full"
+                        style={{ backgroundColor: channelColors[key] }}
+                      ></span>
+                      {name.replace('_', ' ').replace('nm_Ex', ' nm')}
+                    </label>
+                  </div>
                 ))}
-              </select>
+              </div>
+              <div className="text-xs text-gray-600 mb-2">
+                {selectedChannels.length === 1 ? 
+                  "Single channel mode" : 
+                  `Merge mode: ${selectedChannels.length} channels selected`}
+              </div>
               <button
-                className="mt-2 w-full bg-blue-600 text-white p-2 rounded"
-                onClick={handleApplyChannel}
+                className="w-full bg-blue-600 text-white p-2 rounded text-sm"
+                onClick={applyChannelSelection}
+                disabled={selectedChannels.length === 0}
               >
                 Apply
               </button>
-              {isMapViewEnabled && (
-                <div className="mt-2 text-xs text-gray-500">
-                  Current: {channelNames[currentChannel] || 'Unknown'}
-                </div>
-              )}
             </div>
           )}
         </>
@@ -186,7 +188,16 @@ MapInteractions.propTypes = {
   selectedTimepoint: PropTypes.string,
   loadTimepointMap: PropTypes.func,
   currentChannel: PropTypes.number,
-  setCurrentChannel: PropTypes.func
+  setCurrentChannel: PropTypes.func,
+  toggleChannelSelector: PropTypes.func,
+  isChannelSelectorOpen: PropTypes.bool,
+  selectedChannels: PropTypes.array,
+  handleChannelToggle: PropTypes.func,
+  applyChannelSelection: PropTypes.func,
+  isMergeMode: PropTypes.bool,
+  loadTimepointMapMerged: PropTypes.func,
+  addMergedTileLayer: PropTypes.func,
+  channelColors: PropTypes.object
 };
 
 MapInteractions.defaultProps = {
@@ -194,7 +205,16 @@ MapInteractions.defaultProps = {
   selectedTimepoint: null,
   loadTimepointMap: () => {},
   currentChannel: 0,
-  setCurrentChannel: () => {}
+  setCurrentChannel: () => {},
+  toggleChannelSelector: () => {},
+  isChannelSelectorOpen: false,
+  selectedChannels: [0],
+  handleChannelToggle: () => {},
+  applyChannelSelection: () => {},
+  isMergeMode: false,
+  loadTimepointMapMerged: () => {},
+  addMergedTileLayer: () => {},
+  channelColors: {}
 };
 
 export default MapInteractions;

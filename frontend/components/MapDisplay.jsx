@@ -369,58 +369,17 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
           loadTimepointMap={loadTimepointMap}
           currentChannel={currentChannel}
           setCurrentChannel={setCurrentChannel}
+          // Pass new merged channel functions and state
+          toggleChannelSelector={toggleChannelSelector}
+          isChannelSelectorOpen={isChannelSelectorOpen}
+          selectedChannels={selectedChannels}
+          handleChannelToggle={handleChannelToggle}
+          applyChannelSelection={applyChannelSelection}
+          isMergeMode={isMergeMode}
+          loadTimepointMapMerged={loadTimepointMapMerged}
+          addMergedTileLayer={addMergedTileLayer}
+          channelColors={channelColors}
         />
-        
-        {/* Channel Selector Button */}
-        <div className="absolute top-4 right-4 flex flex-col items-end z-10">
-          <button 
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm flex items-center mb-2"
-            onClick={toggleChannelSelector}
-          >
-            <i className="fas fa-layer-group mr-2"></i>
-            {isMergeMode ? 'Merged Channels' : 'Select Channels'}
-          </button>
-          
-          {/* Channel Selection Panel */}
-          {isChannelSelectorOpen && (
-            <div className="bg-white rounded shadow-lg p-4 w-64">
-              <h4 className="text-lg font-medium mb-2">Select Channels</h4>
-              <div className="space-y-2 mb-4">
-                {Object.entries(channelNames).map(([key, name]) => (
-                  <div 
-                    key={key} 
-                    className="flex items-center"
-                  >
-                    <input
-                      type="checkbox"
-                      id={`channel-${key}`}
-                      checked={selectedChannels.includes(parseInt(key))}
-                      onChange={() => handleChannelToggle(parseInt(key))}
-                      className="mr-2"
-                    />
-                    <label 
-                      htmlFor={`channel-${key}`}
-                      className="flex items-center"
-                    >
-                      <span 
-                        className="w-4 h-4 inline-block mr-2 rounded-full"
-                        style={{ backgroundColor: channelColors[key] }}
-                      ></span>
-                      {name.replace('_', ' ').replace('nm_Ex', ' nm')}
-                    </label>
-                  </div>
-                ))}
-              </div>
-              <button 
-                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm w-full"
-                onClick={applyChannelSelection}
-                disabled={selectedChannels.length === 0}
-              >
-                Apply
-              </button>
-            </div>
-          )}
-        </div>
         
         {/* Image Map Time Point Selector */}
         {isMapViewEnabled && (

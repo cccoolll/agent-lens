@@ -14,6 +14,8 @@ import io
 import httpx
 import numpy as np
 from PIL import Image
+# Import scikit-image for more professional bioimage processing
+from skimage import exposure, util, color
 
 ARTIFACT_ALIAS = "microscopy-tiles-complete"
 DEFAULT_CHANNEL = "BF_LED_matrix_full"
@@ -126,42 +128,56 @@ def get_frontend_api():
                 blank_tile = np.zeros((tile_manager.tile_size, tile_manager.tile_size), dtype=np.uint8)
                 channel_tiles.append((blank_tile, channel_key))
         
-        # Create an RGB image to merge the channels
-        merged_image = np.zeros((tile_manager.tile_size, tile_manager.tile_size, 3), dtype=np.uint8)
+        # Create an RGB image to merge the channels using scikit-image processing
+        merged_image = np.zeros((tile_manager.tile_size, tile_manager.tile_size, 3), dtype=np.float32)
         
         # Check if brightfield channel is included
         has_brightfield = 0 in [ch_key for _, ch_key in channel_tiles]
         
         for tile_data, channel_key in channel_tiles:
             if channel_key == 0:  # Brightfield
-                # For brightfield, use as grayscale background
-                # Convert to RGB if it's grayscale
+                # For brightfield, apply contrast stretching and use as base layer
                 if len(tile_data.shape) == 2:
-                    # Create RGB by copying the grayscale data to all channels
-                    bf_rgb = np.stack([tile_data, tile_data, tile_data], axis=2)
+                    # Apply contrast enhancement via adaptive histogram equalization
+                    bf_enhanced = exposure.equalize_adapthist(tile_data, clip_limit=0.03)
+                    
+                    # Create RGB by copying the enhanced grayscale data to all channels
+                    bf_rgb = np.stack([bf_enhanced, bf_enhanced, bf_enhanced], axis=2)
                     merged_image = bf_rgb.copy()
             else:
-                # For fluorescence channels, apply color overlay
+                # For fluorescence channels, apply color overlay with enhanced contrast
                 color = channel_colors.get(channel_key)
-                if color:
-                    # Create colored mask from the grayscale intensity
-                    if len(tile_data.shape) == 2:
-                        # Normalize data for better visibility
-                        normalized = tile_data.astype(np.float32) / 255.0
-                        
-                        # Apply color to each channel
-                        colored_channel = np.zeros_like(merged_image, dtype=np.float32)
-                        colored_channel[..., 0] = normalized * (color[0] / 255.0)  # R
-                        colored_channel[..., 1] = normalized * (color[1] / 255.0)  # G
-                        colored_channel[..., 2] = normalized * (color[2] / 255.0)  # B
-                        
-                        # Add to the merged image with a max operation to show brightest parts
-                        if has_brightfield:
-                            # If we have brightfield, blend fluorescence on top
-                            merged_image = np.maximum(merged_image, (colored_channel * 255).astype(np.uint8))
-                        else:
-                            # If no brightfield, just add the fluorescence channels together
-                            merged_image = np.maximum(merged_image, (colored_channel * 255).astype(np.uint8))
+                if color and len(tile_data.shape) == 2:
+                    # Apply contrast stretching to enhance signal-to-noise ratio
+                    # Use percentiles to ignore extreme outliers
+                    p2, p98 = np.percentile(tile_data, (2, 98))
+                    fluorescence_enhanced = exposure.rescale_intensity(tile_data, in_range=(p2, p98))
+                    
+                    # Normalize to 0-1 range
+                    normalized = util.img_as_float(fluorescence_enhanced)
+                    
+                    # Create color overlay
+                    colored_channel = np.zeros_like(merged_image)
+                    colored_channel[..., 0] = normalized * (color[0] / 255.0)  # R
+                    colored_channel[..., 1] = normalized * (color[1] / 255.0)  # G
+                    colored_channel[..., 2] = normalized * (color[2] / 255.0)  # B
+                    
+                    # Add to the merged image using maximum projection for best visibility
+                    if has_brightfield:
+                        # For brightfield background, use screen blending mode for better visibility
+                        # Screen blend: 1 - (1-a)*(1-b)
+                        merged_image = 1.0 - (1.0 - merged_image) * (1.0 - colored_channel)
+                    else:
+                        # For fluorescence only, use max projection
+                        merged_image = np.maximum(merged_image, colored_channel)
+        
+        # Apply final dynamic range compression for better overall contrast
+        if np.max(merged_image) > 0:  # Avoid division by zero
+            # Convert to 8-bit for display
+            merged_image = util.img_as_ubyte(merged_image)
+        else:
+            # Create blank image if all channels were empty
+            merged_image = np.zeros((tile_manager.tile_size, tile_manager.tile_size, 3), dtype=np.uint8)
         
         # Convert to PIL image and return as base64
         pil_image = Image.fromarray(merged_image)
