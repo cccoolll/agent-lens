@@ -6,12 +6,26 @@ import SegmentControls from './SegmentControls';
 import { getSnapshotArray, overlaySegmentationMask } from './Segment';
 import MapButton from './MapButton';
 
-const MapInteractions = ({ segmentService, snapshotImage, map, extent, appendLog, vectorLayer, channelNames, addTileLayer }) => {
+const MapInteractions = ({ 
+  segmentService, 
+  snapshotImage, 
+  map, 
+  extent, 
+  appendLog, 
+  vectorLayer, 
+  channelNames, 
+  addTileLayer,
+  isMapViewEnabled,
+  selectedTimepoint,
+  loadTimepointMap,
+  currentChannel,
+  setCurrentChannel
+}) => {
   const [isFirstClick, setIsFirstClick] = useState(true); // Track if it's the first click for segmentation
   const [isDrawingActive, setIsDrawingActive] = useState(false);
   const [selectedModel, setSelectedModel] = useState('vit_b_lm');
   const [isChannelSelectorOpen, setIsChannelSelectorOpen] = useState(false);
-  const [selectedChannel, setSelectedChannel] = useState(Object.keys(channelNames)[0]);
+  const [selectedChannel, setSelectedChannel] = useState(currentChannel.toString());
 
   useEffect(() => {
     let clickListener;
@@ -33,6 +47,10 @@ const MapInteractions = ({ segmentService, snapshotImage, map, extent, appendLog
       }
     };
   }, [map, isDrawingActive]);
+
+  useEffect(() => {
+    setSelectedChannel(currentChannel.toString());
+  }, [currentChannel]);
 
   const getSegmentedResult = async (pointCoordinates, snapshotArray) => {
     if (isFirstClick) {
@@ -71,8 +89,20 @@ const MapInteractions = ({ segmentService, snapshotImage, map, extent, appendLog
   };
 
   const handleApplyChannel = () => {
-    addTileLayer(map, selectedChannel);
+    const channelValue = parseInt(selectedChannel);
+    
+    if (setCurrentChannel) {
+      setCurrentChannel(channelValue);
+    }
+    
+    if (isMapViewEnabled && selectedTimepoint) {
+      loadTimepointMap(selectedTimepoint, channelValue);
+    } else {
+      addTileLayer(map, channelValue);
+    }
     setIsChannelSelectorOpen(false);
+    
+    appendLog(`Channel changed to: ${channelNames[channelValue]}`);
   };
 
   return (
@@ -130,6 +160,11 @@ const MapInteractions = ({ segmentService, snapshotImage, map, extent, appendLog
               >
                 Apply
               </button>
+              {isMapViewEnabled && (
+                <div className="mt-2 text-xs text-gray-500">
+                  Current: {channelNames[currentChannel] || 'Unknown'}
+                </div>
+              )}
             </div>
           )}
         </>
@@ -147,6 +182,19 @@ MapInteractions.propTypes = {
   vectorLayer: PropTypes.object,
   channelNames: PropTypes.object.isRequired,
   addTileLayer: PropTypes.func.isRequired,
+  isMapViewEnabled: PropTypes.bool,
+  selectedTimepoint: PropTypes.string,
+  loadTimepointMap: PropTypes.func,
+  currentChannel: PropTypes.number,
+  setCurrentChannel: PropTypes.func
+};
+
+MapInteractions.defaultProps = {
+  isMapViewEnabled: false,
+  selectedTimepoint: null,
+  loadTimepointMap: () => {},
+  currentChannel: 0,
+  setCurrentChannel: () => {}
 };
 
 export default MapInteractions;
