@@ -21,6 +21,9 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
   const [showTimepointSelector, setShowTimepointSelector] = useState(false);
   const [shouldShowMap, setShouldShowMap] = useState(false);
   const [currentChannel, setCurrentChannel] = useState(0);
+  const [selectedChannels, setSelectedChannels] = useState([0]); // Array to store multiple selected channels
+  const [isChannelSelectorOpen, setIsChannelSelectorOpen] = useState(false);
+  const [isMergeMode, setIsMergeMode] = useState(false); // Track if merge mode is active
 
   const imageWidth = 2048;
   const imageHeight = 2048;
@@ -73,9 +76,13 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
   useEffect(() => {
     if (map && shouldShowMap && timepoints.length > 0 && !selectedTimepoint) {
       // When timepoints are loaded and we should show the map, load the first timepoint with current channel
-      loadTimepointMap(timepoints[0].name, currentChannel);
+      if (isMergeMode) {
+        loadTimepointMapMerged(timepoints[0].name, selectedChannels);
+      } else {
+        loadTimepointMap(timepoints[0].name, currentChannel);
+      }
     }
-  }, [map, shouldShowMap, timepoints, currentChannel]);
+  }, [map, shouldShowMap, timepoints, currentChannel, selectedChannels, isMergeMode]);
 
   useEffect(() => {
     return () => {
@@ -157,6 +164,92 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
   
     map.addLayer(newTileLayer);
     setImageLayer(newTileLayer);
+    setIsMergeMode(false);
+  };
+
+  // New function to load merged channels
+  const loadTimepointMapMerged = (timepoint, channelKeys) => {
+    if (!timepoint || !mapDatasetId || !map || !channelKeys.length) return;
+    
+    const channelNamesStr = channelKeys.map(key => channelNames[key]).join(',');
+    
+    appendLog(`Loading merged map for timepoint: ${timepoint}, channels: ${channelNamesStr}`);
+    setSelectedTimepoint(timepoint);
+    
+    // Remove any existing layers
+    if (imageLayer) {
+      map.removeLayer(imageLayer);
+    }
+    
+    // Create a new tile layer for the merged channels
+    const newTileLayer = new TileLayer({
+      source: new XYZ({
+        url: `merged-tiles?dataset_id=${mapDatasetId}&timepoint=${timepoint}&channels=${channelKeys.join(',')}&z={z}&x={x}&y={y}`,
+        crossOrigin: 'anonymous',
+        tileSize: 2048,
+        maxZoom: 4,
+        tileGrid: getTileGrid(),
+        tileLoadFunction: function(tile, src) {
+          const tileCoord = tile.getTileCoord(); // [z, x, y]
+          const transformedZ = 3 - tileCoord[0];
+          const newSrc = `merged-tiles?dataset_id=${mapDatasetId}&timepoint=${timepoint}&channels=${channelKeys.join(',')}&z=${transformedZ}&x=${tileCoord[1]}&y=${tileCoord[2]}`;
+          fetch(newSrc)
+            .then(response => response.text())
+            .then(data => {
+              const trimmed = data.replace(/^"|"$/g, '');
+              tile.getImage().src = `data:image/png;base64,${trimmed}`;
+              console.log(`Loaded merged timepoint tile at: ${newSrc}`);
+            })
+            .catch(error => {
+              console.log(`Failed to load merged timepoint tile: ${newSrc}`, error);
+            });
+        }
+      }),
+    });
+  
+    map.addLayer(newTileLayer);
+    setImageLayer(newTileLayer);
+    setIsMergeMode(true);
+  };
+
+  // Add merged channels support for regular tile view (not timepoint specific)
+  const addMergedTileLayer = (map, channelKeys) => {
+    if (!map || !channelKeys.length) return;
+    
+    if (imageLayer) {
+      map.removeLayer(imageLayer);
+    }
+
+    const channelKeysStr = channelKeys.join(',');
+    
+    const tileLayer = new TileLayer({
+      source: new XYZ({
+        url: `merged-tiles?channels=${channelKeysStr}&z={z}&x={x}&y={y}`,
+        crossOrigin: 'anonymous',
+        tileSize: 2048,
+        maxZoom: 4,
+        tileGrid: getTileGrid(),
+        tileLoadFunction: function(tile, src) {
+          const tileCoord = tile.getTileCoord(); // [z, x, y]
+          const transformedZ = 3 - tileCoord[0];
+          const newSrc = `merged-tiles?channels=${channelKeysStr}&z=${transformedZ}&x=${tileCoord[1]}&y=${tileCoord[2]}`;
+          fetch(newSrc)
+            .then(response => response.text())
+            .then(data => {
+              const trimmed = data.replace(/^"|"$/g, '');
+              tile.getImage().src = `data:image/png;base64,${trimmed}`;
+              console.log(`Loaded merged tile at location: ${newSrc}`);
+            })
+            .catch(error => {
+              console.log(`Failed to load merged tile: ${newSrc}`, error);
+            });
+        }
+      }),
+    });
+  
+    map.addLayer(tileLayer);
+    setImageLayer(tileLayer);
+    setIsMergeMode(true);
   };
 
   const channelNames = {
@@ -202,6 +295,7 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
   
     map.addLayer(tileLayer);
     setImageLayer(tileLayer);
+    setIsMergeMode(false);
   };
 
   const toggleTimepointSelector = () => {
@@ -211,6 +305,50 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
     }
     
     setShowTimepointSelector(!showTimepointSelector);
+  };
+
+  const toggleChannelSelector = () => {
+    setIsChannelSelectorOpen(!isChannelSelectorOpen);
+  };
+
+  const handleChannelToggle = (channelKey) => {
+    if (selectedChannels.includes(channelKey)) {
+      // Remove channel if already selected (unless it's the last one)
+      if (selectedChannels.length > 1) {
+        setSelectedChannels(selectedChannels.filter(key => key !== channelKey));
+      }
+    } else {
+      // Add channel if not already selected
+      setSelectedChannels([...selectedChannels, channelKey]);
+    }
+  };
+
+  const applyChannelSelection = () => {
+    if (selectedChannels.length === 1) {
+      // If only one channel is selected, use the regular channel display
+      setCurrentChannel(selectedChannels[0]);
+      if (selectedTimepoint) {
+        loadTimepointMap(selectedTimepoint, selectedChannels[0]);
+      } else {
+        addTileLayer(map, selectedChannels[0]);
+      }
+    } else if (selectedChannels.length > 1) {
+      // If multiple channels are selected, merge them
+      if (selectedTimepoint) {
+        loadTimepointMapMerged(selectedTimepoint, selectedChannels);
+      } else {
+        addMergedTileLayer(map, selectedChannels);
+      }
+    }
+    setIsChannelSelectorOpen(false);
+  };
+
+  const channelColors = {
+    0: '#ffffff', // Brightfield - white
+    11: '#9955ff', // 405nm - violet
+    12: '#22ff22', // 488nm - green
+    14: '#ff5555', // 561nm - red-orange 
+    13: '#ff0000'  // 638nm - deep red
   };
 
   return (
@@ -232,6 +370,57 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
           currentChannel={currentChannel}
           setCurrentChannel={setCurrentChannel}
         />
+        
+        {/* Channel Selector Button */}
+        <div className="absolute top-4 right-4 flex flex-col items-end z-10">
+          <button 
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm flex items-center mb-2"
+            onClick={toggleChannelSelector}
+          >
+            <i className="fas fa-layer-group mr-2"></i>
+            {isMergeMode ? 'Merged Channels' : 'Select Channels'}
+          </button>
+          
+          {/* Channel Selection Panel */}
+          {isChannelSelectorOpen && (
+            <div className="bg-white rounded shadow-lg p-4 w-64">
+              <h4 className="text-lg font-medium mb-2">Select Channels</h4>
+              <div className="space-y-2 mb-4">
+                {Object.entries(channelNames).map(([key, name]) => (
+                  <div 
+                    key={key} 
+                    className="flex items-center"
+                  >
+                    <input
+                      type="checkbox"
+                      id={`channel-${key}`}
+                      checked={selectedChannels.includes(parseInt(key))}
+                      onChange={() => handleChannelToggle(parseInt(key))}
+                      className="mr-2"
+                    />
+                    <label 
+                      htmlFor={`channel-${key}`}
+                      className="flex items-center"
+                    >
+                      <span 
+                        className="w-4 h-4 inline-block mr-2 rounded-full"
+                        style={{ backgroundColor: channelColors[key] }}
+                      ></span>
+                      {name.replace('_', ' ').replace('nm_Ex', ' nm')}
+                    </label>
+                  </div>
+                ))}
+              </div>
+              <button 
+                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm w-full"
+                onClick={applyChannelSelection}
+                disabled={selectedChannels.length === 0}
+              >
+                Apply
+              </button>
+            </div>
+          )}
+        </div>
         
         {/* Image Map Time Point Selector */}
         {isMapViewEnabled && (
@@ -274,7 +463,7 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
                   <li 
                     key={index}
                     className={`p-2 cursor-pointer hover:bg-blue-50 rounded ${selectedTimepoint === timepoint.name ? 'bg-blue-100 font-medium' : ''}`}
-                    onClick={() => loadTimepointMap(timepoint.name, currentChannel)}
+                    onClick={() => isMergeMode ? loadTimepointMapMerged(timepoint.name, selectedChannels) : loadTimepointMap(timepoint.name, currentChannel)}
                   >
                     <i className={`fas fa-clock mr-2 ${selectedTimepoint === timepoint.name ? 'text-blue-500' : 'text-gray-500'}`}></i>
                     {timepoint.name}

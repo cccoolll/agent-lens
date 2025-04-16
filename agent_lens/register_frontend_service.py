@@ -57,6 +57,164 @@ def get_frontend_api():
         tile_b64 = await tile_manager.get_tile_base64(channel_name, z, x, y)
         return tile_b64
 
+    # New endpoint to serve merged tiles from multiple channels
+    @app.get("/merged-tiles")
+    async def merged_tiles_endpoint(channels: str, z: int = 0, x: int = 0, y: int = 0, dataset_id: str = None, timepoint: str = None):
+        """
+        Endpoint to merge tiles from multiple channels.
+        
+        Args:
+            channels (str): Comma-separated list of channel keys (e.g., "0,11,12")
+            z (int): Zoom level
+            x (int): X coordinate
+            y (int): Y coordinate
+            dataset_id (str, optional): Dataset ID for timepoint-specific tiles
+            timepoint (str, optional): Timepoint for timepoint-specific tiles
+        
+        Returns:
+            str: Base64 encoded merged tile image
+        """
+        channel_keys = [int(key) for key in channels.split(',') if key]
+        
+        if not channel_keys:
+            # Return a blank tile if no channels are specified
+            blank_image = Image.new("RGB", (tile_manager.tile_size, tile_manager.tile_size), color=(0, 0, 0))
+            buffer = io.BytesIO()
+            blank_image.save(buffer, format="PNG")
+            return base64.b64encode(buffer.getvalue()).decode('utf-8')
+        
+        # Define colors for each channel (RGB format)
+        channel_colors = {
+            0: None,  # Brightfield - grayscale, no color overlay
+            11: (153, 85, 255),  # 405nm - violet
+            12: (34, 255, 34),   # 488nm - green
+            14: (255, 85, 85),   # 561nm - red-orange
+            13: (255, 0, 0)      # 638nm - deep red
+        }
+        
+        # Channel names mapping
+        channel_names = {
+            0: 'BF_LED_matrix_full',
+            11: 'Fluorescence_405_nm_Ex', 
+            12: 'Fluorescence_488_nm_Ex',
+            14: 'Fluorescence_561_nm_Ex',
+            13: 'Fluorescence_638_nm_Ex'
+        }
+        
+        # Get tiles for each channel
+        channel_tiles = []
+        for channel_key in channel_keys:
+            channel_name = channel_names.get(channel_key, DEFAULT_CHANNEL)
+            
+            try:
+                if dataset_id and timepoint:
+                    # Get tile for a specific timepoint
+                    tile_data = await get_timepoint_tile_data(dataset_id, timepoint, channel_name, z, x, y)
+                else:
+                    # Get regular tile
+                    tile_data = await tile_manager.get_tile_np_data(channel_name, z, x, y)
+                
+                # Ensure the tile data is properly shaped (check if empty/None)
+                if tile_data is None or tile_data.size == 0:
+                    # Create a blank tile if we couldn't get data
+                    tile_data = np.zeros((tile_manager.tile_size, tile_manager.tile_size), dtype=np.uint8)
+                
+                channel_tiles.append((tile_data, channel_key))
+            except Exception as e:
+                print(f"Error getting tile for channel {channel_name}: {e}")
+                # Use blank tile on error
+                blank_tile = np.zeros((tile_manager.tile_size, tile_manager.tile_size), dtype=np.uint8)
+                channel_tiles.append((blank_tile, channel_key))
+        
+        # Create an RGB image to merge the channels
+        merged_image = np.zeros((tile_manager.tile_size, tile_manager.tile_size, 3), dtype=np.uint8)
+        
+        # Check if brightfield channel is included
+        has_brightfield = 0 in [ch_key for _, ch_key in channel_tiles]
+        
+        for tile_data, channel_key in channel_tiles:
+            if channel_key == 0:  # Brightfield
+                # For brightfield, use as grayscale background
+                # Convert to RGB if it's grayscale
+                if len(tile_data.shape) == 2:
+                    # Create RGB by copying the grayscale data to all channels
+                    bf_rgb = np.stack([tile_data, tile_data, tile_data], axis=2)
+                    merged_image = bf_rgb.copy()
+            else:
+                # For fluorescence channels, apply color overlay
+                color = channel_colors.get(channel_key)
+                if color:
+                    # Create colored mask from the grayscale intensity
+                    if len(tile_data.shape) == 2:
+                        # Normalize data for better visibility
+                        normalized = tile_data.astype(np.float32) / 255.0
+                        
+                        # Apply color to each channel
+                        colored_channel = np.zeros_like(merged_image, dtype=np.float32)
+                        colored_channel[..., 0] = normalized * (color[0] / 255.0)  # R
+                        colored_channel[..., 1] = normalized * (color[1] / 255.0)  # G
+                        colored_channel[..., 2] = normalized * (color[2] / 255.0)  # B
+                        
+                        # Add to the merged image with a max operation to show brightest parts
+                        if has_brightfield:
+                            # If we have brightfield, blend fluorescence on top
+                            merged_image = np.maximum(merged_image, (colored_channel * 255).astype(np.uint8))
+                        else:
+                            # If no brightfield, just add the fluorescence channels together
+                            merged_image = np.maximum(merged_image, (colored_channel * 255).astype(np.uint8))
+        
+        # Convert to PIL image and return as base64
+        pil_image = Image.fromarray(merged_image)
+        buffer = io.BytesIO()
+        pil_image.save(buffer, format="PNG")
+        return base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+    async def get_timepoint_tile_data(dataset_id, timepoint, channel_name, z, x, y):
+        """Helper function to get tile data for a specific timepoint"""
+        try:
+            # Ensure the artifact manager is connected
+            if artifact_manager_instance.server is None:
+                _, artifact_manager_instance._svc = await get_artifact_manager()
+            
+            # Construct the full file path including timepoint directory
+            file_path = f"{timepoint}/{channel_name}/scale{z}/{y}.{x}"
+            
+            # Get the file URL
+            get_url = await artifact_manager_instance._svc.get_file(dataset_id, file_path)
+            
+            # Download the tile
+            async with httpx.AsyncClient() as client:
+                response = await client.get(get_url)
+                if response.status_code == 200:
+                    # Process the image data
+                    try:
+                        # For OME-Zarr tiles, we might need to decompress them
+                        if tile_manager.compressor:
+                            compressed_data = response.content
+                            decompressed_data = tile_manager.compressor.decode(compressed_data)
+                            tile_data = np.frombuffer(decompressed_data, dtype=np.uint8)
+                            tile_data = tile_data.reshape((tile_manager.tile_size, tile_manager.tile_size))
+                            return tile_data
+                        else:
+                            # If not compressed, convert directly to numpy array
+                            image = Image.open(io.BytesIO(response.content))
+                            if image.mode == 'L':  # Grayscale
+                                return np.array(image)
+                            else:  # Color image, convert to grayscale for consistency
+                                gray_image = image.convert('L')
+                                return np.array(gray_image)
+                    except Exception as e:
+                        print(f"Error processing timepoint tile: {e}")
+                        return np.zeros((tile_manager.tile_size, tile_manager.tile_size), dtype=np.uint8)
+                else:
+                    print(f"Failed to fetch timepoint tile: {response.status_code}")
+                    return np.zeros((tile_manager.tile_size, tile_manager.tile_size), dtype=np.uint8)
+        except Exception as e:
+            print(f"Error fetching timepoint tile data: {e}")
+            import traceback
+            print(traceback.format_exc())
+            return np.zeros((tile_manager.tile_size, tile_manager.tile_size), dtype=np.uint8)
+
     @app.get("/datasets")
     async def get_datasets():
         """
