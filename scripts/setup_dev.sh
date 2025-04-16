@@ -26,5 +26,6 @@ EOT
 # Install npm dependencies
 echo "Installing npm dependencies..."
 npm install --prefix frontend
+npm install react-color
 
 echo "Setup complete!"

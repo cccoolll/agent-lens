@@ -5,6 +5,7 @@ import MapInteractions from './MapInteractions';
 import XYZ from 'ol/source/XYZ';
 import TileLayer from 'ol/layer/Tile';
 import MicroscopeControlPanel from './MicroscopeControlPanel';
+import ChannelSettings from './ChannelSettings';
 
 const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incubatorControlService, setCurrentMap }) => {
   const [map, setMap] = useState(null);
@@ -24,6 +25,13 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
   const [selectedChannels, setSelectedChannels] = useState([0]); // Array to store multiple selected channels
   const [isChannelSelectorOpen, setIsChannelSelectorOpen] = useState(false);
   const [isMergeMode, setIsMergeMode] = useState(false); // Track if merge mode is active
+  const [showChannelSettings, setShowChannelSettings] = useState(false);
+  const [channelSettings, setChannelSettings] = useState({
+    contrast: {},
+    brightness: {},
+    threshold: {},
+    color: {}
+  });
 
   const imageWidth = 2048;
   const imageHeight = 2048;
@@ -92,6 +100,19 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
     };
   }, [snapshotImage]);
 
+  // Apply channel settings when they change
+  useEffect(() => {
+    if (selectedTimepoint && isMergeMode) {
+      loadTimepointMapMerged(selectedTimepoint, selectedChannels);
+    } else if (selectedTimepoint) {
+      loadTimepointMap(selectedTimepoint, currentChannel);
+    } else if (isMergeMode) {
+      addMergedTileLayer(map, selectedChannels);
+    } else if (map) {
+      addTileLayer(map, currentChannel);
+    }
+  }, [channelSettings]);
+
   const loadTimepoints = async (datasetId) => {
     if (!datasetId) return;
     
@@ -111,6 +132,16 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
     } finally {
       setIsLoadingTimepoints(false);
     }
+  };
+
+  // Helper to serialize settings for URL params
+  const getProcessingSettingsParams = () => {
+    return {
+      contrast_settings: JSON.stringify(channelSettings.contrast),
+      brightness_settings: JSON.stringify(channelSettings.brightness),
+      threshold_settings: JSON.stringify(channelSettings.threshold),
+      color_settings: JSON.stringify(channelSettings.color)
+    };
   };
 
   const loadTimepointMap = (timepoint, channelKey = 0) => {
@@ -136,10 +167,20 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
       map.removeLayer(imageLayer);
     }
     
+    // Get processing settings as URL params
+    const processingParams = getProcessingSettingsParams();
+    
+    // Create a URL with processing settings parameters
+    const createTileUrl = (z, x, y) => {
+      const baseUrl = `tile-for-timepoint?dataset_id=${mapDatasetId}&timepoint=${timepoint}&channel_name=${channelName}&z=${z}&x=${x}&y=${y}`;
+      const params = new URLSearchParams(processingParams).toString();
+      return params ? `${baseUrl}&${params}` : baseUrl;
+    };
+    
     // Create a new tile layer for the selected timepoint
     const newTileLayer = new TileLayer({
       source: new XYZ({
-        url: `tile-for-timepoint?dataset_id=${mapDatasetId}&timepoint=${timepoint}&channel_name=${channelName}&z={z}&x={x}&y={y}`,
+        url: createTileUrl('{z}', '{x}', '{y}'),
         crossOrigin: 'anonymous',
         tileSize: 2048,
         maxZoom: 4,
@@ -147,7 +188,7 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
         tileLoadFunction: function(tile, src) {
           const tileCoord = tile.getTileCoord(); // [z, x, y]
           const transformedZ = 3 - tileCoord[0];
-          const newSrc = `tile-for-timepoint?dataset_id=${mapDatasetId}&timepoint=${timepoint}&channel_name=${channelName}&z=${transformedZ}&x=${tileCoord[1]}&y=${tileCoord[2]}`;
+          const newSrc = createTileUrl(transformedZ, tileCoord[1], tileCoord[2]);
           fetch(newSrc)
             .then(response => response.text())
             .then(data => {
@@ -167,7 +208,7 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
     setIsMergeMode(false);
   };
 
-  // New function to load merged channels
+  // Updated function to load merged channels with processing settings
   const loadTimepointMapMerged = (timepoint, channelKeys) => {
     if (!timepoint || !mapDatasetId || !map || !channelKeys.length) return;
     
@@ -181,10 +222,20 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
       map.removeLayer(imageLayer);
     }
     
+    // Get processing settings as URL params
+    const processingParams = getProcessingSettingsParams();
+    
+    // Create a URL with processing settings parameters
+    const createTileUrl = (z, x, y) => {
+      const baseUrl = `merged-tiles?dataset_id=${mapDatasetId}&timepoint=${timepoint}&channels=${channelKeys.join(',')}&z=${z}&x=${x}&y=${y}`;
+      const params = new URLSearchParams(processingParams).toString();
+      return params ? `${baseUrl}&${params}` : baseUrl;
+    };
+    
     // Create a new tile layer for the merged channels
     const newTileLayer = new TileLayer({
       source: new XYZ({
-        url: `merged-tiles?dataset_id=${mapDatasetId}&timepoint=${timepoint}&channels=${channelKeys.join(',')}&z={z}&x={x}&y={y}`,
+        url: createTileUrl('{z}', '{x}', '{y}'),
         crossOrigin: 'anonymous',
         tileSize: 2048,
         maxZoom: 4,
@@ -192,7 +243,7 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
         tileLoadFunction: function(tile, src) {
           const tileCoord = tile.getTileCoord(); // [z, x, y]
           const transformedZ = 3 - tileCoord[0];
-          const newSrc = `merged-tiles?dataset_id=${mapDatasetId}&timepoint=${timepoint}&channels=${channelKeys.join(',')}&z=${transformedZ}&x=${tileCoord[1]}&y=${tileCoord[2]}`;
+          const newSrc = createTileUrl(transformedZ, tileCoord[1], tileCoord[2]);
           fetch(newSrc)
             .then(response => response.text())
             .then(data => {
@@ -212,7 +263,7 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
     setIsMergeMode(true);
   };
 
-  // Add merged channels support for regular tile view (not timepoint specific)
+  // Updated merged channels support for regular tile view with processing settings
   const addMergedTileLayer = (map, channelKeys) => {
     if (!map || !channelKeys.length) return;
     
@@ -222,9 +273,19 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
 
     const channelKeysStr = channelKeys.join(',');
     
+    // Get processing settings as URL params
+    const processingParams = getProcessingSettingsParams();
+    
+    // Create a URL with processing settings parameters
+    const createTileUrl = (z, x, y) => {
+      const baseUrl = `merged-tiles?channels=${channelKeysStr}&z=${z}&x=${x}&y=${y}`;
+      const params = new URLSearchParams(processingParams).toString();
+      return params ? `${baseUrl}&${params}` : baseUrl;
+    };
+    
     const tileLayer = new TileLayer({
       source: new XYZ({
-        url: `merged-tiles?channels=${channelKeysStr}&z={z}&x={x}&y={y}`,
+        url: createTileUrl('{z}', '{x}', '{y}'),
         crossOrigin: 'anonymous',
         tileSize: 2048,
         maxZoom: 4,
@@ -232,7 +293,7 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
         tileLoadFunction: function(tile, src) {
           const tileCoord = tile.getTileCoord(); // [z, x, y]
           const transformedZ = 3 - tileCoord[0];
-          const newSrc = `merged-tiles?channels=${channelKeysStr}&z=${transformedZ}&x=${tileCoord[1]}&y=${tileCoord[2]}`;
+          const newSrc = createTileUrl(transformedZ, tileCoord[1], tileCoord[2]);
           fetch(newSrc)
             .then(response => response.text())
             .then(data => {
@@ -260,6 +321,7 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
     13: 'Fluorescence_638_nm_Ex'
   };
   
+  // Updated to support processing parameters
   const addTileLayer = (map, channelKey) => {
     const channelName = channelNames[channelKey];
     console.log(map);
@@ -267,10 +329,20 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
     if (imageLayer) {
       map.removeLayer(imageLayer);
     }
+    
+    // Get processing settings as URL params
+    const processingParams = getProcessingSettingsParams();
+    
+    // Create a URL with processing settings parameters
+    const createTileUrl = (z, x, y) => {
+      const baseUrl = `tile?channel_name=${channelName}&z=${z}&x=${x}&y=${y}`;
+      const params = new URLSearchParams(processingParams).toString();
+      return params ? `${baseUrl}&${params}` : baseUrl;
+    };
 
     const tileLayer = new TileLayer({
       source: new XYZ({
-        url: `tile?channel_name=${channelName}&z={z}&x={x}&y={y}`,
+        url: createTileUrl('{z}', '{x}', '{y}'),
         crossOrigin: 'anonymous',
         tileSize: 2048,
         maxZoom: 4,
@@ -278,7 +350,7 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
         tileLoadFunction: function(tile, src) {
           const tileCoord = tile.getTileCoord(); // [z, x, y]
           const transformedZ = 3 - tileCoord[0];
-          const newSrc = `tile?channel_name=${channelName}&z=${transformedZ}&x=${tileCoord[1]}&y=${tileCoord[2]}`;
+          const newSrc = createTileUrl(transformedZ, tileCoord[1], tileCoord[2]);
           fetch(newSrc)
             .then(response => response.text())
             .then(data => {
@@ -343,6 +415,20 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
     setIsChannelSelectorOpen(false);
   };
 
+  // Handle showing the channel settings dialog
+  const openChannelSettings = () => {
+    setShowChannelSettings(true);
+  };
+
+  // Handle channel settings changes
+  const handleChannelSettingsChange = (newSettings) => {
+    setChannelSettings(newSettings);
+    
+    // Log the changes
+    console.log('Applied new channel settings:', newSettings);
+    appendLog('Applied new channel processing settings');
+  };
+
   const channelColors = {
     0: '#ffffff', // Brightfield - white
     11: '#9955ff', // 405nm - violet
@@ -369,7 +455,7 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
           loadTimepointMap={loadTimepointMap}
           currentChannel={currentChannel}
           setCurrentChannel={setCurrentChannel}
-          // Pass new merged channel functions and state
+          // Pass merged channel functions and state
           toggleChannelSelector={toggleChannelSelector}
           isChannelSelectorOpen={isChannelSelectorOpen}
           selectedChannels={selectedChannels}
@@ -379,6 +465,8 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
           loadTimepointMapMerged={loadTimepointMapMerged}
           addMergedTileLayer={addMergedTileLayer}
           channelColors={channelColors}
+          // Add new image processing props
+          openChannelSettings={openChannelSettings}
         />
         
         {/* Image Map Time Point Selector */}
@@ -434,6 +522,28 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
             )}
           </div>
         )}
+        
+        {/* Channel Settings Modal */}
+        {showChannelSettings && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <ChannelSettings
+              selectedChannels={selectedChannels}
+              channelColors={channelColors}
+              onSettingsChange={handleChannelSettingsChange}
+              onClose={() => setShowChannelSettings(false)}
+              initialSettings={channelSettings}
+            />
+          </div>
+        )}
+        
+        {/* Image Processing Button */}
+        <button 
+          className="absolute top-4 right-16 bg-purple-600 hover:bg-purple-700 text-white rounded-full p-3 shadow-lg"
+          onClick={openChannelSettings}
+          title="Image Processing Settings"
+        >
+          <i className="fas fa-sliders-h"></i>
+        </button>
       </div>
     </>
   );

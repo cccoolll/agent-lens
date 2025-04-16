@@ -13,6 +13,21 @@ import 'ol/ol.css';
 import './main.css';
 import DataManagement from './components/DataManagement';
 
+// Import packages that might cause issues
+// to handle them safely with error boundaries
+const loadExternalDependencies = () => {
+  try {
+    // Pre-load any problematic dependencies
+    require('react-color');
+    console.log('External dependencies loaded successfully');
+  } catch (e) {
+    console.warn('Some external dependencies could not be loaded:', e);
+  }
+};
+
+// Call the function to preload dependencies
+loadExternalDependencies();
+
 const MicroscopeControl = () => {    
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [microscopeControlService, setMicroscopeControlService] = useState(null);

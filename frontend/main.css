@@ -60,4 +60,22 @@
 
 .animate-fade-in-out {
   animation: fadeInOut 3s ease-in-out forwards;
+}
+
+/* Color picker related styles */
+.fallback-color-picker {
+  padding: 10px;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Fix z-index issues for color picker */
+.sketch-picker {
+  z-index: 9999 !important;
+}
+
+/* Ensure color pickers don't get clipped */
+.color-picker-container {
+  position: relative;
 } 

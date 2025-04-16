@@ -28,11 +28,14 @@ const MapInteractions = ({
   isMergeMode,
   loadTimepointMapMerged,
   addMergedTileLayer,
-  channelColors
+  channelColors,
+  openChannelSettings
 }) => {
   const [isFirstClick, setIsFirstClick] = useState(true); // Track if it's the first click for segmentation
   const [isDrawingActive, setIsDrawingActive] = useState(false);
   const [selectedModel, setSelectedModel] = useState('vit_b_lm');
+  const [segmentActive, setSegmentActive] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     let clickListener;
@@ -87,6 +90,29 @@ const MapInteractions = ({
     appendLog('Segmentation completed and displayed.');
   };
 
+  const handleSegmentClick = async () => {
+    if (!segmentService) {
+      appendLog('Segmentation service not available.');
+      return;
+    }
+
+    if (segmentActive) {
+      // Deactivate segmentation mode
+      setSegmentActive(false);
+    } else {
+      // Activate segmentation mode
+      setSegmentActive(true);
+    }
+  };
+
+  const channelLabels = {
+    0: 'Brightfield',
+    11: '405nm (Violet)',
+    12: '488nm (Green)',
+    14: '561nm (Red-Orange)',
+    13: '638nm (Deep Red)'
+  };
+
   return (
     <>
       {map && ( // Only render controls if map is available
@@ -130,7 +156,7 @@ const MapInteractions = ({
             <div className="absolute z-50 bg-white p-4 rounded shadow-lg" style={{ top: '550px', left: '60px', width: '280px' }}>
               <h4 className="text-sm font-medium mb-2">Select Channels</h4>
               <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">
-                {Object.entries(channelNames).map(([key, name]) => (
+                {Object.entries(channelLabels).map(([key, label]) => (
                   <div 
                     key={key} 
                     className="flex items-center"
@@ -150,7 +176,7 @@ const MapInteractions = ({
                         className="w-3 h-3 inline-block mr-2 rounded-full"
                         style={{ backgroundColor: channelColors[key] }}
                       ></span>
-                      {name.replace('_', ' ').replace('nm_Ex', ' nm')}
+                      {label}
                     </label>
                   </div>
                 ))}
@@ -171,6 +197,110 @@ const MapInteractions = ({
           )}
         </>
       )}
+      <div className="absolute top-4 left-4 space-y-2">
+        {/* Segmentation Button */}
+        <button
+          className={`rounded-full p-3 shadow-lg ${segmentActive ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-500 hover:bg-blue-600'} text-white transition-colors`}
+          onClick={handleSegmentClick}
+          title={segmentActive ? 'Deactivate Segmentation' : 'Activate Segmentation'}
+          disabled={isProcessing}
+        >
+          <i className={`fas ${segmentActive ? 'fa-stop' : 'fa-cut'}`}></i>
+        </button>
+
+        {/* Channel Selector Button */}
+        <div className="relative">
+          <button
+            className="rounded-full p-3 shadow-lg bg-green-500 hover:bg-green-600 text-white"
+            onClick={toggleChannelSelector}
+            title="Select Channels"
+          >
+            <i className="fas fa-layer-group"></i>
+          </button>
+
+          {/* Channel Selection Dropdown */}
+          {isChannelSelectorOpen && (
+            <div className="absolute top-full left-0 mt-2 bg-white rounded shadow-lg p-3 z-10 w-60">
+              <h5 className="font-medium text-gray-800 mb-2">Select Channels</h5>
+              <div className="space-y-2 mb-3">
+                {Object.entries(channelLabels).map(([key, label]) => (
+                  <div key={key} className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id={`channel-${key}`}
+                      checked={selectedChannels.includes(parseInt(key))}
+                      onChange={() => handleChannelToggle(parseInt(key))}
+                      className="mr-2"
+                    />
+                    <label 
+                      htmlFor={`channel-${key}`}
+                      className="flex-1 cursor-pointer"
+                      style={{
+                        color: key !== '0' ? channelColors[parseInt(key)] : 'inherit'
+                      }}
+                    >
+                      {label}
+                    </label>
+                  </div>
+                ))}
+              </div>
+
+              {/* Apply Selection Button */}
+              <div className="flex justify-between">
+                <button
+                  className="bg-gray-200 hover:bg-gray-300 text-gray-800 py-1 px-2 rounded text-sm"
+                  onClick={toggleChannelSelector}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="bg-green-500 hover:bg-green-600 text-white py-1 px-3 rounded text-sm"
+                  onClick={applyChannelSelection}
+                >
+                  Apply Selection
+                </button>
+              </div>
+
+              {/* Processing Settings Button */}
+              <div className="mt-3 pt-3 border-t border-gray-200">
+                <button
+                  className="w-full bg-purple-500 hover:bg-purple-600 text-white py-1 px-3 rounded text-sm flex items-center justify-center"
+                  onClick={() => {
+                    toggleChannelSelector();
+                    openChannelSettings();
+                  }}
+                >
+                  <i className="fas fa-sliders-h mr-2"></i>
+                  Image Processing Settings
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Legend showing active channels in merge mode */}
+        {isMergeMode && selectedChannels.length > 1 && (
+          <div className="bg-white rounded shadow-lg p-2 mt-2 w-48">
+            <h6 className="text-xs font-medium text-gray-700 mb-1">Active Channels</h6>
+            <div className="space-y-1">
+              {selectedChannels.map(channelKey => (
+                <div key={channelKey} className="flex items-center text-xs">
+                  <div 
+                    className="w-3 h-3 rounded-full mr-2"
+                    style={{
+                      backgroundColor: channelKey === 0 ? '#ffffff' : channelColors[channelKey],
+                      border: channelKey === 0 ? '1px solid #ccc' : 'none'
+                    }}
+                  ></div>
+                  <span style={{ color: channelKey === 0 ? 'inherit' : channelColors[channelKey] }}>
+                    {channelLabels[channelKey]}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </>
   );
 }
@@ -197,7 +327,8 @@ MapInteractions.propTypes = {
   isMergeMode: PropTypes.bool,
   loadTimepointMapMerged: PropTypes.func,
   addMergedTileLayer: PropTypes.func,
-  channelColors: PropTypes.object
+  channelColors: PropTypes.object,
+  openChannelSettings: PropTypes.func.isRequired
 };
 
 MapInteractions.defaultProps = {
@@ -214,7 +345,8 @@ MapInteractions.defaultProps = {
   isMergeMode: false,
   loadTimepointMapMerged: () => {},
   addMergedTileLayer: () => {},
-  channelColors: {}
+  channelColors: {},
+  openChannelSettings: () => {}
 };
 
 export default MapInteractions;
