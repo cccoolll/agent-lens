@@ -76,6 +76,7 @@ If you prefer to set up the application manually, follow the steps below:
 4. **Install npm dependencies:**
     ```bash
     npm install --prefix frontend
+    npm install react-color
     ```
 
 ### Running the Application

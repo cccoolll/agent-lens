@@ -13,6 +13,8 @@ aiobotocore==2.19.0
 numcodecs==0.15.1
 blosc==1.11.2
 aiohttp==3.11.14
+scikit-image==0.25.2
+
 # Segmentation service (unused):
 # segment-anything==1.0
 # kaibu_utils==0.1.14
