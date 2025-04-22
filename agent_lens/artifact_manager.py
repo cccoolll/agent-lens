@@ -308,7 +308,7 @@ class TileManager:
         self.is_running = True
         self.session = None
         self._cleanup_tasks = []
-        self.num_tile_workers = 7
+        self.num_tile_workers = 10
 
     async def connect(self):
         """Connect to the Artifact Manager service"""
