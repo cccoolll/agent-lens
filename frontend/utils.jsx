@@ -83,6 +83,7 @@ export const getServer = async (token) => {
 	return await hyphaWebsocketClient.connectToServer({
 		server_url: "https://hypha.aicell.io/",
 		token: token,
+    workspace: "agent-lens",
 		method_timeout: 500,
 	});
 }
