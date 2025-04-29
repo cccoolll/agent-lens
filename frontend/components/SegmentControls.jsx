@@ -66,7 +66,7 @@ const SegmentButton = ({ appendLog, snapshotImage, segmentService, map, extent, 
           style={{ top: '470px', left: '10px' }}
           onClick={handleSegmentAllCells}
           disabled={!snapshotImage || !segmentService}
-          title="Auto Segment"
+          title={!snapshotImage ? "Please capture an image from the Microscope Control panel first" : "Auto Segment"}
         >
           Auto Segment
         </button>
