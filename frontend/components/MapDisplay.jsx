@@ -38,6 +38,30 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
   const extent = [0, 0, imageWidth, imageHeight];
 
   useEffect(() => {
+    if (!map && mapRef.current && !effectRan.current) {
+      const newMap = makeMap(mapRef, extent);
+      setMap(newMap);
+      setCurrentMap(newMap);
+      
+      // Always add map mask regardless
+      addMapMask(newMap, setVectorLayer);
+      effectRan.current = true;
+      
+      // Load the default tile layer initially
+      // We'll replace it with the map view if needed
+      // addTileLayer(newMap, 0); // REMOVED: Don't add default layer here
+    }
+
+    return () => {
+      if (map) {
+        map.setTarget(null);
+        setCurrentMap(null);
+      }
+    };
+  }, [mapRef.current]);
+
+  // Effect to check localStorage and decide initial view
+  useEffect(() => {
     // Check if an image map dataset has been set up in this session
     const imageMapDataset = localStorage.getItem('imageMapDataset');
     const wasExplicitlySetup = sessionStorage.getItem('mapSetupExplicit') === 'true';
@@ -45,10 +69,14 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
     if (imageMapDataset && wasExplicitlySetup) {
       setMapDatasetId(imageMapDataset);
       setIsMapViewEnabled(true);
-      setShouldShowMap(true);
+      setShouldShowMap(true); // Set shouldShowMap here
       appendLog(`Image map dataset found: ${imageMapDataset}`);
+      // Timepoint loading will be triggered by the next effect
+    } else if (map) { // ADDED: Check if map exists before adding default layer
+      //  If not in map view mode, add the default tile layer
+      addTileLayer(map, currentChannel);
     }
-  }, []);
+  }, [map]);
 
   // Effect to load timepoints when we should show the map
   useEffect(() => {
@@ -67,9 +95,6 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
       addMapMask(newMap, setVectorLayer);
       effectRan.current = true;
       
-      // Load the default tile layer initially
-      // We'll replace it with the map view if needed
-      addTileLayer(newMap, 0);
     }
 
     return () => {
@@ -78,12 +103,14 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
         setCurrentMap(null);
       }
     };
-  }, [mapRef.current]);
+  }, [mapRef.current]); // Keep dependencies
 
-  // Effect to update the map when timepoints are loaded
+  // Effect to update the map when timepoints are loaded (This becomes the initial layer load for map view)
   useEffect(() => {
     if (map && shouldShowMap && timepoints.length > 0 && !selectedTimepoint) {
-      // When timepoints are loaded and we should show the map, load the first timepoint with current channel
+      // When timepoints are loaded and we should show the map, load the first timepoint with current channel/channels
+      // This now correctly adds the *first* layer in map view mode
+      appendLog(`Loading initial timepoint: ${timepoints[0].name}`);
       if (isMergeMode) {
         loadTimepointMapMerged(timepoints[0].name, selectedChannels);
       } else {
