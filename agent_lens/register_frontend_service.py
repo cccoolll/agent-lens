@@ -818,3 +818,7 @@ async def setup_service(server, server_id="agent-lens"):
     )
 
     print("Frontend service registered successfully.")
+
+    # Store the cleanup function in the server's config
+    server.config["cleanup"] = tile_manager.close
+ 

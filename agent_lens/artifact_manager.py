@@ -17,6 +17,7 @@ import base64
 import numcodecs
 import blosc
 import aiohttp
+from collections import deque
 
 dotenv.load_dotenv()  
 ENV_FILE = dotenv.find_dotenv()  
@@ -301,6 +302,13 @@ class TileManager:
             shuffle=blosc.SHUFFLE,
             blocksize=0
         )
+        # Initialize the async queue
+        self.tile_queue = asyncio.Queue(maxsize=5)
+        self.tile_workers = []
+        self.is_running = True
+        self.session = None
+        self._cleanup_tasks = []
+        self.num_tile_workers = 10
 
     async def connect(self):
         """Connect to the Artifact Manager service"""
@@ -311,23 +319,91 @@ class TileManager:
                 "token": WORKSPACE_TOKEN,
             })
             self.artifact_manager = await self.artifact_manager_server.get_service("public/artifact-manager")
+            # Start the tile processing workers
+            self.session = aiohttp.ClientSession()
+            self.tile_workers = [asyncio.create_task(self._tile_worker()) for _ in range(self.num_tile_workers)]
+            # Store cleanup tasks
+            self._cleanup_tasks.extend(self.tile_workers)
         except Exception as e:
             print(f"Error connecting to artifact manager: {str(e)}")
             raise e
 
-    async def list_files(self, channel: str, scale: int):
-        """List available files for a specific channel and scale"""
+    async def close(self):
+        """Close the tile manager and cleanup resources"""
+        self.is_running = False
+        
+        # Cancel all worker tasks
+        for worker in self.tile_workers:
+            if not worker.done():
+                worker.cancel()
+        
+        # Wait for all tasks to complete
+        if self._cleanup_tasks:
+            await asyncio.gather(*self._cleanup_tasks, return_exceptions=True)
+        
+        # Close the aiohttp session
+        if self.session:
+            await self.session.close()
+        
+        # Clear the lists
+        self.tile_workers.clear()
+        self._cleanup_tasks.clear()
+
+    async def _tile_worker(self):
+        """Worker function to process tile requests from the queue"""
+        while self.is_running:
+            try:
+                # Get a tile request from the queue
+                request = await self.tile_queue.get()
+                if request is None:
+                    break
+
+                channel, scale, x, y, future = request
+                try:
+                    # Process the tile request
+                    tile_data = await self._fetch_tile_data(channel, scale, x, y)
+                    # Set the result in the future
+                    future.set_result(tile_data)
+                except Exception as e:
+                    # Set the exception in the future
+                    future.set_exception(e)
+                finally:
+                    # Mark the task as done
+                    self.tile_queue.task_done()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                print(f"Error in tile worker: {e}")
+
+    async def _fetch_tile_data(self, channel: str, scale: int, x: int, y: int) -> np.ndarray:
+        """Fetch a single tile's data"""
         try:
-            dir_path = f"{channel}/scale{scale}"
-            files = await self.artifact_manager.list_files(ARTIFACT_ALIAS, dir_path=dir_path)
-            return files
+            file_path = f"{channel}/scale{scale}/{y}.{x}"
+            get_url = await self.artifact_manager.get_file(
+                ARTIFACT_ALIAS, file_path=file_path
+            )
+
+            async with self.session.get(get_url) as response:
+                if response.status == 200:
+                    compressed_data = await response.read()
+                    try:
+                        decompressed_data = self.compressor.decode(compressed_data)
+                        tile_data = np.frombuffer(decompressed_data, dtype=np.uint8)
+                        tile_data = tile_data.reshape((self.tile_size, self.tile_size))
+                        return tile_data
+                    except Exception:
+                        print("Error processing tile data")
+                        return np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
+                else:
+                    print(f"Didn't get file, path is {file_path}")
+                    return np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
         except Exception as e:
-            print(f"Error listing files: {str(e)}")
-            return []
+            print(f"Error fetching tile {file_path}: {e}")
+            return np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
 
     async def get_tile_np_data(self, channel: str, scale: int, x: int, y: int) -> np.ndarray:
         """
-        Get a specific tile from the artifact manager.
+        Get a specific tile from the artifact manager using the async queue.
 
         Args:
             channel (str): Channel name (e.g., "BF_LED_matrix_full")
@@ -338,50 +414,28 @@ class TileManager:
         Returns:
             np.ndarray: The tile image as a numpy array
         """
+        # Create a future for this request
+        future = asyncio.Future()
+        
+        # Add the request to the queue
+        await self.tile_queue.put((channel, scale, x, y, future))
+        
+        # Wait for the result
         try:
-            file_path = f"{channel}/scale{scale}/{y}.{x}"
-            # Get the pre-signed URL for the file
-            get_url = await self.artifact_manager.get_file(
-                ARTIFACT_ALIAS, file_path=file_path
-            )
-
-            # Download the tile using aiohttp
-            async with aiohttp.ClientSession() as session:
-                async with session.get(get_url) as response:
-                    if response.status == 200:
-                        # Read the compressed binary data
-                        compressed_data = await response.read()
-
-                        try:
-                            # Decompress the data using blosc
-                            decompressed_data = self.compressor.decode(compressed_data)
-
-                            # Convert to numpy array with correct shape and dtype
-                            tile_data = np.frombuffer(decompressed_data, dtype=np.uint8)
-                            tile_data = tile_data.reshape(
-                                (self.tile_size, self.tile_size)
-                            )
-
-                            return tile_data
-
-                        except Exception:
-                            # simple notification
-                            print("Error processing tile data")
-                            return np.zeros(
-                                (self.tile_size, self.tile_size), dtype=np.uint8
-                            )
-                    else:
-                        print(f"Didn't get file, path is {file_path}")
-                        return np.zeros(
-                            (self.tile_size, self.tile_size), dtype=np.uint8
-                        )
-
-        except FileNotFoundError:
-            print(f"Didn't get file, path is {file_path}")
+            return await future
+        except Exception as e:
+            print(f"Error getting tile data: {e}")
             return np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
-        except Exception:
-            print(f"Couldn't get tile {file_path}")
-            return np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
+
+    async def list_files(self, channel: str, scale: int):
+        """List available files for a specific channel and scale"""
+        try:
+            dir_path = f"{channel}/scale{scale}"
+            files = await self.artifact_manager.list_files(ARTIFACT_ALIAS, dir_path=dir_path)
+            return files
+        except Exception as e:
+            print(f"Error listing files: {str(e)}")
+            return []
 
     async def get_tile_bytes(self, channel_name: str, z: int, x: int, y: int):
         """Serve a tile as bytes"""
