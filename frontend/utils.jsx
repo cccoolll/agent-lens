@@ -100,7 +100,6 @@ export const login = async () => {
   const serverUrl = getServerUrl();
   let token = localStorage.getItem("token");
   if (token && !isTokenExpired(token)) {
-    console.log("Using saved token:", token);
     return token;
   }
   token = await hyphaWebsocketClient.login({
