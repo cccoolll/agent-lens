@@ -19,7 +19,7 @@ export const makeMap = (mapRef, extent) => {
   const tileGrid = new TileGrid({
     extent: customExtent,
     resolutions: resolutions,
-    tileSize: 2048,
+    tileSize: 256,
   });
 
   // Create the map view with the center at the middle of the image
@@ -45,7 +45,7 @@ export const getTileGrid = () =>
   new TileGrid({
     extent: [0, 0, imageWidth, imageHeight],
     resolutions: resolutions,
-    tileSize: 2048,
+    tileSize: 256,
   });
 
 export const addMapMask = (map, setVectorLayer) => {

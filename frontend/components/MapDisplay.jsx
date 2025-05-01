@@ -209,7 +209,7 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
       source: new XYZ({
         url: createTileUrl('{z}', '{x}', '{y}'),
         crossOrigin: 'anonymous',
-        tileSize: 2048,
+        tileSize: 256, // Update to match Zarr chunk size
         maxZoom: 4,
         tileGrid: getTileGrid(),
         tileLoadFunction: function(tile, src) {
@@ -264,7 +264,7 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
       source: new XYZ({
         url: createTileUrl('{z}', '{x}', '{y}'),
         crossOrigin: 'anonymous',
-        tileSize: 2048,
+        tileSize: 256, // Update to match Zarr chunk size
         maxZoom: 4,
         tileGrid: getTileGrid(),
         tileLoadFunction: function(tile, src) {
@@ -303,9 +303,9 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
     // Get processing settings as URL params
     const processingParams = getProcessingSettingsParams();
     
-    // Create a URL with processing settings parameters
+    // Create a URL with processing settings parameters - now include default dataset_id and timestamp
     const createTileUrl = (z, x, y) => {
-      const baseUrl = `merged-tiles?channels=${channelKeysStr}&z=${z}&x=${x}&y=${y}`;
+      const baseUrl = `merged-tiles?dataset_id=${mapDatasetId || 'agent-lens/image-map-20250429-treatment'}&timepoint=2025-04-29_16-38-27&channels=${channelKeysStr}&z=${z}&x=${x}&y=${y}`;
       const params = new URLSearchParams(processingParams).toString();
       return params ? `${baseUrl}&${params}` : baseUrl;
     };
@@ -314,7 +314,7 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
       source: new XYZ({
         url: createTileUrl('{z}', '{x}', '{y}'),
         crossOrigin: 'anonymous',
-        tileSize: 2048,
+        tileSize: 256, // Update to match Zarr chunk size
         maxZoom: 4,
         tileGrid: getTileGrid(),
         tileLoadFunction: function(tile, src) {
@@ -360,9 +360,9 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
     // Get processing settings as URL params
     const processingParams = getProcessingSettingsParams();
     
-    // Create a URL with processing settings parameters
+    // Create a URL with processing settings parameters - now include default dataset_id and timestamp
     const createTileUrl = (z, x, y) => {
-      const baseUrl = `tile?channel_name=${channelName}&z=${z}&x=${x}&y=${y}`;
+      const baseUrl = `tile?dataset_id=${mapDatasetId || 'agent-lens/image-map-20250429-treatment'}&timestamp=2025-04-29_16-38-27&channel_name=${channelName}&z=${z}&x=${x}&y=${y}`;
       const params = new URLSearchParams(processingParams).toString();
       return params ? `${baseUrl}&${params}` : baseUrl;
     };
@@ -371,7 +371,7 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
       source: new XYZ({
         url: createTileUrl('{z}', '{x}', '{y}'),
         crossOrigin: 'anonymous',
-        tileSize: 2048,
+        tileSize: 256, // Update to match Zarr chunk size
         maxZoom: 4,
         tileGrid: getTileGrid(),
         tileLoadFunction: function(tile, src) {
