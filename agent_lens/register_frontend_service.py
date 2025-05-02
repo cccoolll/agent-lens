@@ -16,6 +16,7 @@ import numpy as np
 from PIL import Image
 # Import scikit-image for more professional bioimage processing
 from skimage import exposure, util, color
+import sys
 
 # Fixed the ARTIFACT_ALIAS to prevent duplication of 'agent-lens'
 ARTIFACT_ALIAS = "agent-lens/image-map-20250429-treatment"  # Removed duplicate prefix
@@ -120,47 +121,70 @@ def get_frontend_api():
                     channel_key = key
                     break
             
-            # If channel key is found, apply processing
+            # If channel key is found and we have custom settings, apply processing
             if channel_key and tile_data is not None and len(tile_data.shape) == 2:
-                # Get channel-specific settings with defaults
-                contrast = float(contrast_dict.get(channel_key, 0.03))  # Default CLAHE clip limit
-                brightness = float(brightness_dict.get(channel_key, 1.0))  # Default brightness multiplier
+                # Check if any non-default settings are provided
+                has_custom_settings = False
                 
-                # Threshold settings (percentiles by default)
-                threshold_min = float(threshold_dict.get(channel_key, {}).get("min", 2))
-                threshold_max = float(threshold_dict.get(channel_key, {}).get("max", 98))
+                if channel_key in contrast_dict and contrast_dict[channel_key] != 0.03:
+                    has_custom_settings = True
+                if channel_key in brightness_dict and brightness_dict[channel_key] != 1.0:
+                    has_custom_settings = True
+                if channel_key in threshold_dict:
+                    has_custom_settings = True
+                if channel_key in color_dict and channel_key != '0':
+                    has_custom_settings = True
                 
-                # Apply thresholds using custom percentiles
-                p_min, p_max = np.percentile(tile_data, (threshold_min, threshold_max))
-                enhanced = exposure.rescale_intensity(tile_data, in_range=(p_min, p_max))
-                
-                # Apply contrast adjustment
-                enhanced = exposure.equalize_adapthist(enhanced, clip_limit=contrast)
-                
-                # Apply brightness adjustment
-                enhanced = util.img_as_float(enhanced)
-                enhanced = np.clip(enhanced * brightness, 0, 1)
-                
-                # Convert back to uint8
-                enhanced = util.img_as_ubyte(enhanced)
-                
-                # If a color is specified (for fluorescence channels)
-                if channel_key != '0' and channel_key in color_dict:
-                    color = tuple(color_dict[channel_key])
-                    
-                    # Create an RGB image
-                    rgb_image = np.zeros((tile_manager.tile_size, tile_manager.tile_size, 3), dtype=np.uint8)
-                    
-                    # Apply the color to each channel
-                    rgb_image[..., 0] = enhanced * (color[0] / 255.0)  # R
-                    rgb_image[..., 1] = enhanced * (color[1] / 255.0)  # G
-                    rgb_image[..., 2] = enhanced * (color[2] / 255.0)  # B
-                    
-                    # Convert to PIL image
-                    pil_image = Image.fromarray(rgb_image)
+                # If using default settings, return original image without normalization
+                if not has_custom_settings:
+                    # For grayscale, just use the original image
+                    pil_image = Image.fromarray(tile_data)
                 else:
-                    # For grayscale, just use the enhanced image
-                    pil_image = Image.fromarray(enhanced)
+                    # Get channel-specific settings with defaults
+                    contrast = float(contrast_dict.get(channel_key, 0.03))  # Default CLAHE clip limit
+                    brightness = float(brightness_dict.get(channel_key, 1.0))  # Default brightness multiplier
+                    
+                    # Apply brightness adjustment to original data first (simple scaling)
+                    # This preserves original image characteristics
+                    adjusted = tile_data.astype(np.float32) * brightness
+                    adjusted = np.clip(adjusted, 0, 255).astype(np.uint8)
+                    
+                    # Apply contrast enhancement only if specifically requested
+                    if contrast != 0.03:  # If not default
+                        # Threshold settings (percentiles by default)
+                        threshold_min = float(threshold_dict.get(channel_key, {}).get("min", 2))
+                        threshold_max = float(threshold_dict.get(channel_key, {}).get("max", 98))
+                        
+                        # Apply thresholds using custom percentiles, but only if thresholds are set
+                        if channel_key in threshold_dict:
+                            p_min, p_max = np.percentile(adjusted, (threshold_min, threshold_max))
+                            enhanced = exposure.rescale_intensity(adjusted, in_range=(p_min, p_max))
+                        else:
+                            enhanced = adjusted
+                        
+                        # Apply contrast adjustment using CLAHE
+                        enhanced = exposure.equalize_adapthist(enhanced, clip_limit=contrast)
+                        enhanced = util.img_as_ubyte(enhanced)
+                    else:
+                        enhanced = adjusted
+                    
+                    # If a color is specified for fluorescence channels
+                    if channel_key != '0' and channel_key in color_dict:
+                        color = tuple(color_dict[channel_key])
+                        
+                        # Create an RGB image
+                        rgb_image = np.zeros((tile_manager.tile_size, tile_manager.tile_size, 3), dtype=np.uint8)
+                        
+                        # Apply the color to each channel - using the enhanced image
+                        rgb_image[..., 0] = enhanced * (color[0] / 255.0)  # R
+                        rgb_image[..., 1] = enhanced * (color[1] / 255.0)  # G
+                        rgb_image[..., 2] = enhanced * (color[2] / 255.0)  # B
+                        
+                        # Convert to PIL image
+                        pil_image = Image.fromarray(rgb_image)
+                    else:
+                        # For grayscale, just use the enhanced image
+                        pil_image = Image.fromarray(enhanced)
             else:
                 # If no processing applied, convert directly to PIL image
                 pil_image = Image.fromarray(tile_data)
@@ -244,6 +268,20 @@ def get_frontend_api():
             threshold_dict = {}
             color_dict = {}
         
+        # Check if any custom settings are provided
+        has_custom_settings = False
+        for channel_key in channel_keys:
+            channel_key_str = str(channel_key)
+            if channel_key_str in contrast_dict and contrast_dict[channel_key_str] != 0.03:
+                has_custom_settings = True
+            if channel_key_str in brightness_dict and brightness_dict[channel_key_str] != 1.0:
+                has_custom_settings = True
+            if channel_key_str in threshold_dict:
+                has_custom_settings = True
+            # Color is expected for fluorescence channels, so only consider it non-default if changed
+            if channel_key != 0 and channel_key_str in color_dict and tuple(color_dict[channel_key_str]) != default_channel_colors.get(channel_key):
+                has_custom_settings = True
+        
         # Channel names mapping
         channel_names = {
             0: 'BF_LED_matrix_full',
@@ -274,84 +312,135 @@ def get_frontend_api():
                 blank_tile = np.zeros((tile_manager.tile_size, tile_manager.tile_size), dtype=np.uint8)
                 channel_tiles.append((blank_tile, channel_key))
         
-        # Create an RGB image to merge the channels using scikit-image processing
+        # Create an RGB image to merge the channels
         merged_image = np.zeros((tile_manager.tile_size, tile_manager.tile_size, 3), dtype=np.float32)
         
         # Check if brightfield channel is included
         has_brightfield = 0 in [ch_key for _, ch_key in channel_tiles]
         
-        for tile_data, channel_key in channel_tiles:
-            # Apply image processing based on settings for this channel
-            channel_key_str = str(channel_key)
+        # If using default settings and has brightfield, start with that
+        if not has_custom_settings and has_brightfield:
+            # Find the brightfield data
+            for tile_data, channel_key in channel_tiles:
+                if channel_key == 0:
+                    # Create RGB by copying the original grayscale data to all channels
+                    bf_data = tile_data.astype(np.float32) / 255.0  # Normalize to 0-1
+                    merged_image = np.stack([bf_data, bf_data, bf_data], axis=2)
             
-            # Get channel-specific settings with defaults
-            contrast = float(contrast_dict.get(channel_key_str, 0.03))  # Default CLAHE clip limit
-            brightness = float(brightness_dict.get(channel_key_str, 1.0))  # Default brightness multiplier
-            
-            # Threshold settings (percentiles by default)
-            threshold_min = float(threshold_dict.get(channel_key_str, {}).get("min", 2))
-            threshold_max = float(threshold_dict.get(channel_key_str, {}).get("max", 98))
-            
-            # Color settings (RGB tuple)
-            if channel_key_str in color_dict:
-                color = tuple(color_dict[channel_key_str])
-            else:
-                color = default_channel_colors.get(channel_key)
-            
-            if channel_key == 0:  # Brightfield
-                # For brightfield, apply contrast stretching and use as base layer
-                if len(tile_data.shape) == 2:
-                    # Apply contrast enhancement via adaptive histogram equalization with custom clip limit
-                    bf_enhanced = exposure.equalize_adapthist(tile_data, clip_limit=contrast)
-                    
-                    # Apply brightness adjustment
-                    bf_enhanced = np.clip(bf_enhanced * brightness, 0, 1)
-                    
-                    # Create RGB by copying the enhanced grayscale data to all channels
-                    bf_rgb = np.stack([bf_enhanced, bf_enhanced, bf_enhanced], axis=2)
-                    merged_image = bf_rgb.copy()
-            else:
-                # For fluorescence channels, apply color overlay with enhanced contrast
-                if color and len(tile_data.shape) == 2:
-                    # Apply thresholds using custom percentiles
-                    p_min, p_max = np.percentile(tile_data, (threshold_min, threshold_max))
-                    fluorescence_enhanced = exposure.rescale_intensity(tile_data, in_range=(p_min, p_max))
-                    
-                    # Apply additional contrast adjustment if specified
-                    if contrast != 0.03:  # If not default
-                        fluorescence_enhanced = exposure.equalize_adapthist(
-                            fluorescence_enhanced, 
-                            clip_limit=contrast
-                        )
-                    
-                    # Normalize to 0-1 range
-                    normalized = util.img_as_float(fluorescence_enhanced)
-                    
-                    # Apply brightness adjustment
-                    normalized = np.clip(normalized * brightness, 0, 1)
-                    
-                    # Create color overlay
-                    colored_channel = np.zeros_like(merged_image)
-                    colored_channel[..., 0] = normalized * (color[0] / 255.0)  # R
-                    colored_channel[..., 1] = normalized * (color[1] / 255.0)  # G
-                    colored_channel[..., 2] = normalized * (color[2] / 255.0)  # B
-                    
-                    # Add to the merged image using maximum projection for best visibility
-                    if has_brightfield:
-                        # For brightfield background, use screen blending mode for better visibility
-                        # Screen blend: 1 - (1-a)*(1-b)
+            # Add original fluorescence channels with default colors
+            for tile_data, channel_key in channel_tiles:
+                if channel_key != 0:  # Skip brightfield
+                    color = default_channel_colors.get(channel_key)
+                    if color:
+                        # Normalize the data
+                        normalized = tile_data.astype(np.float32) / 255.0
+                        
+                        # Create color overlay
+                        colored_channel = np.zeros_like(merged_image)
+                        colored_channel[..., 0] = normalized * (color[0] / 255.0)  # R
+                        colored_channel[..., 1] = normalized * (color[1] / 255.0)  # G
+                        colored_channel[..., 2] = normalized * (color[2] / 255.0)  # B
+                        
+                        # Screen blend mode for better visibility
                         merged_image = 1.0 - (1.0 - merged_image) * (1.0 - colored_channel)
-                    else:
-                        # For fluorescence only, use max projection
-                        merged_image = np.maximum(merged_image, colored_channel)
-        
-        # Apply final dynamic range compression for better overall contrast
-        if np.max(merged_image) > 0:  # Avoid division by zero
-            # Convert to 8-bit for display
+            
+            # Convert back to 8-bit for display
             merged_image = util.img_as_ubyte(merged_image)
         else:
-            # Create blank image if all channels were empty
-            merged_image = np.zeros((tile_manager.tile_size, tile_manager.tile_size, 3), dtype=np.uint8)
+            # Apply custom settings to each channel
+            for tile_data, channel_key in channel_tiles:
+                # Apply image processing based on settings for this channel
+                channel_key_str = str(channel_key)
+                
+                # Get channel-specific settings with defaults
+                contrast = float(contrast_dict.get(channel_key_str, 0.03))  # Default CLAHE clip limit
+                brightness = float(brightness_dict.get(channel_key_str, 1.0))  # Default brightness multiplier
+                
+                # Apply brightness adjustment first (to original values)
+                adjusted = tile_data.astype(np.float32) * brightness
+                adjusted = np.clip(adjusted, 0, 255).astype(np.uint8)
+                
+                # Threshold settings (percentiles by default)
+                threshold_min = float(threshold_dict.get(channel_key_str, {}).get("min", 2))
+                threshold_max = float(threshold_dict.get(channel_key_str, {}).get("max", 98))
+                
+                # Color settings (RGB tuple)
+                if channel_key_str in color_dict:
+                    color = tuple(color_dict[channel_key_str])
+                else:
+                    color = default_channel_colors.get(channel_key)
+                
+                if channel_key == 0:  # Brightfield
+                    # For brightfield, apply contrast stretching and use as base layer
+                    if len(tile_data.shape) == 2:
+                        # Apply contrast enhancement only if requested
+                        if contrast != 0.03:
+                            # If custom thresholds provided
+                            if channel_key_str in threshold_dict:
+                                p_min, p_max = np.percentile(adjusted, (threshold_min, threshold_max))
+                                enhanced = exposure.rescale_intensity(adjusted, in_range=(p_min, p_max))
+                            else:
+                                enhanced = adjusted
+                            
+                            # Apply CLAHE
+                            bf_enhanced = exposure.equalize_adapthist(enhanced, clip_limit=contrast)
+                        else:
+                            # Just normalize to 0-1 for the RGB merge
+                            bf_enhanced = adjusted.astype(np.float32) / 255.0
+                        
+                        # Create RGB by copying the enhanced grayscale data to all channels
+                        if contrast != 0.03:
+                            # Convert to 0-1 if CLAHE was applied
+                            bf_enhanced = util.img_as_float(bf_enhanced)
+                        
+                        # Create an RGB version
+                        bf_rgb = np.stack([bf_enhanced, bf_enhanced, bf_enhanced], axis=2)
+                        merged_image = bf_rgb.copy()
+                else:
+                    # For fluorescence channels, apply color overlay with enhanced contrast
+                    if color and len(tile_data.shape) == 2:
+                        # Apply contrast enhancement only if requested
+                        if contrast != 0.03:
+                            # Apply thresholds using custom percentiles if provided
+                            if channel_key_str in threshold_dict:
+                                p_min, p_max = np.percentile(adjusted, (threshold_min, threshold_max))
+                                fluorescence_enhanced = exposure.rescale_intensity(adjusted, in_range=(p_min, p_max))
+                            else:
+                                fluorescence_enhanced = adjusted
+                            
+                            # Apply CLAHE
+                            fluorescence_enhanced = exposure.equalize_adapthist(
+                                fluorescence_enhanced, 
+                                clip_limit=contrast
+                            )
+                            # Normalize to 0-1 range
+                            normalized = util.img_as_float(fluorescence_enhanced)
+                        else:
+                            # Just normalize to 0-1 for coloring
+                            normalized = adjusted.astype(np.float32) / 255.0
+                        
+                        # Create color overlay
+                        colored_channel = np.zeros_like(merged_image)
+                        colored_channel[..., 0] = normalized * (color[0] / 255.0)  # R
+                        colored_channel[..., 1] = normalized * (color[1] / 255.0)  # G
+                        colored_channel[..., 2] = normalized * (color[2] / 255.0)  # B
+                        
+                        # Add to the merged image using maximum projection for best visibility
+                        if has_brightfield:
+                            # For brightfield background, use screen blending mode for better visibility
+                            # Screen blend: 1 - (1-a)*(1-b)
+                            merged_image = 1.0 - (1.0 - merged_image) * (1.0 - colored_channel)
+                        else:
+                            # For fluorescence only, use max projection
+                            merged_image = np.maximum(merged_image, colored_channel)
+        
+            # Apply final dynamic range compression for better overall contrast
+            if np.max(merged_image) > 0:  # Avoid division by zero
+                # Convert to 8-bit for display
+                merged_image = util.img_as_ubyte(merged_image)
+            else:
+                # Create blank image if all channels were empty
+                merged_image = np.zeros((tile_manager.tile_size, tile_manager.tile_size, 3), dtype=np.uint8)
         
         # Convert to PIL image and return as base64
         pil_image = Image.fromarray(merged_image)
@@ -613,7 +702,7 @@ def get_frontend_api():
 
         Args:
             dataset_id (str): The ID of the image map dataset.
-            timepoint (str): The timepoint folder name (e.g., "2025-04-10_13-50-7").
+            timepoint (str): The timepoint folder name (e.g., "2025-04-29_16-38-27").
             channel_name (str): The channel name.
             z (int): The zoom level.
             x (int): The x coordinate.
@@ -660,47 +749,70 @@ def get_frontend_api():
                     channel_key = key
                     break
             
-            # If channel key is found, apply processing
+            # If channel key is found, check if custom settings are applied
             if channel_key and tile_data is not None and len(tile_data.shape) == 2:
-                # Get channel-specific settings with defaults
-                contrast = float(contrast_dict.get(channel_key, 0.03))  # Default CLAHE clip limit
-                brightness = float(brightness_dict.get(channel_key, 1.0))  # Default brightness multiplier
+                # Check if any non-default settings are provided
+                has_custom_settings = False
                 
-                # Threshold settings (percentiles by default)
-                threshold_min = float(threshold_dict.get(channel_key, {}).get("min", 2))
-                threshold_max = float(threshold_dict.get(channel_key, {}).get("max", 98))
+                if channel_key in contrast_dict and contrast_dict[channel_key] != 0.03:
+                    has_custom_settings = True
+                if channel_key in brightness_dict and brightness_dict[channel_key] != 1.0:
+                    has_custom_settings = True
+                if channel_key in threshold_dict:
+                    has_custom_settings = True
+                if channel_key in color_dict and channel_key != '0':
+                    has_custom_settings = True
                 
-                # Apply thresholds using custom percentiles
-                p_min, p_max = np.percentile(tile_data, (threshold_min, threshold_max))
-                enhanced = exposure.rescale_intensity(tile_data, in_range=(p_min, p_max))
-                
-                # Apply contrast adjustment
-                enhanced = exposure.equalize_adapthist(enhanced, clip_limit=contrast)
-                
-                # Apply brightness adjustment
-                enhanced = util.img_as_float(enhanced)
-                enhanced = np.clip(enhanced * brightness, 0, 1)
-                
-                # Convert back to uint8
-                enhanced = util.img_as_ubyte(enhanced)
-                
-                # If a color is specified (for fluorescence channels)
-                if channel_key != '0' and channel_key in color_dict:
-                    color = tuple(color_dict[channel_key])
-                    
-                    # Create an RGB image
-                    rgb_image = np.zeros((tile_manager.tile_size, tile_manager.tile_size, 3), dtype=np.uint8)
-                    
-                    # Apply the color to each channel
-                    rgb_image[..., 0] = enhanced * (color[0] / 255.0)  # R
-                    rgb_image[..., 1] = enhanced * (color[1] / 255.0)  # G
-                    rgb_image[..., 2] = enhanced * (color[2] / 255.0)  # B
-                    
-                    # Convert to PIL image
-                    pil_image = Image.fromarray(rgb_image)
+                # If using default settings, return original image without normalization
+                if not has_custom_settings:
+                    # For grayscale, just use the original image
+                    pil_image = Image.fromarray(tile_data)
                 else:
-                    # For grayscale, just use the enhanced image
-                    pil_image = Image.fromarray(enhanced)
+                    # Get channel-specific settings with defaults
+                    contrast = float(contrast_dict.get(channel_key, 0.03))  # Default CLAHE clip limit
+                    brightness = float(brightness_dict.get(channel_key, 1.0))  # Default brightness multiplier
+                    
+                    # Apply brightness adjustment to original data first (simple scaling)
+                    # This preserves original image characteristics
+                    adjusted = tile_data.astype(np.float32) * brightness
+                    adjusted = np.clip(adjusted, 0, 255).astype(np.uint8)
+                    
+                    # Apply contrast enhancement only if specifically requested
+                    if contrast != 0.03:  # If not default
+                        # Threshold settings (percentiles by default)
+                        threshold_min = float(threshold_dict.get(channel_key, {}).get("min", 2))
+                        threshold_max = float(threshold_dict.get(channel_key, {}).get("max", 98))
+                        
+                        # Apply thresholds using custom percentiles, but only if thresholds are set
+                        if channel_key in threshold_dict:
+                            p_min, p_max = np.percentile(adjusted, (threshold_min, threshold_max))
+                            enhanced = exposure.rescale_intensity(adjusted, in_range=(p_min, p_max))
+                        else:
+                            enhanced = adjusted
+                        
+                        # Apply contrast adjustment using CLAHE
+                        enhanced = exposure.equalize_adapthist(enhanced, clip_limit=contrast)
+                        enhanced = util.img_as_ubyte(enhanced)
+                    else:
+                        enhanced = adjusted
+                    
+                    # If a color is specified for fluorescence channels
+                    if channel_key != '0' and channel_key in color_dict:
+                        color = tuple(color_dict[channel_key])
+                        
+                        # Create an RGB image
+                        rgb_image = np.zeros((tile_manager.tile_size, tile_manager.tile_size, 3), dtype=np.uint8)
+                        
+                        # Apply the color to each channel - using the enhanced image
+                        rgb_image[..., 0] = enhanced * (color[0] / 255.0)  # R
+                        rgb_image[..., 1] = enhanced * (color[1] / 255.0)  # G
+                        rgb_image[..., 2] = enhanced * (color[2] / 255.0)  # B
+                        
+                        # Convert to PIL image
+                        pil_image = Image.fromarray(rgb_image)
+                    else:
+                        # For grayscale, just use the enhanced image
+                        pil_image = Image.fromarray(enhanced)
             else:
                 # If no processing applied, convert directly to PIL image
                 pil_image = Image.fromarray(tile_data)
@@ -725,6 +837,91 @@ def get_frontend_api():
     return serve_fastapi
 
 
+async def register_service_probes(server, server_id="agent-lens"):
+    """
+    Register readiness and liveness probes for Kubernetes health checks.
+    
+    Args:
+        server (Server): The server instance.
+        server_id (str): The ID of the service.
+    """
+    # Check if we're running locally
+    is_local = SERVER_URL.startswith("http://localhost") or "127.0.0.1" in SERVER_URL or server_id.endswith("-local")
+    
+    # When running locally, we need to connect to remote server for probes
+    if is_local:
+        print(f"Running in local mode, connecting to remote server for probes")
+        try:
+            # Create a separate connection to the remote server for probe registration
+            remote_token = os.environ.get("WORKSPACE_TOKEN") or WORKSPACE_TOKEN
+            if not remote_token:
+                print("Warning: No workspace token available for remote probe registration")
+                return
+                
+            remote_server = await connect_to_server({
+                "name": "agent-lens-probe-client",
+                "server_url": "https://hypha.aicell.io",
+                "token": remote_token,
+                "workspace": "agent-lens",
+            })
+            
+            # Use the remote_server for probe registration
+            await _register_probes(remote_server, server_id)
+        except Exception as e:
+            print(f"Failed to register probes on remote server: {e}")
+            import traceback
+            print(traceback.format_exc())
+    else:
+        # Normal operation - register probes on the same server
+        await _register_probes(server, server_id)
+
+async def _register_probes(server, server_id):
+    """
+    Internal function to register probes on a given server.
+    
+    Args:
+        server (Server): The server to register probes on.
+        server_id (str): The ID of the service.
+    """
+    async def is_service_healthy():
+        try:
+            # Check artifact manager connection
+            if artifact_manager_instance.server is None:
+                api_server, artifact_manager = await get_artifact_manager()
+                await artifact_manager_instance.connect_server(api_server)
+                print("Connected to artifact manager for health check")
+            
+            # Test artifact manager functionality by listing a gallery
+            # Using a known gallery ID from the application
+            gallery_id = "reef-imaging/u2os-fucci-drug-treatment"
+            datasets = await artifact_manager_instance._svc.list(parent_id=gallery_id)
+            
+            if datasets is None:
+                raise RuntimeError(f"Failed to list datasets from gallery {gallery_id}")
+            
+            # Check if we got any datasets back (should be a list, even if empty)
+            if not isinstance(datasets, list):
+                raise RuntimeError(f"Unexpected response format from artifact manager: {type(datasets)}")
+            
+            # Also check ZarrTileManager connection status
+            if not tile_manager.artifact_manager or not tile_manager.artifact_manager_server:
+                raise RuntimeError("ZarrTileManager is not properly connected")
+            
+            print("All services are healthy")
+            return {"status": "ok", "message": "All services are healthy"}
+        except Exception as e:
+            print(f"Health check failed: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+            raise RuntimeError(f"Service health check failed: {str(e)}")
+    
+    print(f"Registering health probes for Kubernetes with service ID: {server_id}")
+    await server.register_probes({
+        f"readiness-{server_id}": is_service_healthy,
+        f"liveness-{server_id}": is_service_healthy
+    })
+    print("Health probes registered successfully")
+
 async def setup_service(server, server_id="agent-lens"):
     """
     Set up the frontend service.
@@ -732,6 +929,14 @@ async def setup_service(server, server_id="agent-lens"):
     Args:
         server (Server): The server instance.
     """
+    # Check if we're running locally
+    is_local = "--port" in " ".join(sys.argv) or "start-server" in " ".join(sys.argv)
+    
+    # If running locally, modify the service ID
+    if is_local:
+        server_id = f"{server_id}-local"
+        print(f"Running in local mode, using service ID: {server_id}")
+    
     # Ensure tile_manager is connected with the server (with proper token and so on)
     connection_success = await tile_manager.connect(workspace_token=WORKSPACE_TOKEN, server_url=SERVER_URL)
     if not connection_success:
@@ -761,7 +966,10 @@ async def setup_service(server, server_id="agent-lens"):
         }
     )
 
-    print("Frontend service registered successfully.")
+    print(f"Frontend service registered successfully with ID: {server_id}")
+
+    # Register service health probes
+    await register_service_probes(server, server_id)
 
     # Store the cleanup function in the server's config
     server.config["cleanup"] = tile_manager.close
