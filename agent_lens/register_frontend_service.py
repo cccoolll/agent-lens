@@ -472,7 +472,7 @@ def get_frontend_api():
             _, artifact_manager_instance._svc = await get_artifact_manager()
         try:
             # Use the list method to get children of the specified artifact_id
-            datasets = await artifact_manager_instance._svc.list(parent_id="reef-imaging/u2os-fucci-drug-treatment")
+            datasets = await artifact_manager_instance._svc.list(parent_id="agent-lens/image-map-u2os-fucci-drug-treatment")
             # Format the response to match the expected keys in the frontend
             formatted_datasets = []
             for dataset in datasets:
@@ -591,44 +591,38 @@ def get_frontend_api():
             return JSONResponse(content={"error": str(e)}, status_code=404)
 
     @app.get("/setup-image-map")
-    async def setup_image_map(dataset_name: str):
+    async def setup_image_map(dataset_id: str):
         """
         Endpoint to setup the image map access for a specific dataset.
-        Checks if the corresponding dataset exists in the image-map gallery.
+        The dataset is already an image map dataset, so we just need to verify it exists.
 
         Args:
-            dataset_name (str): The name of the current dataset (e.g., "20250410-treatment").
+            dataset_id (str): The ID of the dataset to use as an image map.
 
         Returns:
             dict: A dictionary containing success status and message.
         """
-        print(f"Setting up image map for dataset: {dataset_name}")
+        print(f"Setting up image map for dataset: {dataset_id}")
         # Ensure the artifact manager is connected
         if artifact_manager_instance.server is None:
             _, artifact_manager_instance._svc = await get_artifact_manager()
         
         try:
-            # Target gallery for image maps
-            gallery_id = "reef-imaging/image-map-of-u2os-fucci-drug-treatment"
-            # Expected dataset name pattern
-            image_map_dataset = f"reef-imaging/image-map-{dataset_name}"
-            
-            # Check if the specific dataset exists in the gallery
+            # Check if the dataset exists
             try:
-                # List all datasets in the gallery
-                datasets = await artifact_manager_instance._svc.list(parent_id=gallery_id)
-                dataset_exists = any(dataset.get("id") == image_map_dataset for dataset in datasets)
+                # List files to verify the dataset exists and is accessible
+                files = await artifact_manager_instance._svc.list_files(dataset_id)
                 
-                if dataset_exists:
-                    print(f"Image map dataset found: {image_map_dataset}")
+                if files is not None:
+                    print(f"Image map dataset found: {dataset_id}")
                     return {
                         "success": True, 
-                        "message": f"Image map setup successful for {dataset_name}",
-                        "dataset_id": image_map_dataset
+                        "message": f"Image map setup successful for {dataset_id}",
+                        "dataset_id": dataset_id
                     }
                 else:
-                    print(f"Image map dataset not found: {image_map_dataset}")
-                    return {"success": False, "message": f"Image map dataset not found: {image_map_dataset}"}
+                    print(f"Image map dataset not found: {dataset_id}")
+                    return {"success": False, "message": f"Image map dataset not found: {dataset_id}"}
             except Exception as e:
                 print(f"Error checking dataset: {e}")
                 return {"success": False, "message": f"Error checking image map dataset: {str(e)}"}

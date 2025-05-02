@@ -30,8 +30,8 @@ const Sidebar = ({ activeTab, onTabChange }) => {
           className={`sidebar-tab ${activeTab === 'data-management' ? 'active' : ''}`}
           onClick={() => onTabChange('data-management')}
         >
-          <i className="fas fa-database"></i>
-          <span>Data Management</span>
+          <i className="fas fa-map"></i>
+          <span>Image Maps</span>
         </button>
         <button 
           className={`sidebar-tab ${activeTab === 'dashboard' ? 'active' : ''}`}

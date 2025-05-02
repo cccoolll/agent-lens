@@ -4,7 +4,7 @@ import PropTypes from 'prop-types';
 const DataManagement = ({ appendLog }) => {
   const [datasets, setDatasets] = useState([]);
   const [subfolders, setSubfolders] = useState([]);
-  const [selectedDataset, setSelectedDataset] = useState('reef-imaging/20250328-treatment-out-of-incubator');
+  const [selectedDataset, setSelectedDataset] = useState('');
   const [currentPath, setCurrentPath] = useState('');
   const [breadcrumbs, setBreadcrumbs] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -12,7 +12,7 @@ const DataManagement = ({ appendLog }) => {
   const [offset, setOffset] = useState(0);
   const [limit, setLimit] = useState(20);
   const [totalItems, setTotalItems] = useState(0);
-  const [showDevMessage, setShowDevMessage] = useState(false);
+  const [showMessage, setShowMessage] = useState(false);
   const [mapSetupStatus, setMapSetupStatus] = useState({ isSetup: false, message: '', isError: false });
   const [isSettingUpMap, setIsSettingUpMap] = useState(false);
 
@@ -25,9 +25,9 @@ const DataManagement = ({ appendLog }) => {
         }
         const datasets = await response.json();
         setDatasets(datasets);
-        appendLog('Datasets fetched successfully.');
+        appendLog('Image map datasets fetched successfully.');
       } catch (error) {
-        appendLog(`Failed to fetch datasets: ${error.message}`);
+        appendLog(`Failed to fetch image map datasets: ${error.message}`);
       }
     };
 
@@ -36,6 +36,8 @@ const DataManagement = ({ appendLog }) => {
 
   useEffect(() => {
     const fetchSubfolders = async () => {
+      if (!selectedDataset) return;
+      
       try {
         const pathParam = currentPath ? `&dir_path=${currentPath}` : '';
         const paginationParams = `&offset=${offset}&limit=${limit}`;
@@ -188,22 +190,19 @@ const DataManagement = ({ appendLog }) => {
 
   // Function to handle the map view button click
   const handleMapViewClick = async () => {
-    if (isSettingUpMap) return;
+    if (isSettingUpMap || !selectedDataset) return;
     
     setIsSettingUpMap(true);
     appendLog('Setting up Map View for dataset: ' + selectedDataset);
     
     try {
-      // Extract the dataset name from the full dataset ID (e.g., 'reef-imaging/20250410-treatment')
-      const datasetName = selectedDataset.split('/').pop();
-      
       // Call the backend endpoint to setup the image map
-      const response = await fetch(`/public/apps/agent-lens/setup-image-map?dataset_name=${datasetName}`);
+      const response = await fetch(`/public/apps/agent-lens/setup-image-map?dataset_id=${selectedDataset}`);
       const data = await response.json();
       
       if (data.success) {
         // Store the successful setup in local storage so other components can access it
-        localStorage.setItem('imageMapDataset', data.dataset_id);
+        localStorage.setItem('imageMapDataset', selectedDataset);
         // Also store in session storage to track this was explicitly set in this session
         sessionStorage.setItem('mapSetupExplicit', 'true');
         
@@ -231,52 +230,56 @@ const DataManagement = ({ appendLog }) => {
     } finally {
       setIsSettingUpMap(false);
       // Show the status message
-      setShowDevMessage(true);
+      setShowMessage(true);
       // Auto-hide the message after 5 seconds
       setTimeout(() => {
-        setShowDevMessage(false);
+        setShowMessage(false);
       }, 5000);
     }
   };
 
   return (
     <div className="data-management-view">
-      <h3 className="text-xl font-medium mb-4">Data Management</h3>
+      <h3 className="text-xl font-medium mb-4">Image Map Browser</h3>
       <div className="grid grid-cols-1 gap-4">
         <div className="border rounded p-4">
           <div className="flex justify-between items-center mb-2">
-            <h4 className="text-lg font-medium">Datasets</h4>
+            <h4 className="text-lg font-medium">Available Image Maps</h4>
             <button 
-              className={`bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center ${isSettingUpMap ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm flex items-center ${isSettingUpMap || !selectedDataset ? 'opacity-50 cursor-not-allowed' : ''}`}
               onClick={handleMapViewClick}
-              disabled={isSettingUpMap}
+              disabled={isSettingUpMap || !selectedDataset}
             >
               {isSettingUpMap ? (
                 <>
-                  <i className="fas fa-spinner fa-spin mr-1"></i> Setting Up Map...
+                  <i className="fas fa-spinner fa-spin mr-1"></i> Setting Up...
                 </>
               ) : (
                 <>
-                  <i className="fas fa-map mr-1"></i> Map View
+                  <i className="fas fa-map mr-1"></i> View in Map
                 </>
               )}
             </button>
           </div>
           <ul className="cursor-pointer">
-            {datasets.map((dataset, index) => (
-              <li 
-                key={index} 
-                className={`py-1 hover:bg-gray-100 ${selectedDataset === dataset.id ? 'bg-blue-100 font-medium' : ''}`}
-                onClick={() => handleDatasetClick(dataset.id)}
-              >
-                {dataset.name}
-              </li>
-            ))}
+            {datasets.length > 0 ? (
+              datasets.map((dataset, index) => (
+                <li 
+                  key={index} 
+                  className={`py-1 hover:bg-gray-100 ${selectedDataset === dataset.id ? 'bg-blue-100 font-medium' : ''}`}
+                  onClick={() => handleDatasetClick(dataset.id)}
+                >
+                  {dataset.name}
+                </li>
+              ))
+            ) : (
+              <li className="py-1 text-gray-500">No image maps available</li>
+            )}
           </ul>
         </div>
         
-        {/* Development message toast */}
-        {showDevMessage && (
+        {/* Status message toast */}
+        {showMessage && (
           <div className={`fixed top-4 right-4 ${mapSetupStatus.isError ? 'bg-red-100 border-l-4 border-red-500 text-red-700' : 'bg-green-100 border-l-4 border-green-500 text-green-700'} p-4 rounded shadow-md z-50 animate-fade-in-out`}>
             <div className="flex">
               <div className="py-1">
@@ -284,113 +287,115 @@ const DataManagement = ({ appendLog }) => {
               </div>
               <div>
                 <p className="font-bold">{mapSetupStatus.isError ? 'Setup Failed' : 'Setup Successful'}</p>
-                <p>{mapSetupStatus.message || 'The Map View feature is currently being developed. Please check back later!'}</p>
+                <p>{mapSetupStatus.message}</p>
               </div>
             </div>
           </div>
         )}
         
-        <div className="border rounded p-4">
-          <h4 className="text-lg font-medium mb-2">
-            Contents of {selectedDataset && `${selectedDataset.split('/').pop()}`}
-          </h4>
-          
-          {/* Breadcrumb navigation */}
-          <div className="flex items-center mb-3 text-sm">
-            <span 
-              className="text-blue-500 hover:underline cursor-pointer" 
-              onClick={() => navigateToBreadcrumb(-1)}
-            >
-              Root
-            </span>
-            {breadcrumbs.map((crumb, index) => (
-              <React.Fragment key={index}>
-                <span className="mx-1">/</span>
-                <span 
-                  className="text-blue-500 hover:underline cursor-pointer"
-                  onClick={() => navigateToBreadcrumb(index)}
-                >
-                  {crumb.name}
-                </span>
-              </React.Fragment>
-            ))}
-          </div>
-          
-          {/* Pagination controls */}
-          <div className="flex items-center justify-between mb-3 text-sm bg-gray-50 p-2 rounded">
-            <div className="flex items-center space-x-2">
-              <button 
-                onClick={handlePrevPage} 
-                disabled={offset === 0}
-                className={`px-2 py-1 border rounded ${offset === 0 ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-50'}`}
+        {selectedDataset && (
+          <div className="border rounded p-4">
+            <h4 className="text-lg font-medium mb-2">
+              Contents of {selectedDataset && `${selectedDataset.split('/').pop()}`}
+            </h4>
+            
+            {/* Breadcrumb navigation */}
+            <div className="flex items-center mb-3 text-sm">
+              <span 
+                className="text-blue-500 hover:underline cursor-pointer" 
+                onClick={() => navigateToBreadcrumb(-1)}
               >
-                Previous
-              </button>
-              <span>
-                Showing {offset + 1} - {Math.min(offset + limit, totalItems)} of {formatTotalCount(totalItems)}
+                Root
               </span>
-              <button 
-                onClick={handleNextPage}
-                disabled={offset + limit >= totalItems}
-                className={`px-2 py-1 border rounded ${offset + limit >= totalItems ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-50'}`}
-              >
-                Next
-              </button>
-            </div>
-            <div className="flex items-center space-x-2">
-              <label htmlFor="limit">Items per page:</label>
-              <input
-                id="limit"
-                type="number"
-                min="1"
-                value={limit}
-                onChange={handleLimitChange}
-                className="border rounded w-16 px-2 py-1"
-              />
-            </div>
-          </div>
-          
-          {subfolders.length > 0 ? (
-            <ul>
-              {subfolders.map((item, index) => (
-                <li 
-                  key={index} 
-                  className={`py-1 cursor-pointer hover:bg-gray-100 ${
-                    item.type === 'directory' && currentPath.split('/').pop() === item.name 
-                      ? 'bg-blue-50 border-l-4 border-blue-500 pl-1' 
-                      : ''
-                  }`}
-                  onClick={() => item.type === 'directory' 
-                    ? handleFolderClick(item.name) 
-                    : handleFileClick(item)
-                  }
-                >
-                  {item.type === 'directory' ? (
-                    <>
-                      <i className={`fas fa-folder mr-2 ${
-                        currentPath.split('/').pop() === item.name 
-                          ? 'text-blue-500' 
-                          : 'text-yellow-500'
-                      }`}></i>
-                      {item.name}
-                      {currentPath.split('/').pop() === item.name && 
-                        <span className="ml-2 text-xs text-blue-500">(current)</span>
-                      }
-                    </>
-                  ) : (
-                    <>
-                      <i className="fas fa-file mr-2 text-gray-500"></i>
-                      {item.name} 
-                      {item.size && <span className="text-xs text-gray-500 ml-2">({formatFileSize(item.size)})</span>}
-                    </>
-                  )}
-                </li>
+              {breadcrumbs.map((crumb, index) => (
+                <React.Fragment key={index}>
+                  <span className="mx-1">/</span>
+                  <span 
+                    className="text-blue-500 hover:underline cursor-pointer"
+                    onClick={() => navigateToBreadcrumb(index)}
+                  >
+                    {crumb.name}
+                  </span>
+                </React.Fragment>
               ))}
-            </ul>
-          ) : (
-            <p className="text-gray-500">No items found</p>
-          )}
-        </div>
+            </div>
+            
+            {/* Pagination controls */}
+            <div className="flex items-center justify-between mb-3 text-sm bg-gray-50 p-2 rounded">
+              <div className="flex items-center space-x-2">
+                <button 
+                  onClick={handlePrevPage} 
+                  disabled={offset === 0}
+                  className={`px-2 py-1 border rounded ${offset === 0 ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-50'}`}
+                >
+                  Previous
+                </button>
+                <span>
+                  Showing {offset + 1} - {Math.min(offset + limit, totalItems)} of {formatTotalCount(totalItems)}
+                </span>
+                <button 
+                  onClick={handleNextPage}
+                  disabled={offset + limit >= totalItems}
+                  className={`px-2 py-1 border rounded ${offset + limit >= totalItems ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-50'}`}
+                >
+                  Next
+                </button>
+              </div>
+              <div className="flex items-center space-x-2">
+                <label htmlFor="limit">Items per page:</label>
+                <input
+                  id="limit"
+                  type="number"
+                  min="1"
+                  value={limit}
+                  onChange={handleLimitChange}
+                  className="border rounded w-16 px-2 py-1"
+                />
+              </div>
+            </div>
+            
+            {subfolders.length > 0 ? (
+              <ul>
+                {subfolders.map((item, index) => (
+                  <li 
+                    key={index} 
+                    className={`py-1 cursor-pointer hover:bg-gray-100 ${
+                      item.type === 'directory' && currentPath.split('/').pop() === item.name 
+                        ? 'bg-blue-50 border-l-4 border-blue-500 pl-1' 
+                        : ''
+                    }`}
+                    onClick={() => item.type === 'directory' 
+                      ? handleFolderClick(item.name) 
+                      : handleFileClick(item)
+                    }
+                  >
+                    {item.type === 'directory' ? (
+                      <>
+                        <i className={`fas fa-folder mr-2 ${
+                          currentPath.split('/').pop() === item.name 
+                            ? 'text-blue-500' 
+                            : 'text-yellow-500'
+                        }`}></i>
+                        {item.name}
+                        {currentPath.split('/').pop() === item.name && 
+                          <span className="ml-2 text-xs text-blue-500">(current)</span>
+                        }
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-file mr-2 text-gray-500"></i>
+                        {item.name} 
+                        {item.size && <span className="text-xs text-gray-500 ml-2">({formatFileSize(item.size)})</span>}
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-gray-500">No items found</p>
+            )}
+          </div>
+        )}
         
         {/* File Details Modal */}
         {selectedFile && (
