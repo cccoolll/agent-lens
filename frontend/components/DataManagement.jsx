@@ -15,9 +15,12 @@ const DataManagement = ({ appendLog }) => {
   const [showMessage, setShowMessage] = useState(false);
   const [mapSetupStatus, setMapSetupStatus] = useState({ isSetup: false, message: '', isError: false });
   const [isSettingUpMap, setIsSettingUpMap] = useState(false);
+  const [isLoadingDatasets, setIsLoadingDatasets] = useState(true);
+  const [isLoadingSubfolders, setIsLoadingSubfolders] = useState(false);
 
   useEffect(() => {
     const fetchDatasets = async () => {
+      setIsLoadingDatasets(true);
       try {
         const response = await fetch('/public/apps/agent-lens/datasets');
         if (!response.ok) {
@@ -28,6 +31,8 @@ const DataManagement = ({ appendLog }) => {
         appendLog('Image map datasets fetched successfully.');
       } catch (error) {
         appendLog(`Failed to fetch image map datasets: ${error.message}`);
+      } finally {
+        setIsLoadingDatasets(false);
       }
     };
 
@@ -38,6 +43,7 @@ const DataManagement = ({ appendLog }) => {
     const fetchSubfolders = async () => {
       if (!selectedDataset) return;
       
+      setIsLoadingSubfolders(true);
       try {
         const pathParam = currentPath ? `&dir_path=${currentPath}` : '';
         const paginationParams = `&offset=${offset}&limit=${limit}`;
@@ -51,6 +57,8 @@ const DataManagement = ({ appendLog }) => {
         appendLog(`Fetched ${data.items?.length} of ${data.total} items (offset: ${offset}, limit: ${limit})`);
       } catch (error) {
         appendLog(`Failed to fetch subfolders: ${error.message}`);
+      } finally {
+        setIsLoadingSubfolders(false);
       }
     };
 
@@ -261,21 +269,29 @@ const DataManagement = ({ appendLog }) => {
               )}
             </button>
           </div>
-          <ul className="cursor-pointer">
-            {datasets.length > 0 ? (
-              datasets.map((dataset, index) => (
-                <li 
-                  key={index} 
-                  className={`py-1 hover:bg-gray-100 ${selectedDataset === dataset.id ? 'bg-blue-100 font-medium' : ''}`}
-                  onClick={() => handleDatasetClick(dataset.id)}
-                >
-                  {dataset.name}
-                </li>
-              ))
-            ) : (
-              <li className="py-1 text-gray-500">No image maps available</li>
-            )}
-          </ul>
+          
+          {isLoadingDatasets ? (
+            <div className="py-4 text-center">
+              <i className="fas fa-spinner fa-spin mr-2"></i>
+              <span>Loading image maps...</span>
+            </div>
+          ) : (
+            <ul className="cursor-pointer">
+              {datasets.length > 0 ? (
+                datasets.map((dataset, index) => (
+                  <li 
+                    key={index} 
+                    className={`py-1 hover:bg-gray-100 ${selectedDataset === dataset.id ? 'bg-blue-100 font-medium' : ''}`}
+                    onClick={() => handleDatasetClick(dataset.id)}
+                  >
+                    {dataset.name}
+                  </li>
+                ))
+              ) : (
+                <li className="py-1 text-gray-500">No image maps available</li>
+              )}
+            </ul>
+          )}
         </div>
         
         {/* Status message toast */}
@@ -354,45 +370,52 @@ const DataManagement = ({ appendLog }) => {
               </div>
             </div>
             
-            {subfolders.length > 0 ? (
-              <ul>
-                {subfolders.map((item, index) => (
-                  <li 
-                    key={index} 
-                    className={`py-1 cursor-pointer hover:bg-gray-100 ${
-                      item.type === 'directory' && currentPath.split('/').pop() === item.name 
-                        ? 'bg-blue-50 border-l-4 border-blue-500 pl-1' 
-                        : ''
-                    }`}
-                    onClick={() => item.type === 'directory' 
-                      ? handleFolderClick(item.name) 
-                      : handleFileClick(item)
-                    }
-                  >
-                    {item.type === 'directory' ? (
-                      <>
-                        <i className={`fas fa-folder mr-2 ${
-                          currentPath.split('/').pop() === item.name 
-                            ? 'text-blue-500' 
-                            : 'text-yellow-500'
-                        }`}></i>
-                        {item.name}
-                        {currentPath.split('/').pop() === item.name && 
-                          <span className="ml-2 text-xs text-blue-500">(current)</span>
-                        }
-                      </>
-                    ) : (
-                      <>
-                        <i className="fas fa-file mr-2 text-gray-500"></i>
-                        {item.name} 
-                        {item.size && <span className="text-xs text-gray-500 ml-2">({formatFileSize(item.size)})</span>}
-                      </>
-                    )}
-                  </li>
-                ))}
-              </ul>
+            {isLoadingSubfolders ? (
+              <div className="py-4 text-center">
+                <i className="fas fa-spinner fa-spin mr-2"></i>
+                <span>Loading folder contents...</span>
+              </div>
             ) : (
-              <p className="text-gray-500">No items found</p>
+              subfolders.length > 0 ? (
+                <ul>
+                  {subfolders.map((item, index) => (
+                    <li 
+                      key={index} 
+                      className={`py-1 cursor-pointer hover:bg-gray-100 ${
+                        item.type === 'directory' && currentPath.split('/').pop() === item.name 
+                          ? 'bg-blue-50 border-l-4 border-blue-500 pl-1' 
+                          : ''
+                      }`}
+                      onClick={() => item.type === 'directory' 
+                        ? handleFolderClick(item.name) 
+                        : handleFileClick(item)
+                      }
+                    >
+                      {item.type === 'directory' ? (
+                        <>
+                          <i className={`fas fa-folder mr-2 ${
+                            currentPath.split('/').pop() === item.name 
+                              ? 'text-blue-500' 
+                              : 'text-yellow-500'
+                          }`}></i>
+                          {item.name}
+                          {currentPath.split('/').pop() === item.name && 
+                            <span className="ml-2 text-xs text-blue-500">(current)</span>
+                          }
+                        </>
+                      ) : (
+                        <>
+                          <i className="fas fa-file mr-2 text-gray-500"></i>
+                          {item.name} 
+                          {item.size && <span className="text-xs text-gray-500 ml-2">({formatFileSize(item.size)})</span>}
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-gray-500">No items found</p>
+              )
             )}
           </div>
         )}
