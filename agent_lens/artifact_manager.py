@@ -366,7 +366,7 @@ class ZarrTileManager:
         self.zarr_groups_cache = {}  # Cache for open Zarr groups
         self.is_running = True
         self.session = None
-        self.default_timestamp = "2025-04-29_16-38-27"  # Set a default timestamp
+        self.default_timestamp = "2025-04-29_15-38-36"  # Set a default timestamp
 
     async def connect(self, workspace_token=None, server_url="https://hypha.aicell.io"):
         """Connect to the Artifact Manager service"""

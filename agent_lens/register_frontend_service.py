@@ -63,7 +63,7 @@ def get_frontend_api():
         x: int = 0, 
         y: int = 0,
         dataset_id: str = ARTIFACT_ALIAS,
-        timestamp: str = "2025-04-29_16-38-27",  # Default timestamp folder
+        timestamp: str = "2025-04-29_15-38-36",  # Default timestamp folder
         # New parameters for image processing settings
         contrast_settings: str = None,
         brightness_settings: str = None,
@@ -80,7 +80,7 @@ def get_frontend_api():
             x (int): X coordinate
             y (int): Y coordinate
             dataset_id (str): The dataset ID (defaults to global ARTIFACT_ALIAS)
-            timestamp (str): The timestamp folder name (defaults to "2025-04-29_16-38-27")
+            timestamp (str): The timestamp folder name (defaults to "2025-04-29_15-38-36")
             contrast_settings (str, optional): JSON string with contrast settings
             brightness_settings (str, optional): JSON string with brightness settings
             threshold_settings (str, optional): JSON string with min/max threshold settings
@@ -209,7 +209,7 @@ def get_frontend_api():
         x: int = 0, 
         y: int = 0, 
         dataset_id: str = ARTIFACT_ALIAS, 
-        timepoint: str = "2025-04-29_16-38-27",
+        timepoint: str = "2025-04-29_15-38-36",
         # New parameters for image processing settings
         contrast_settings: str = None,
         brightness_settings: str = None,
@@ -696,7 +696,7 @@ def get_frontend_api():
 
         Args:
             dataset_id (str): The ID of the image map dataset.
-            timepoint (str): The timepoint folder name (e.g., "2025-04-29_16-38-27").
+            timepoint (str): The timepoint folder name (e.g., "2025-04-29_15-38-36").
             channel_name (str): The channel name.
             z (int): The zoom level.
             x (int): The x coordinate.

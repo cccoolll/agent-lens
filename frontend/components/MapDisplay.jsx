@@ -305,7 +305,7 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
     
     // Create a URL with processing settings parameters - now include default dataset_id and timestamp
     const createTileUrl = (z, x, y) => {
-      const baseUrl = `merged-tiles?dataset_id=${mapDatasetId || 'agent-lens/image-map-20250429-treatment'}&timepoint=2025-04-29_16-38-27&channels=${channelKeysStr}&z=${z}&x=${x}&y=${y}`;
+      const baseUrl = `merged-tiles?dataset_id=${mapDatasetId || 'agent-lens/image-map-20250429-treatment'}&timepoint=2025-04-29_15-38-36&channels=${channelKeysStr}&z=${z}&x=${x}&y=${y}`;
       const params = new URLSearchParams(processingParams).toString();
       return params ? `${baseUrl}&${params}` : baseUrl;
     };
@@ -362,7 +362,7 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
     
     // Create a URL with processing settings parameters - now include default dataset_id and timestamp
     const createTileUrl = (z, x, y) => {
-      const baseUrl = `tile?dataset_id=${mapDatasetId || 'agent-lens/image-map-20250429-treatment'}&timestamp=2025-04-29_16-38-27&channel_name=${channelName}&z=${z}&x=${x}&y=${y}`;
+      const baseUrl = `tile?dataset_id=${mapDatasetId || 'agent-lens/image-map-20250429-treatment'}&timestamp=2025-04-29_15-38-36&channel_name=${channelName}&z=${z}&x=${x}&y=${y}`;
       const params = new URLSearchParams(processingParams).toString();
       return params ? `${baseUrl}&${params}` : baseUrl;
     };
