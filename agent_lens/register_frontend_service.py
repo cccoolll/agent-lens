@@ -846,11 +846,15 @@ async def register_service_probes(server, server_id="agent-lens"):
         server_id (str): The ID of the service.
     """
     # Check if we're running locally
-    is_local = SERVER_URL.startswith("http://localhost") or "127.0.0.1" in SERVER_URL or server_id.endswith("-local")
+    is_local = "--port" in " ".join(sys.argv) or "start-server" in " ".join(sys.argv)
     
     # When running locally, we need to connect to remote server for probes
+    # We only modify probe IDs, not the service ID itself
+    probe_id_suffix = "-local" if is_local else ""
+    probe_service_id = f"{server_id}{probe_id_suffix}"
+    
     if is_local:
-        print(f"Running in local mode, connecting to remote server for probes")
+        print(f"Running in local mode, connecting to remote server for probes with ID: {probe_service_id}")
         try:
             # Create a separate connection to the remote server for probe registration
             remote_token = os.environ.get("WORKSPACE_TOKEN") or WORKSPACE_TOKEN
@@ -865,23 +869,23 @@ async def register_service_probes(server, server_id="agent-lens"):
                 "workspace": "agent-lens",
             })
             
-            # Use the remote_server for probe registration
-            await _register_probes(remote_server, server_id)
+            # Use the remote_server for probe registration with the local suffix
+            await _register_probes(remote_server, probe_service_id)
         except Exception as e:
             print(f"Failed to register probes on remote server: {e}")
             import traceback
             print(traceback.format_exc())
     else:
         # Normal operation - register probes on the same server
-        await _register_probes(server, server_id)
+        await _register_probes(server, probe_service_id)
 
-async def _register_probes(server, server_id):
+async def _register_probes(server, probe_service_id):
     """
     Internal function to register probes on a given server.
     
     Args:
         server (Server): The server to register probes on.
-        server_id (str): The ID of the service.
+        probe_service_id (str): The ID to use for probe registrations.
     """
     async def is_service_healthy():
         try:
@@ -915,10 +919,10 @@ async def _register_probes(server, server_id):
             print(traceback.format_exc())
             raise RuntimeError(f"Service health check failed: {str(e)}")
     
-    print(f"Registering health probes for Kubernetes with service ID: {server_id}")
+    print(f"Registering health probes for Kubernetes with ID: {probe_service_id}")
     await server.register_probes({
-        f"readiness-{server_id}": is_service_healthy,
-        f"liveness-{server_id}": is_service_healthy
+        f"readiness-{probe_service_id}": is_service_healthy,
+        f"liveness-{probe_service_id}": is_service_healthy
     })
     print("Health probes registered successfully")
 
@@ -929,13 +933,8 @@ async def setup_service(server, server_id="agent-lens"):
     Args:
         server (Server): The server instance.
     """
-    # Check if we're running locally
-    is_local = "--port" in " ".join(sys.argv) or "start-server" in " ".join(sys.argv)
-    
-    # If running locally, modify the service ID
-    if is_local:
-        server_id = f"{server_id}-local"
-        print(f"Running in local mode, using service ID: {server_id}")
+    # Always use "agent-lens" as the service ID for consistency with frontend
+    # DO NOT modify server_id here to keep frontend compatibility
     
     # Ensure tile_manager is connected with the server (with proper token and so on)
     connection_success = await tile_manager.connect(workspace_token=WORKSPACE_TOKEN, server_url=SERVER_URL)
