@@ -294,7 +294,7 @@ class AgentLensArtifactManager:
 
         Args:
             workspace (str): The workspace containing the artifact.
-            artifact_alias (str): The alias of the artifact (e.g., 'image-map-20250429-treatment').
+            artifact_alias (str): The alias of the artifact (e.g., 'image-map-20250429-treatment-zip').
             timestamp (str): The timestamp folder name.
             channel (str): The channel name (used for the zip filename).
             cache_max_size (int, optional): Max size for LRU cache in bytes. Defaults to 2**28.
@@ -346,7 +346,7 @@ class AgentLensArtifactManager:
 # Constants
 SERVER_URL = "https://hypha.aicell.io"
 WORKSPACE_TOKEN = os.environ.get("WORKSPACE_TOKEN")
-ARTIFACT_ALIAS = "microscopy-tiles-complete"
+ARTIFACT_ALIAS = "image-map-20250429-treatment-zip"
 DEFAULT_CHANNEL = "BF_LED_matrix_full"
 
 # New class to replace TileManager using Zarr for efficient access
@@ -366,7 +366,7 @@ class ZarrTileManager:
         self.zarr_groups_cache = {}  # Cache for open Zarr groups
         self.is_running = True
         self.session = None
-        self.default_timestamp = "2025-04-29_15-38-36"  # Set a default timestamp
+        self.default_timestamp = "2025-04-29_16-38-27"  # Set a default timestamp
 
     async def connect(self, workspace_token=None, server_url="https://hypha.aicell.io"):
         """Connect to the Artifact Manager service"""
@@ -422,15 +422,8 @@ class ZarrTileManager:
             return self.zarr_groups_cache[cache_key]
         
         try:
-            # Parse the dataset_id to get workspace and artifact_alias
-            parts = dataset_id.split('/')
-            if len(parts) != 2:
-                raise ValueError(f"Invalid dataset_id format: {dataset_id}")
-            
-            workspace, artifact_alias = parts
-            
-            # Fix: Don't use _artifact_id which adds 'agent-lens-' prefix again
-            # Just use the original dataset_id directly since it already contains the full path
+            # We no longer need to parse the dataset_id into workspace and artifact_alias
+            # Just use the dataset_id directly since it's already the full path
             print(f"Accessing artifact at: {dataset_id}/{timestamp}/{channel}.zip")
             
             # Get the direct download URL for the zip file

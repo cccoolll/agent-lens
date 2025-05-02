@@ -1,0 +1,110 @@
+digraph ZarrTileWorkflow {
+    // Graph settings
+    rankdir=TB;
+    node [shape=box, style=filled, fillcolor=lightblue, fontsize=10, margin="0.2,0.1"];
+    edge [fontsize=9];
+    
+    // Frontend components
+    subgraph cluster_frontend {
+        label="Frontend (MapDisplay.jsx)";
+        style=filled;
+        color=lightgrey;
+        
+        user [label="User Interaction", fillcolor=lightyellow];
+        map_component [label="OpenLayers Map Component"];
+        channel_selection [label="Channel Selection/Merge"];
+        image_processing [label="Image Processing Settings\n(contrast, brightness, threshold)"];
+        request_tile [label="Request Tile\n(dataset_id, timepoint, channel, z, x, y)"];
+        render_tile [label="Render Base64 Image"];
+        
+        user -> channel_selection;
+        user -> image_processing;
+        channel_selection -> request_tile;
+        image_processing -> request_tile;
+        request_tile -> render_tile;
+        render_tile -> map_component;
+    }
+    
+    // Backend FastAPI endpoints
+    subgraph cluster_fastapi {
+        label="FastAPI Endpoints (register_frontend_service.py)";
+        style=filled;
+        color=lightgrey;
+        
+        tile_endpoint [label="/tile Endpoint"];
+        merged_tiles_endpoint [label="/merged-tiles Endpoint"];
+        timepoint_endpoint [label="/tile-for-timepoint Endpoint"];
+        process_image [label="Process Tile Data\n(Apply contrast, brightness, etc.)"];
+        encode_image [label="Convert to PNG & Base64 Encode"];
+        
+        tile_endpoint -> process_image;
+        merged_tiles_endpoint -> process_image;
+        timepoint_endpoint -> process_image;
+        process_image -> encode_image;
+    }
+    
+    // ZarrTileManager
+    subgraph cluster_zarr_manager {
+        label="ZarrTileManager (artifact_manager.py)";
+        style=filled;
+        color=lightgrey;
+        
+        get_tile_bytes [label="get_tile_bytes()"];
+        get_tile_np_data [label="get_tile_np_data()"];
+        get_zarr_group [label="get_zarr_group()"];
+        zarr_cache [label="Zarr Group Cache"];
+        
+        get_tile_bytes -> get_tile_np_data;
+        get_tile_np_data -> get_zarr_group;
+        get_zarr_group -> zarr_cache [label="Check cache first"];
+    }
+    
+    // Artifact Manager
+    subgraph cluster_artifact_manager {
+        label="ArtifactManager";
+        style=filled;
+        color=lightgrey;
+        
+        get_file [label="get_file()\nGet pre-signed download URL"];
+    }
+    
+    // Zarr Storage
+    subgraph cluster_zarr_storage {
+        label="Zarr Storage";
+        style=filled;
+        color=lightgrey;
+        
+        fsstore [label="FSStore\n(zip::download_url)"];
+        lru_cache [label="LRUStoreCache\n(Cache zarr chunks)"];
+        zarr_group [label="zarr.group()"];
+        zarr_array [label="scale{z}[y:y+tile_size, x:x+tile_size]"];
+        
+        fsstore -> lru_cache;
+        lru_cache -> zarr_group;
+        zarr_group -> zarr_array;
+    }
+    
+    // Connect the clusters
+    request_tile -> tile_endpoint [lhead=cluster_fastapi];
+    encode_image -> render_tile;
+    
+    tile_endpoint -> get_tile_np_data;
+    merged_tiles_endpoint -> get_tile_np_data;
+    timepoint_endpoint -> get_tile_np_data;
+    
+    get_zarr_group -> get_file;
+    get_file -> fsstore [label="Use URL to access zip file"];
+    
+    // Key data flow explanation
+    data_flow1 [shape=note, fillcolor=lightyellow, label="1. Frontend requests tile with\ndataset_id, timepoint, channel, z, x, y"];
+    data_flow2 [shape=note, fillcolor=lightyellow, label="2. Endpoint constructs appropriate URL\nand processes image settings"];
+    data_flow3 [shape=note, fillcolor=lightyellow, label="3. ZarrTileManager retrieves\nchunk data from Zarr in zip"];
+    data_flow4 [shape=note, fillcolor=lightyellow, label="4. Zarr access steps:\n- Get download URL for zip\n- Open zip via fsspec\n- Access specific chunk\n- Apply LRU caching for performance"];
+    data_flow5 [shape=note, fillcolor=lightyellow, label="5. Data is processed and\nreturned as Base64 PNG"];
+    
+    data_flow1 -> request_tile [style=invis];
+    data_flow2 -> tile_endpoint [style=invis];
+    data_flow3 -> get_tile_np_data [style=invis];
+    data_flow4 -> fsstore [style=invis];
+    data_flow5 -> encode_image [style=invis];
+} 

@@ -19,7 +19,7 @@ from skimage import exposure, util, color
 import sys
 
 # Fixed the ARTIFACT_ALIAS to prevent duplication of 'agent-lens'
-ARTIFACT_ALIAS = "agent-lens/image-map-20250429-treatment"  # Removed duplicate prefix
+ARTIFACT_ALIAS = "agent-lens/image-map-20250429-treatment-zip"  # Removed duplicate prefix
 DEFAULT_CHANNEL = "BF_LED_matrix_full"
 # Create a global ZarrTileManager instance
 tile_manager = ZarrTileManager()
@@ -63,7 +63,7 @@ def get_frontend_api():
         x: int = 0, 
         y: int = 0,
         dataset_id: str = ARTIFACT_ALIAS,
-        timestamp: str = "2025-04-29_15-38-36",  # Default timestamp folder
+        timestamp: str = "2025-04-29_16-38-27",  # Default timestamp folder
         # New parameters for image processing settings
         contrast_settings: str = None,
         brightness_settings: str = None,
@@ -80,7 +80,7 @@ def get_frontend_api():
             x (int): X coordinate
             y (int): Y coordinate
             dataset_id (str): The dataset ID (defaults to global ARTIFACT_ALIAS)
-            timestamp (str): The timestamp folder name (defaults to "2025-04-29_15-38-36")
+            timestamp (str): The timestamp folder name (defaults to "2025-04-29_16-38-27")
             contrast_settings (str, optional): JSON string with contrast settings
             brightness_settings (str, optional): JSON string with brightness settings
             threshold_settings (str, optional): JSON string with min/max threshold settings
@@ -209,7 +209,7 @@ def get_frontend_api():
         x: int = 0, 
         y: int = 0, 
         dataset_id: str = ARTIFACT_ALIAS, 
-        timepoint: str = "2025-04-29_15-38-36",
+        timepoint: str = "2025-04-29_16-38-27",
         # New parameters for image processing settings
         contrast_settings: str = None,
         brightness_settings: str = None,
@@ -472,15 +472,25 @@ def get_frontend_api():
             _, artifact_manager_instance._svc = await get_artifact_manager()
         try:
             # Use the list method to get children of the specified artifact_id
-            datasets = await artifact_manager_instance._svc.list(parent_id="agent-lens/image-map-u2os-fucci-drug-treatment")
+            gallery_id = "agent-lens/image-map-of-u2os-fucci-drug-treatment-zip"
+            print(f"Fetching datasets from gallery: {gallery_id}")
+            datasets = await artifact_manager_instance._svc.list(parent_id=gallery_id)
+            
+            # Log the response for debugging
+            print(f"Gallery response received, datasets found: {len(datasets) if datasets else 0}")
+            
             # Format the response to match the expected keys in the frontend
             formatted_datasets = []
             for dataset in datasets:
                 name = dataset.get("manifest", {}).get("name", dataset.get("alias", "Unknown"))
-                formatted_datasets.append({"id": dataset.get("id"), "name": name})
+                dataset_id = dataset.get("id")
+                print(f"Dataset found: {name} ({dataset_id})")
+                formatted_datasets.append({"id": dataset_id, "name": name})
             return formatted_datasets
         except Exception as e:
             print(f"Error fetching datasets: {e}")
+            import traceback
+            print(traceback.format_exc())
             return []
 
     @app.get("/subfolders")
@@ -611,20 +621,31 @@ def get_frontend_api():
             # Check if the dataset exists
             try:
                 # List files to verify the dataset exists and is accessible
+                print(f"Verifying dataset access: {dataset_id}")
                 files = await artifact_manager_instance._svc.list_files(dataset_id)
                 
                 if files is not None:
-                    print(f"Image map dataset found: {dataset_id}")
+                    print(f"Image map dataset found: {dataset_id} with {len(files)} files")
+                    # Also check for timestamp folders which should exist in the dataset
+                    timepoints = [file for file in files if file.get('type') == 'directory']
+                    if timepoints:
+                        print(f"Found {len(timepoints)} timepoints in dataset: {[tp.get('name') for tp in timepoints]}")
+                    else:
+                        print(f"Warning: No timepoints (directories) found in dataset: {dataset_id}")
+                    
                     return {
                         "success": True, 
                         "message": f"Image map setup successful for {dataset_id}",
-                        "dataset_id": dataset_id
+                        "dataset_id": dataset_id,
+                        "timepoints": len(timepoints) if timepoints else 0
                     }
                 else:
                     print(f"Image map dataset not found: {dataset_id}")
                     return {"success": False, "message": f"Image map dataset not found: {dataset_id}"}
             except Exception as e:
                 print(f"Error checking dataset: {e}")
+                import traceback
+                print(traceback.format_exc())
                 return {"success": False, "message": f"Error checking image map dataset: {str(e)}"}
         except Exception as e:
             print(f"Error setting up image map: {e}")
@@ -696,7 +717,7 @@ def get_frontend_api():
 
         Args:
             dataset_id (str): The ID of the image map dataset.
-            timepoint (str): The timepoint folder name (e.g., "2025-04-29_15-38-36").
+            timepoint (str): The timepoint folder name (e.g., "2025-04-29_16-38-27").
             channel_name (str): The channel name.
             z (int): The zoom level.
             x (int): The x coordinate.

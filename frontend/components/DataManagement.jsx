@@ -22,14 +22,19 @@ const DataManagement = ({ appendLog }) => {
     const fetchDatasets = async () => {
       setIsLoadingDatasets(true);
       try {
+        console.log('Fetching image map datasets...');
         const response = await fetch('/public/apps/agent-lens/datasets');
         if (!response.ok) {
-          throw new Error('Failed to fetch datasets');
+          const errorText = await response.text();
+          console.error(`Failed to fetch datasets: ${response.status} ${response.statusText}`, errorText);
+          throw new Error(`Failed to fetch datasets: ${response.status} ${response.statusText}`);
         }
         const datasets = await response.json();
+        console.log(`Received ${datasets.length} datasets from the server`);
         setDatasets(datasets);
-        appendLog('Image map datasets fetched successfully.');
+        appendLog(`Loaded ${datasets.length} image map datasets.`);
       } catch (error) {
+        console.error('Error fetching datasets:', error);
         appendLog(`Failed to fetch image map datasets: ${error.message}`);
       } finally {
         setIsLoadingDatasets(false);
