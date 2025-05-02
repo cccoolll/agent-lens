@@ -28,7 +28,7 @@ tile_manager = ZarrTileManager()
 artifact_manager_instance = AgentLensArtifactManager()
 
 SERVER_URL = "https://hypha.aicell.io"
-WORKSPACE_TOKEN = os.getenv("REEF_WORKSPACE_TOKEN")
+WORKSPACE_TOKEN = os.getenv("WORKSPACE_TOKEN")
 
 async def get_artifact_manager():
     """Get a new connection to the artifact manager."""
@@ -891,7 +891,7 @@ async def _register_probes(server, probe_service_id):
             
             # Test artifact manager functionality by listing a gallery
             # Using a known gallery ID from the application
-            gallery_id = "reef-imaging/u2os-fucci-drug-treatment"
+            gallery_id = "agent-lens/microscopy-data"
             datasets = await artifact_manager_instance._svc.list(parent_id=gallery_id)
             
             if datasets is None:
