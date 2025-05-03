@@ -37,8 +37,11 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
   const imageHeight = 2048;
   const extent = [0, 0, imageWidth, imageHeight];
 
+  // Initialize the map when the component mounts
   useEffect(() => {
+    // Initialize map only if it doesn't exist yet
     if (!map && mapRef.current && !effectRan.current) {
+      appendLog("Initializing map for Image Map view");
       const newMap = makeMap(mapRef, extent);
       setMap(newMap);
       setCurrentMap(newMap);
@@ -47,78 +50,41 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
       addMapMask(newMap, setVectorLayer);
       effectRan.current = true;
       
-      // Load the default tile layer initially
-      // We'll replace it with the map view if needed
-      // addTileLayer(newMap, 0); // REMOVED: Don't add default layer here
+      // Check if an image map dataset has been set up in this session
+      const imageMapDataset = localStorage.getItem('imageMapDataset');
+      const wasExplicitlySetup = sessionStorage.getItem('mapSetupExplicit') === 'true';
+      
+      if (imageMapDataset && wasExplicitlySetup) {
+        setMapDatasetId(imageMapDataset);
+        setIsMapViewEnabled(true);
+        setShouldShowMap(true);
+        appendLog(`Image map dataset found: ${imageMapDataset}`);
+        // Load timepoints on demand when needed
+      } else {
+        // Add default tile layer only if map exists
+        addTileLayer(newMap, currentChannel);
+      }
     }
 
+    // Cleanup function
     return () => {
       if (map) {
+        // Only target is set to null when the component unmounts
+        // This prevents memory leaks but doesn't destroy the map
         map.setTarget(null);
         setCurrentMap(null);
       }
     };
   }, [mapRef.current]);
 
-  // Effect to check localStorage and decide initial view
+  // Load timepoints only when we should show the map and user has requested it
   useEffect(() => {
-    // Check if an image map dataset has been set up in this session
-    const imageMapDataset = localStorage.getItem('imageMapDataset');
-    const wasExplicitlySetup = sessionStorage.getItem('mapSetupExplicit') === 'true';
-    
-    if (imageMapDataset && wasExplicitlySetup) {
-      setMapDatasetId(imageMapDataset);
-      setIsMapViewEnabled(true);
-      setShouldShowMap(true); // Set shouldShowMap here
-      appendLog(`Image map dataset found: ${imageMapDataset}`);
-      // Timepoint loading will be triggered by the next effect
-    } else if (map) { // ADDED: Check if map exists before adding default layer
-      //  If not in map view mode, add the default tile layer
-      addTileLayer(map, currentChannel);
-    }
-  }, [map]);
-
-  // Effect to load timepoints when we should show the map
-  useEffect(() => {
-    if (shouldShowMap && mapDatasetId && !timepoints.length) {
+    if (shouldShowMap && mapDatasetId && showTimepointSelector && timepoints.length === 0) {
       loadTimepoints(mapDatasetId);
     }
-  }, [shouldShowMap, mapDatasetId]);
+  }, [shouldShowMap, mapDatasetId, showTimepointSelector]);
 
-  useEffect(() => {
-    if (!map && mapRef.current && !effectRan.current) {
-      const newMap = makeMap(mapRef, extent);
-      setMap(newMap);
-      setCurrentMap(newMap);
-      
-      // Always add map mask regardless
-      addMapMask(newMap, setVectorLayer);
-      effectRan.current = true;
-      
-    }
-
-    return () => {
-      if (map) {
-        map.setTarget(null);
-        setCurrentMap(null);
-      }
-    };
-  }, [mapRef.current]); // Keep dependencies
-
-  // Effect to update the map when timepoints are loaded (This becomes the initial layer load for map view)
-  useEffect(() => {
-    if (map && shouldShowMap && timepoints.length > 0 && !selectedTimepoint) {
-      // When timepoints are loaded and we should show the map, load the first timepoint with current channel/channels
-      // This now correctly adds the *first* layer in map view mode
-      appendLog(`Loading initial timepoint: ${timepoints[0].name}`);
-      if (isMergeMode) {
-        loadTimepointMapMerged(timepoints[0].name, selectedChannels);
-      } else {
-        loadTimepointMap(timepoints[0].name, currentChannel);
-      }
-    }
-  }, [map, shouldShowMap, timepoints, currentChannel, selectedChannels, isMergeMode]);
-
+  // Cleanup for snapshot image URL
   useEffect(() => {
     return () => {
       if (snapshotImage) {
@@ -144,6 +110,8 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
     if (!datasetId) return;
     
     setIsLoadingTimepoints(true);
+    appendLog(`Loading timepoints for dataset ${datasetId}`);
+    
     try {
       const response = await fetch(`/public/apps/agent-lens/list-timepoints?dataset_id=${datasetId}`);
       const data = await response.json();
@@ -151,6 +119,16 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
       if (data.success && data.timepoints.length > 0) {
         setTimepoints(data.timepoints);
         appendLog(`Loaded ${data.timepoints.length} timepoints for dataset ${datasetId}`);
+        
+        // If we have timepoints and none is selected, select the first one
+        if (!selectedTimepoint) {
+          const firstTimepoint = data.timepoints[0].name;
+          if (isMergeMode) {
+            loadTimepointMapMerged(firstTimepoint, selectedChannels);
+          } else {
+            loadTimepointMap(firstTimepoint, currentChannel);
+          }
+        }
       } else {
         appendLog(`No timepoints found for dataset ${datasetId}`);
       }
@@ -307,8 +285,7 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
     const createTileUrl = (z, x, y) => {
       // Use the gallery default dataset ID if mapDatasetId isn't available
       const datasetId = mapDatasetId || 'agent-lens/image-map-20250429-treatment-zip';
-      console.log(`Creating tile URL with dataset_id: ${datasetId} for channel: ${channelName}`);
-      const baseUrl = `tile?dataset_id=${datasetId}&timestamp=2025-04-29_16-38-27&channel_name=${channelName}&z=${z}&x=${x}&y=${y}`;
+      const baseUrl = `merged-tiles?dataset_id=${datasetId}&channels=${channelKeysStr}&z=${z}&x=${x}&y=${y}`;
       const params = new URLSearchParams(processingParams).toString();
       return params ? `${baseUrl}&${params}` : baseUrl;
     };
@@ -353,8 +330,9 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
   
   // Updated to support processing parameters
   const addTileLayer = (map, channelKey) => {
+    if (!map) return;
+    
     const channelName = channelNames[channelKey];
-    console.log(map);
   
     if (imageLayer) {
       map.removeLayer(imageLayer);
@@ -367,7 +345,6 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
     const createTileUrl = (z, x, y) => {
       // Use the gallery default dataset ID if mapDatasetId isn't available
       const datasetId = mapDatasetId || 'agent-lens/image-map-20250429-treatment-zip';
-      console.log(`Creating tile URL with dataset_id: ${datasetId} for channel: ${channelName}`);
       const baseUrl = `tile?dataset_id=${datasetId}&timestamp=2025-04-29_16-38-27&channel_name=${channelName}&z=${z}&x=${x}&y=${y}`;
       const params = new URLSearchParams(processingParams).toString();
       return params ? `${baseUrl}&${params}` : baseUrl;

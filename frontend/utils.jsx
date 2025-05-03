@@ -40,7 +40,7 @@ export const initializeServices = async (
   const microscopeControlService = await tryGetService(
     server,
     "Microscope Control",
-    "squid-control/microscope-control-squid-simulation-k8s",
+    "squid-control/microscope-squid-reef",
     null,
     appendLog
   );

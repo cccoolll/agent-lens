@@ -35,7 +35,7 @@ const MicroscopeControl = () => {
   const [log, setLog] = useState('');
   const [segmentService, setSegmentService] = useState(null);
   const [incubatorControlService, setIncubatorControlService] = useState(null);
-  const [activeTab, setActiveTab] = useState('main');
+  const [activeTab, setActiveTab] = useState('microscope');
   const [currentMap, setCurrentMap] = useState(null);
   const [snapshotImage, setSnapshotImage] = useState(null);
   const [addTileLayer, setAddTileLayer] = useState(null);
@@ -75,9 +75,31 @@ const MicroscopeControl = () => {
       setLog((prevLog) => prevLog + message + '\n');
   };  
 
+  // Handle tab change with cleanup logic for image map
+  const handleTabChange = (tab) => {
+    // If navigating away from the image map tab, clean up resources
+    if (activeTab === 'main' && tab !== 'main' && currentMap) {
+      // Clean up the map resources
+      appendLog("Stopping image map access");
+      
+      // Remove all layers from the map
+      if (currentMap) {
+        const layers = currentMap.getLayers().getArray().slice();
+        layers.forEach(layer => {
+          if (layer && layer !== vectorLayer) {
+            currentMap.removeLayer(layer);
+          }
+        });
+      }
+    }
+    
+    setActiveTab(tab);
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'main':
+        // Only render MapDisplay when the Image Map tab is active
         return (
           <MapDisplay
             appendLog={appendLog}
@@ -137,7 +159,7 @@ const MicroscopeControl = () => {
           <LoginPrompt onLogin={handleLogin} />
         ) : (
           <div className="main-layout">
-            <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+            <Sidebar activeTab={activeTab} onTabChange={handleTabChange} />
             <div className="content-area">
               {renderContent()}
             </div>
