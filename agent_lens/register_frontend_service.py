@@ -93,6 +93,7 @@ def get_frontend_api():
         
         try:
             # Get the raw tile data as numpy array using ZarrTileManager
+            # ZarrTileManager will handle URL expiration internally
             tile_data = await tile_manager.get_tile_np_data(dataset_id, timestamp, channel_name, z, x, y)
             
             # Parse settings from JSON strings if provided
@@ -297,7 +298,7 @@ def get_frontend_api():
             channel_name = channel_names.get(channel_key, DEFAULT_CHANNEL)
             
             try:
-                # Get tile from Zarr store
+                # Get tile from Zarr store - ZarrTileManager will handle URL expiration internally
                 tile_data = await tile_manager.get_tile_np_data(dataset_id, timepoint, channel_name, z, x, y)
                 
                 # Ensure the tile data is properly shaped (check if empty/None)
@@ -735,7 +736,7 @@ def get_frontend_api():
         print(f"Fetching tile for timepoint: {timepoint}, z={z}, x={x}, y={y}")
         
         try:
-            # Get the tile data using ZarrTileManager
+            # Get the tile data using ZarrTileManager - URL expiration handled internally
             tile_data = await tile_manager.get_tile_np_data(dataset_id, timepoint, channel_name, z, x, y)
             
             # Parse settings from JSON strings if provided

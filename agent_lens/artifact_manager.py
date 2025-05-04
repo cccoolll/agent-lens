@@ -21,6 +21,8 @@ from collections import deque
 import zarr
 from zarr.storage import LRUStoreCache, FSStore
 import fsspec
+import time
+import logging
 
 dotenv.load_dotenv()  
 ENV_FILE = dotenv.find_dotenv()  
@@ -363,10 +365,15 @@ class ZarrTileManager:
             "Fluorescence_561_nm_Ex",
             "Fluorescence_638_nm_Ex"
         ]
-        self.zarr_groups_cache = {}  # Cache for open Zarr groups
+        # Enhanced zarr cache to include URL expiration times
+        self.zarr_groups_cache = {}  # format: {cache_key: {'group': zarr_group, 'url': url, 'expiry': timestamp}}
         self.is_running = True
         self.session = None
         self.default_timestamp = "2025-04-29_16-38-27"  # Set a default timestamp
+        # Set URL expiration buffer - refresh URLs 5 minutes before they expire
+        self.url_expiry_buffer = 300  # seconds
+        # Default URL expiration time (1 hour)
+        self.default_url_expiry = 3600  # seconds
 
     async def connect(self, workspace_token=None, server_url="https://hypha.aicell.io"):
         """Connect to the Artifact Manager service"""
@@ -413,13 +420,46 @@ class ZarrTileManager:
             self.artifact_manager_server = None
             self.artifact_manager = None
 
+    def _extract_expiry_from_url(self, url):
+        """Extract expiration time from pre-signed URL"""
+        try:
+            # Try to find X-Amz-Expires parameter
+            if "X-Amz-Expires=" in url:
+                parts = url.split("X-Amz-Expires=")[1].split("&")[0]
+                expires_seconds = int(parts)
+                
+                # Find the date from X-Amz-Date
+                if "X-Amz-Date=" in url:
+                    date_str = url.split("X-Amz-Date=")[1].split("&")[0]
+                    # Date format is typically 'YYYYMMDDTHHMMSSZ'
+                    # This is a simplified approach - in production, properly parse this
+                    # For now, we'll just use current time + expires_seconds
+                    return time.time() + expires_seconds
+            
+            # If we can't extract, use default expiry
+            return time.time() + self.default_url_expiry
+        except Exception as e:
+            print(f"Error extracting URL expiry: {e}")
+            # Default to current time + 1 hour
+            return time.time() + self.default_url_expiry
+
     async def get_zarr_group(self, dataset_id, timestamp, channel):
-        """Get (or reuse from cache) a Zarr group for a specific dataset"""
+        """Get (or reuse from cache) a Zarr group for a specific dataset, with URL expiration handling"""
         cache_key = f"{dataset_id}:{timestamp}:{channel}"
         
+        now = time.time()
+        
+        # Check if we have a cached version and if it's still valid
         if cache_key in self.zarr_groups_cache:
-            print(f"Using cached Zarr group for {cache_key}")
-            return self.zarr_groups_cache[cache_key]
+            cached_data = self.zarr_groups_cache[cache_key]
+            # If URL is close to expiring, refresh it
+            if cached_data['expiry'] - now < self.url_expiry_buffer:
+                print(f"URL for {cache_key} is about to expire, refreshing")
+                # Remove from cache to force refresh
+                del self.zarr_groups_cache[cache_key]
+            else:
+                print(f"Using cached Zarr group for {cache_key}, expires in {int(cached_data['expiry'] - now)} seconds")
+                return cached_data['group']
         
         try:
             # We no longer need to parse the dataset_id into workspace and artifact_alias
@@ -429,6 +469,9 @@ class ZarrTileManager:
             # Get the direct download URL for the zip file
             zip_file_path = f"{timestamp}/{channel}.zip"
             download_url = await self.artifact_manager._svc.get_file(dataset_id, zip_file_path)
+            
+            # Extract expiration time from URL
+            expiry_time = self._extract_expiry_from_url(download_url)
             
             # Construct the URL for FSStore using fsspec's zip chaining
             store_url = f"zip::{download_url}"
@@ -448,9 +491,14 @@ class ZarrTileManager:
             print("Running Zarr open in thread executor...")
             zarr_group = await asyncio.to_thread(_open_zarr_sync, store_url, 2**28)  # Using default cache size
             
-            # Cache the Zarr group for future use
-            self.zarr_groups_cache[cache_key] = zarr_group
+            # Cache the Zarr group for future use, along with expiration time
+            self.zarr_groups_cache[cache_key] = {
+                'group': zarr_group,
+                'url': download_url,
+                'expiry': expiry_time
+            }
             
+            print(f"Cached Zarr group for {cache_key}, expires in {int(expiry_time - now)} seconds")
             return zarr_group
         except Exception as e:
             print(f"Error getting Zarr group: {e}")
