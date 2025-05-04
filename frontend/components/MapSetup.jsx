@@ -7,9 +7,9 @@ import { Style, Stroke, Fill, Circle as CircleStyle } from 'ol/style'; // Added 
 import 'ol/ol.css';
 
 // Define custom image dimensions and resolutions (from the sample HTML)
-const imageWidth = 4096;      // Width of the full image
-const imageHeight = 4096;     // Height of the full image
-const resolutions = [1, 1/4, 1/16, 1/64]; // Resolutions for each scale
+const imageWidth = 1024;      // Width of the full image
+const imageHeight = 1024;     // Height of the full image
+const resolutions = [1, 1/4, 1/16, 1/64, 1/256, 1/1024]; // Updated to support 6 scales
 
 export const makeMap = (mapRef, extent) => {
   // Use provided extent or default to our custom extent based on image dimensions
@@ -24,7 +24,10 @@ export const makeMap = (mapRef, extent) => {
 
   // Create the map view with the center at the middle of the image
   const view = new View({
-    center: [3000, imageHeight-1000],
+    center: [
+      0,
+      imageHeight,
+    ],
     zoom: 0,
     minZoom: 0,
     maxZoom: resolutions.length - 1,

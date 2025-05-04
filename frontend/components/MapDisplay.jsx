@@ -188,11 +188,11 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
         url: createTileUrl('{z}', '{x}', '{y}'),
         crossOrigin: 'anonymous',
         tileSize: 256, // Update to match Zarr chunk size
-        maxZoom: 4,
+        maxZoom: 6, // Updated for 6 scale levels
         tileGrid: getTileGrid(),
         tileLoadFunction: function(tile, src) {
           const tileCoord = tile.getTileCoord(); // [z, x, y]
-          const transformedZ = 3 - tileCoord[0];
+          const transformedZ = 5 - tileCoord[0]; // Updated for 6 scale levels (0-5)
           const newSrc = createTileUrl(transformedZ, tileCoord[1], tileCoord[2]);
           fetch(newSrc)
             .then(response => response.text())
@@ -243,11 +243,11 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
         url: createTileUrl('{z}', '{x}', '{y}'),
         crossOrigin: 'anonymous',
         tileSize: 256, // Update to match Zarr chunk size
-        maxZoom: 4,
+        maxZoom: 6, // Updated for 6 scale levels
         tileGrid: getTileGrid(),
         tileLoadFunction: function(tile, src) {
           const tileCoord = tile.getTileCoord(); // [z, x, y]
-          const transformedZ = 3 - tileCoord[0];
+          const transformedZ = 5 - tileCoord[0]; // Updated for 6 scale levels (0-5)
           const newSrc = createTileUrl(transformedZ, tileCoord[1], tileCoord[2]);
           fetch(newSrc)
             .then(response => response.text())
@@ -295,11 +295,11 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
         url: createTileUrl('{z}', '{x}', '{y}'),
         crossOrigin: 'anonymous',
         tileSize: 256, // Update to match Zarr chunk size
-        maxZoom: 4,
+        maxZoom: 6, // Updated for 6 scale levels
         tileGrid: getTileGrid(),
         tileLoadFunction: function(tile, src) {
           const tileCoord = tile.getTileCoord(); // [z, x, y]
-          const transformedZ = 3 - tileCoord[0];
+          const transformedZ = 5 - tileCoord[0]; // Updated for 6 scale levels (0-5)
           const newSrc = createTileUrl(transformedZ, tileCoord[1], tileCoord[2]);
           fetch(newSrc)
             .then(response => response.text())
@@ -355,11 +355,11 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
         url: createTileUrl('{z}', '{x}', '{y}'),
         crossOrigin: 'anonymous',
         tileSize: 256, // Update to match Zarr chunk size
-        maxZoom: 4,
+        maxZoom: 6, // Updated for 6 scale levels
         tileGrid: getTileGrid(),
         tileLoadFunction: function(tile, src) {
           const tileCoord = tile.getTileCoord(); // [z, x, y]
-          const transformedZ = 3 - tileCoord[0];
+          const transformedZ = 5 - tileCoord[0]; // Updated for 6 scale levels (0-5)
           const newSrc = createTileUrl(transformedZ, tileCoord[1], tileCoord[2]);
           fetch(newSrc)
             .then(response => response.text())
