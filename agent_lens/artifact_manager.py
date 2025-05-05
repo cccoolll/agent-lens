@@ -24,6 +24,9 @@ import fsspec
 import time
 import logging
 
+# Add this for lock management
+from asyncio import Lock
+
 dotenv.load_dotenv()  
 ENV_FILE = dotenv.find_dotenv()  
 if ENV_FILE:  
@@ -367,6 +370,8 @@ class ZarrTileManager:
         ]
         # Enhanced zarr cache to include URL expiration times
         self.zarr_groups_cache = {}  # format: {cache_key: {'group': zarr_group, 'url': url, 'expiry': timestamp}}
+        # Add a dictionary to track pending requests with locks
+        self.zarr_group_locks = {}  # format: {cache_key: asyncio.Lock()}
         self.is_running = True
         self.session = None
         self.default_timestamp = "2025-04-29_16-38-27"  # Set a default timestamp
@@ -461,50 +466,70 @@ class ZarrTileManager:
                 print(f"Using cached Zarr group for {cache_key}, expires in {int(cached_data['expiry'] - now)} seconds")
                 return cached_data['group']
         
-        try:
-            # We no longer need to parse the dataset_id into workspace and artifact_alias
-            # Just use the dataset_id directly since it's already the full path
-            print(f"Accessing artifact at: {dataset_id}/{timestamp}/{channel}.zip")
+        # Get or create a lock for this cache key to prevent concurrent processing
+        if cache_key not in self.zarr_group_locks:
+            self.zarr_group_locks[cache_key] = Lock()
+        
+        # Acquire the lock for this cache key
+        async with self.zarr_group_locks[cache_key]:
+            # Check cache again after acquiring the lock (another request might have completed)
+            if cache_key in self.zarr_groups_cache:
+                cached_data = self.zarr_groups_cache[cache_key]
+                if cached_data['expiry'] - now >= self.url_expiry_buffer:
+                    print(f"Using cached Zarr group for {cache_key} after lock acquisition")
+                    return cached_data['group']
             
-            # Get the direct download URL for the zip file
-            zip_file_path = f"{timestamp}/{channel}.zip"
-            download_url = await self.artifact_manager._svc.get_file(dataset_id, zip_file_path)
-            
-            # Extract expiration time from URL
-            expiry_time = self._extract_expiry_from_url(download_url)
-            
-            # Construct the URL for FSStore using fsspec's zip chaining
-            store_url = f"zip::{download_url}"
-            
-            # Define the synchronous function to open the Zarr store and group
-            def _open_zarr_sync(url, cache_size):
-                print(f"Opening Zarr store: {url}")
-                store = FSStore(url, mode="r")
-                if cache_size and cache_size > 0:
-                    store = LRUStoreCache(store, max_size=cache_size)
-                # It's generally recommended to open the root group
-                root_group = zarr.group(store=store)
-                print(f"Zarr group opened successfully.")
-                return root_group
+            try:
+                # We no longer need to parse the dataset_id into workspace and artifact_alias
+                # Just use the dataset_id directly since it's already the full path
+                print(f"Accessing artifact at: {dataset_id}/{timestamp}/{channel}.zip")
                 
-            # Run the synchronous Zarr operations in a thread pool
-            print("Running Zarr open in thread executor...")
-            zarr_group = await asyncio.to_thread(_open_zarr_sync, store_url, 2**28)  # Using default cache size
-            
-            # Cache the Zarr group for future use, along with expiration time
-            self.zarr_groups_cache[cache_key] = {
-                'group': zarr_group,
-                'url': download_url,
-                'expiry': expiry_time
-            }
-            
-            print(f"Cached Zarr group for {cache_key}, expires in {int(expiry_time - now)} seconds")
-            return zarr_group
-        except Exception as e:
-            print(f"Error getting Zarr group: {e}")
-            import traceback
-            print(traceback.format_exc())
-            return None
+                # Get the direct download URL for the zip file
+                zip_file_path = f"{timestamp}/{channel}.zip"
+                download_url = await self.artifact_manager._svc.get_file(dataset_id, zip_file_path)
+                
+                # Extract expiration time from URL
+                expiry_time = self._extract_expiry_from_url(download_url)
+                
+                # Construct the URL for FSStore using fsspec's zip chaining
+                store_url = f"zip::{download_url}"
+                
+                # Define the synchronous function to open the Zarr store and group
+                def _open_zarr_sync(url, cache_size):
+                    print(f"Opening Zarr store: {url}")
+                    store = FSStore(url, mode="r")
+                    if cache_size and cache_size > 0:
+                        store = LRUStoreCache(store, max_size=cache_size)
+                    # It's generally recommended to open the root group
+                    root_group = zarr.group(store=store)
+                    print(f"Zarr group opened successfully.")
+                    return root_group
+                    
+                # Run the synchronous Zarr operations in a thread pool
+                print("Running Zarr open in thread executor...")
+                zarr_group = await asyncio.to_thread(_open_zarr_sync, store_url, 2**28)  # Using default cache size
+                
+                # Cache the Zarr group for future use, along with expiration time
+                self.zarr_groups_cache[cache_key] = {
+                    'group': zarr_group,
+                    'url': download_url,
+                    'expiry': expiry_time
+                }
+                
+                print(f"Cached Zarr group for {cache_key}, expires in {int(expiry_time - now)} seconds")
+                return zarr_group
+            except Exception as e:
+                print(f"Error getting Zarr group: {e}")
+                import traceback
+                print(traceback.format_exc())
+                return None
+            finally:
+                # Clean up old locks if they're no longer needed
+                # This helps prevent memory leaks if many different cache keys are used
+                if len(self.zarr_group_locks) > 100:  # Arbitrary limit
+                    # Keep only locks for cached items and the current request
+                    to_keep = set(self.zarr_groups_cache.keys()) | {cache_key}
+                    self.zarr_group_locks = {k: v for k, v in self.zarr_group_locks.items() if k in to_keep}
 
     async def get_tile_np_data(self, dataset_id, timestamp, channel, scale, x, y):
         """
