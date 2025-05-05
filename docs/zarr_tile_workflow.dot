@@ -43,7 +43,7 @@ digraph ZarrTileWorkflow {
         process_image -> encode_image;
     }
     
-    // ZarrTileManager
+    // ZarrTileManager with background processing
     subgraph cluster_zarr_manager {
         label="ZarrTileManager (artifact_manager.py)";
         style=filled;
@@ -52,34 +52,57 @@ digraph ZarrTileWorkflow {
         get_tile_bytes [label="get_tile_bytes()"];
         get_tile_np_data [label="get_tile_np_data()"];
         get_zarr_group [label="get_zarr_group()"];
-        zarr_cache [label="Zarr Group Cache"];
+        zarr_cache [label="Zarr Group Cache\n(with URL expiry tracking)"];
+        background_init [label="Background Initialization\n(_initialize_zarr_group_in_background())"];
+        thread_pool [label="Thread Pool\n(For non-blocking operations)"];
         
         get_tile_bytes -> get_tile_np_data;
         get_tile_np_data -> get_zarr_group;
         get_zarr_group -> zarr_cache [label="Check cache first"];
+        get_zarr_group -> background_init [label="Start if not cached"];
+        background_init -> thread_pool [label="Run in thread pool"];
+        background_init -> zarr_cache [label="Store result"];
     }
     
-    // Artifact Manager
+    // Artifact Manager with S3
     subgraph cluster_artifact_manager {
         label="ArtifactManager";
         style=filled;
         color=lightgrey;
         
-        get_file [label="get_file()\nGet pre-signed download URL"];
+        get_file [label="get_file()\nGet pre-signed S3 download URL"];
     }
     
-    // Zarr Storage
+    // S3 Storage layer
+    subgraph cluster_s3 {
+        label="S3 Storage";
+        style=filled;
+        color=lightyellow;
+        
+        s3_bucket [label="S3 Bucket\n(hypha-workspaces)"];
+        presigned_url [label="Pre-signed URL\n(with 1-hour expiry)"];
+        
+        s3_bucket -> presigned_url;
+    }
+    
+    // Zarr Storage with fsspec details
     subgraph cluster_zarr_storage {
         label="Zarr Storage";
         style=filled;
         color=lightgrey;
         
         fsstore [label="FSStore\n(zip::download_url)"];
-        lru_cache [label="LRUStoreCache\n(Cache zarr chunks)"];
+        http_file [label="HTTP File Handler\n(Range requests)"];
+        zip_index [label="Zip Central Directory\n(Downloaded first)"];
+        zip_chunks [label="Zip File Chunks\n(Downloaded on demand)"];
+        lru_cache [label="LRUStoreCache\n(256MB memory cache)"];
         zarr_group [label="zarr.group()"];
         zarr_array [label="scale{z}[y:y+tile_size, x:x+tile_size]"];
         
-        fsstore -> lru_cache;
+        fsstore -> http_file [label="fsspec chained protocol"];
+        http_file -> zip_index [label="Get zip structure"];
+        http_file -> zip_chunks [label="Range request for chunks"];
+        fsstore -> lru_cache [label="Cache chunks"];
         lru_cache -> zarr_group;
         zarr_group -> zarr_array;
     }
@@ -93,14 +116,15 @@ digraph ZarrTileWorkflow {
     timepoint_endpoint -> get_tile_np_data;
     
     get_zarr_group -> get_file;
-    get_file -> fsstore [label="Use URL to access zip file"];
+    get_file -> s3_bucket [label="Request presigned URL"];
+    presigned_url -> fsstore [label="Use URL to access zip file"];
     
     // Key data flow explanation
     data_flow1 [shape=note, fillcolor=lightyellow, label="1. Frontend requests tile with\ndataset_id, timepoint, channel, z, x, y"];
     data_flow2 [shape=note, fillcolor=lightyellow, label="2. Endpoint constructs appropriate URL\nand processes image settings"];
-    data_flow3 [shape=note, fillcolor=lightyellow, label="3. ZarrTileManager retrieves\nchunk data from Zarr in zip"];
-    data_flow4 [shape=note, fillcolor=lightyellow, label="4. Zarr access steps:\n- Get download URL for zip\n- Open zip via fsspec\n- Access specific chunk\n- Apply LRU caching for performance"];
-    data_flow5 [shape=note, fillcolor=lightyellow, label="5. Data is processed and\nreturned as Base64 PNG"];
+    data_flow3 [shape=note, fillcolor=lightyellow, label="3. ZarrTileManager initializes Zarr in background\nand tracks URL expiration"];
+    data_flow4 [shape=note, fillcolor=lightyellow, label="4. fsspec retrieves specific chunks via HTTP range requests:\n- First downloads zip central directory\n- Uses range requests for needed chunks only\n- Never downloads entire zip file"];
+    data_flow5 [shape=note, fillcolor=lightyellow, label="5. Processed tile is returned as Base64 PNG\nwhile Zarr initialization continues in background"];
     
     data_flow1 -> request_tile [style=invis];
     data_flow2 -> tile_endpoint [style=invis];
