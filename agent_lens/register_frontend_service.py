@@ -17,6 +17,7 @@ from PIL import Image
 # Import scikit-image for more professional bioimage processing
 from skimage import exposure, util, color
 import sys
+import asyncio
 
 # Fixed the ARTIFACT_ALIAS to prevent duplication of 'agent-lens'
 ARTIFACT_ALIAS = "agent-lens/image-map-20250429-treatment-zip"  # Removed duplicate prefix
@@ -926,6 +927,31 @@ async def _register_probes(server, probe_service_id):
             # Also check ZarrTileManager connection status
             if not tile_manager.artifact_manager or not tile_manager.artifact_manager_server:
                 raise RuntimeError("ZarrTileManager is not properly connected")
+            
+            # Use the new test_zarr_access method to verify Zarr file access
+            try:
+                # Set a timeout for the test to prevent the health check from hanging
+                test_result = await asyncio.wait_for(
+                    tile_manager.test_zarr_access(), 
+                    timeout=50  # 50 second timeout
+                )
+                
+                if not test_result.get("success", False):
+                    error_msg = test_result.get("message", "Unknown error")
+                    print(f"Zarr access test failed: {error_msg}")
+                    raise RuntimeError(f"Zarr access test failed: {error_msg}")
+                else:
+                    # Log successful test with some stats
+                    stats = test_result.get("chunk_stats", {})
+                    non_zero = stats.get("non_zero_count", 0)
+                    total = stats.get("total_size", 1)
+                    print(f"Zarr access test succeeded. Non-zero values: {non_zero}/{total} ({(non_zero/total)*100:.1f}%)")
+            except asyncio.TimeoutError:
+                print("Zarr access test timed out after 30 seconds")
+                raise RuntimeError("Zarr access test timed out")
+            except Exception as zarr_error:
+                print(f"Zarr access test failed: {zarr_error}")
+                raise RuntimeError(f"Zarr access test failed: {str(zarr_error)}")
             
             print("All services are healthy")
             return {"status": "ok", "message": "All services are healthy"}
