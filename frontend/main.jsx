@@ -41,6 +41,7 @@ const MicroscopeControl = () => {
   const [addTileLayer, setAddTileLayer] = useState(null);
   const [channelNames, setChannelNames] = useState(null);
   const [vectorLayer, setVectorLayer] = useState(null);
+  const [loginError, setLoginError] = useState(null);
 
   useEffect(() => {
     const checkToken = async () => {
@@ -61,14 +62,21 @@ const MicroscopeControl = () => {
   }, []);
 
   const handleLogin = async () => {
-    const token = await login();
-    const server = await getServer(token);
-    await initializeServices(server,
-      setMicroscopeControlService, setSimilarityService, setSegmentService,
-      setIncubatorControlService,
-      appendLog);
-    appendLog("Logged in.");
-    setIsAuthenticated(true);
+    try {
+      setLoginError(null);
+      const token = await login();
+      const server = await getServer(token);
+      await initializeServices(server,
+        setMicroscopeControlService, setSimilarityService, setSegmentService,
+        setIncubatorControlService,
+        appendLog);
+      appendLog("Logged in.");
+      setIsAuthenticated(true);
+    } catch (error) {
+      console.error("Login failed:", error);
+      setLoginError(error.message);
+      localStorage.removeItem("token");
+    }
   };
 
   const appendLog = (message) => {
@@ -156,7 +164,7 @@ const MicroscopeControl = () => {
     <StrictMode>
       <div className="app-container">
         {!isAuthenticated ? (
-          <LoginPrompt onLogin={handleLogin} />
+          <LoginPrompt onLogin={handleLogin} error={loginError} />
         ) : (
           <div className="main-layout">
             <Sidebar activeTab={activeTab} onTabChange={handleTabChange} />
