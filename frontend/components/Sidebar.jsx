@@ -6,18 +6,18 @@ const Sidebar = ({ activeTab, onTabChange }) => {
     <div className="sidebar">
       <div className="sidebar-tabs">
         <button 
-          className={`sidebar-tab ${activeTab === 'main' ? 'active' : ''}`}
-          onClick={() => onTabChange('main')}
-        >
-          <i className="fas fa-home"></i>
-          <span>Main</span>
-        </button>
-        <button 
           className={`sidebar-tab ${activeTab === 'microscope' ? 'active' : ''}`}
           onClick={() => onTabChange('microscope')}
         >
           <i className="fas fa-microscope"></i>
           <span>Microscope</span>
+        </button>
+        <button 
+          className={`sidebar-tab ${activeTab === 'main' ? 'active' : ''}`}
+          onClick={() => onTabChange('main')}
+        >
+          <i className="fas fa-home"></i>
+          <span>Image Map</span>
         </button>
         <button 
           className={`sidebar-tab ${activeTab === 'incubator' ? 'active' : ''}`}
@@ -30,7 +30,7 @@ const Sidebar = ({ activeTab, onTabChange }) => {
           className={`sidebar-tab ${activeTab === 'data-management' ? 'active' : ''}`}
           onClick={() => onTabChange('data-management')}
         >
-          <i className="fas fa-database"></i>
+          <i className="fas fa-map"></i>
           <span>Data Management</span>
         </button>
         <button 

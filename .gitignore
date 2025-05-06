@@ -17,5 +17,5 @@ __pycache__/
 notes.md
 html/
 .pylintrc
-bin/mc
-bin/minio
+bin/mc*
+bin/minio*

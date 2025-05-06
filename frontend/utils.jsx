@@ -40,7 +40,7 @@ export const initializeServices = async (
   const microscopeControlService = await tryGetService(
     server,
     "Microscope Control",
-    "squid-control/microscope-control-squid-simulation-k8s",
+    "squid-control/microscope-squid-reef",
     null,
     appendLog
   );
@@ -100,7 +100,6 @@ export const login = async () => {
   const serverUrl = getServerUrl();
   let token = localStorage.getItem("token");
   if (token && !isTokenExpired(token)) {
-    console.log("Using saved token:", token);
     return token;
   }
   token = await hyphaWebsocketClient.login({

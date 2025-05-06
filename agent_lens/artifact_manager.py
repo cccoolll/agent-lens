@@ -18,6 +18,14 @@ import numcodecs
 import blosc
 import aiohttp
 from collections import deque
+import zarr
+from zarr.storage import LRUStoreCache, FSStore
+import fsspec
+import time
+import logging
+
+# Add this for lock management
+from asyncio import Lock
 
 dotenv.load_dotenv()  
 ENV_FILE = dotenv.find_dotenv()  
@@ -278,17 +286,83 @@ class AgentLensArtifactManager:
             print(traceback.format_exc())
             return []
 
+    async def get_zarr_group(
+        self,
+        workspace: str,
+        artifact_alias: str,
+        timestamp: str,
+        channel: str,
+        cache_max_size=2**28 # 256 MB LRU cache
+    ):
+        """
+        Access a Zarr group stored within a zip file in an artifact.
+
+        Args:
+            workspace (str): The workspace containing the artifact.
+            artifact_alias (str): The alias of the artifact (e.g., 'image-map-20250429-treatment-zip').
+            timestamp (str): The timestamp folder name.
+            channel (str): The channel name (used for the zip filename).
+            cache_max_size (int, optional): Max size for LRU cache in bytes. Defaults to 2**28.
+
+        Returns:
+            zarr.Group: The root Zarr group object.
+        """
+        if self._svc is None:
+            raise ConnectionError("Artifact Manager service not connected. Call connect_server first.")
+
+        art_id = self._artifact_id(workspace, artifact_alias)
+        zip_file_path = f"{timestamp}/{channel}.zip"
+
+        try:
+            print(f"Getting download URL for: {art_id}/{zip_file_path}")
+            # Get the direct download URL for the zip file
+            download_url = await self._svc.get_file(art_id, zip_file_path)
+            print(f"Obtained download URL.")
+
+            # Construct the URL for FSStore using fsspec's zip chaining
+            store_url = f"zip::{download_url}"
+
+            # Define the synchronous function to open the Zarr store and group
+            def _open_zarr_sync(url, cache_size):
+                print(f"Opening Zarr store: {url}")
+                store = FSStore(url, mode="r")
+                if cache_size and cache_size > 0:
+                    print(f"Using LRU cache with size: {cache_size} bytes")
+                    store = LRUStoreCache(store, max_size=cache_size)
+                # It's generally recommended to open the root group
+                root_group = zarr.group(store=store)
+                print(f"Zarr group opened successfully.")
+                return root_group
+
+            # Run the synchronous Zarr operations in a thread pool
+            print("Running Zarr open in thread executor...")
+            zarr_group = await asyncio.to_thread(_open_zarr_sync, store_url, cache_max_size)
+            return zarr_group
+
+        except RemoteException as e:
+            print(f"Error getting file URL from Artifact Manager: {e}")
+            raise FileNotFoundError(f"Could not find or access zip file {zip_file_path} in artifact {art_id}") from e
+        except Exception as e:
+            print(f"An error occurred while accessing the Zarr group: {e}")
+            import traceback
+            print(traceback.format_exc())
+            raise
+
 # Constants
 SERVER_URL = "https://hypha.aicell.io"
 WORKSPACE_TOKEN = os.environ.get("WORKSPACE_TOKEN")
-ARTIFACT_ALIAS = "microscopy-tiles-complete"
+ARTIFACT_ALIAS = "image-map-20250429-treatment-zip"
 DEFAULT_CHANNEL = "BF_LED_matrix_full"
 
-class TileManager:
+# New class to replace TileManager using Zarr for efficient access
+class ZarrTileManager:
     def __init__(self):
-        self.artifact_manager_server = None
         self.artifact_manager = None
-        self.tile_size = 2048
+        self.artifact_manager_server = None
+        self.workspace = "agent-lens"  # Default workspace
+        self.tile_size = 256  # Default chunk size for Zarr
+        # Define the chunk size for test access
+        self.chunk_size = 256  # Assuming chunk size is the same as tile size
         self.channels = [
             "BF_LED_matrix_full",
             "Fluorescence_405_nm_Ex",
@@ -296,171 +370,335 @@ class TileManager:
             "Fluorescence_561_nm_Ex",
             "Fluorescence_638_nm_Ex"
         ]
-        self.compressor = numcodecs.Blosc(
-            cname='zstd',
-            clevel=5,
-            shuffle=blosc.SHUFFLE,
-            blocksize=0
-        )
-        # Initialize the async queue
-        self.tile_queue = asyncio.Queue(maxsize=5)
-        self.tile_workers = []
+        # Enhanced zarr cache to include URL expiration times
+        self.zarr_groups_cache = {}  # format: {cache_key: {'group': zarr_group, 'url': url, 'expiry': timestamp}}
+        # Add a dictionary to track pending requests with locks
+        self.zarr_group_locks = {}  # format: {cache_key: asyncio.Lock()}
         self.is_running = True
         self.session = None
-        self._cleanup_tasks = []
-        self.num_tile_workers = 10
+        self.default_timestamp = "2025-04-29_16-38-27"  # Set a default timestamp
+        # Set URL expiration buffer - refresh URLs 5 minutes before they expire
+        self.url_expiry_buffer = 300  # seconds
+        # Default URL expiration time (1 hour)
+        self.default_url_expiry = 3600  # seconds
 
-    async def connect(self):
+    async def connect(self, workspace_token=None, server_url="https://hypha.aicell.io"):
         """Connect to the Artifact Manager service"""
         try:
+            token = workspace_token or os.environ.get("WORKSPACE_TOKEN")
+            if not token:
+                raise ValueError("Workspace token not provided")
+            
             self.artifact_manager_server = await connect_to_server({
-                "name": "test-client",
-                "server_url": SERVER_URL,
-                "token": WORKSPACE_TOKEN,
+                "name": "zarr-tile-client",
+                "server_url": server_url,
+                "token": token,
             })
-            self.artifact_manager = await self.artifact_manager_server.get_service("public/artifact-manager")
-            # Start the tile processing workers
+            
+            self.artifact_manager = AgentLensArtifactManager()
+            await self.artifact_manager.connect_server(self.artifact_manager_server)
+            
+            # Initialize aiohttp session for any HTTP requests
             self.session = aiohttp.ClientSession()
-            self.tile_workers = [asyncio.create_task(self._tile_worker()) for _ in range(self.num_tile_workers)]
-            # Store cleanup tasks
-            self._cleanup_tasks.extend(self.tile_workers)
+            
+            print("ZarrTileManager connected successfully")
+            return True
         except Exception as e:
             print(f"Error connecting to artifact manager: {str(e)}")
-            raise e
+            import traceback
+            print(traceback.format_exc())
+            return False
 
     async def close(self):
         """Close the tile manager and cleanup resources"""
         self.is_running = False
         
-        # Cancel all worker tasks
-        for worker in self.tile_workers:
-            if not worker.done():
-                worker.cancel()
-        
-        # Wait for all tasks to complete
-        if self._cleanup_tasks:
-            await asyncio.gather(*self._cleanup_tasks, return_exceptions=True)
+        # Close the cached Zarr groups
+        self.zarr_groups_cache.clear()
         
         # Close the aiohttp session
         if self.session:
             await self.session.close()
+            self.session = None
         
-        # Clear the lists
-        self.tile_workers.clear()
-        self._cleanup_tasks.clear()
+        # Disconnect from the server
+        if self.artifact_manager_server:
+            await self.artifact_manager_server.disconnect()
+            self.artifact_manager_server = None
+            self.artifact_manager = None
 
-    async def _tile_worker(self):
-        """Worker function to process tile requests from the queue"""
-        while self.is_running:
-            try:
-                # Get a tile request from the queue
-                request = await self.tile_queue.get()
-                if request is None:
-                    break
-
-                channel, scale, x, y, future = request
-                try:
-                    # Process the tile request
-                    tile_data = await self._fetch_tile_data(channel, scale, x, y)
-                    # Set the result in the future
-                    future.set_result(tile_data)
-                except Exception as e:
-                    # Set the exception in the future
-                    future.set_exception(e)
-                finally:
-                    # Mark the task as done
-                    self.tile_queue.task_done()
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                print(f"Error in tile worker: {e}")
-
-    async def _fetch_tile_data(self, channel: str, scale: int, x: int, y: int) -> np.ndarray:
-        """Fetch a single tile's data"""
+    def _extract_expiry_from_url(self, url):
+        """Extract expiration time from pre-signed URL"""
         try:
-            file_path = f"{channel}/scale{scale}/{y}.{x}"
-            get_url = await self.artifact_manager.get_file(
-                ARTIFACT_ALIAS, file_path=file_path
-            )
+            # Try to find X-Amz-Expires parameter
+            if "X-Amz-Expires=" in url:
+                parts = url.split("X-Amz-Expires=")[1].split("&")[0]
+                expires_seconds = int(parts)
+                
+                # Find the date from X-Amz-Date
+                if "X-Amz-Date=" in url:
+                    date_str = url.split("X-Amz-Date=")[1].split("&")[0]
+                    # Date format is typically 'YYYYMMDDTHHMMSSZ'
+                    # This is a simplified approach - in production, properly parse this
+                    # For now, we'll just use current time + expires_seconds
+                    return time.time() + expires_seconds
+            
+            # If we can't extract, use default expiry
+            return time.time() + self.default_url_expiry
+        except Exception as e:
+            print(f"Error extracting URL expiry: {e}")
+            # Default to current time + 1 hour
+            return time.time() + self.default_url_expiry
 
-            async with self.session.get(get_url) as response:
-                if response.status == 200:
-                    compressed_data = await response.read()
-                    try:
-                        decompressed_data = self.compressor.decode(compressed_data)
-                        tile_data = np.frombuffer(decompressed_data, dtype=np.uint8)
-                        tile_data = tile_data.reshape((self.tile_size, self.tile_size))
-                        return tile_data
-                    except Exception:
-                        print("Error processing tile data")
-                        return np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
-                else:
-                    print(f"Didn't get file, path is {file_path}")
+    async def get_zarr_group(self, dataset_id, timestamp, channel):
+        """Get (or reuse from cache) a Zarr group for a specific dataset, with URL expiration handling"""
+        cache_key = f"{dataset_id}:{timestamp}:{channel}"
+        
+        now = time.time()
+        
+        # Check if we have a cached version and if it's still valid
+        if cache_key in self.zarr_groups_cache:
+            cached_data = self.zarr_groups_cache[cache_key]
+            # If URL is close to expiring, refresh it
+            if cached_data['expiry'] - now < self.url_expiry_buffer:
+                print(f"URL for {cache_key} is about to expire, refreshing")
+                # Remove from cache to force refresh
+                del self.zarr_groups_cache[cache_key]
+            else:
+                print(f"Using cached Zarr group for {cache_key}, expires in {int(cached_data['expiry'] - now)} seconds")
+                return cached_data['group']
+        
+        # Get or create a lock for this cache key to prevent concurrent processing
+        if cache_key not in self.zarr_group_locks:
+            self.zarr_group_locks[cache_key] = Lock()
+        
+        # Acquire the lock for this cache key
+        async with self.zarr_group_locks[cache_key]:
+            # Check cache again after acquiring the lock (another request might have completed)
+            if cache_key in self.zarr_groups_cache:
+                cached_data = self.zarr_groups_cache[cache_key]
+                if cached_data['expiry'] - now >= self.url_expiry_buffer:
+                    print(f"Using cached Zarr group for {cache_key} after lock acquisition")
+                    return cached_data['group']
+            
+            try:
+                # We no longer need to parse the dataset_id into workspace and artifact_alias
+                # Just use the dataset_id directly since it's already the full path
+                print(f"Accessing artifact at: {dataset_id}/{timestamp}/{channel}.zip")
+                
+                # Get the direct download URL for the zip file
+                zip_file_path = f"{timestamp}/{channel}.zip"
+                download_url = await self.artifact_manager._svc.get_file(dataset_id, zip_file_path)
+                
+                # Extract expiration time from URL
+                expiry_time = self._extract_expiry_from_url(download_url)
+                
+                # Construct the URL for FSStore using fsspec's zip chaining
+                store_url = f"zip::{download_url}"
+                
+                # Define the synchronous function to open the Zarr store and group
+                def _open_zarr_sync(url, cache_size):
+                    print(f"Opening Zarr store: {url}")
+                    store = FSStore(url, mode="r")
+                    if cache_size and cache_size > 0:
+                        store = LRUStoreCache(store, max_size=cache_size)
+                    # It's generally recommended to open the root group
+                    root_group = zarr.group(store=store)
+                    print(f"Zarr group opened successfully.")
+                    return root_group
+                    
+                # Run the synchronous Zarr operations in a thread pool
+                print("Running Zarr open in thread executor...")
+                zarr_group = await asyncio.to_thread(_open_zarr_sync, store_url, 2**28)  # Using default cache size
+                
+                # Cache the Zarr group for future use, along with expiration time
+                self.zarr_groups_cache[cache_key] = {
+                    'group': zarr_group,
+                    'url': download_url,
+                    'expiry': expiry_time
+                }
+                
+                print(f"Cached Zarr group for {cache_key}, expires in {int(expiry_time - now)} seconds")
+                return zarr_group
+            except Exception as e:
+                print(f"Error getting Zarr group: {e}")
+                import traceback
+                print(traceback.format_exc())
+                return None
+            finally:
+                # Clean up old locks if they're no longer needed
+                # This helps prevent memory leaks if many different cache keys are used
+                if len(self.zarr_group_locks) > 100:  # Arbitrary limit
+                    # Keep only locks for cached items and the current request
+                    to_keep = set(self.zarr_groups_cache.keys()) | {cache_key}
+                    self.zarr_group_locks = {k: v for k, v in self.zarr_group_locks.items() if k in to_keep}
+
+    async def get_tile_np_data(self, dataset_id, timestamp, channel, scale, x, y):
+        """
+        Get a tile as numpy array using Zarr for efficient access
+        
+        Args:
+            dataset_id (str): The dataset ID (workspace/artifact_alias)
+            timestamp (str): The timestamp folder 
+            channel (str): Channel name
+            scale (int): Scale level
+            x (int): X coordinate
+            y (int): Y coordinate
+            
+        Returns:
+            np.ndarray: Tile data as numpy array
+        """
+        try:
+            # Use default timestamp if none provided
+            timestamp = timestamp or self.default_timestamp
+            
+            # Get or create the zarr group
+            zarr_group = await self.get_zarr_group(dataset_id, timestamp, channel)
+            if not zarr_group:
+                return np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
+            
+            # Navigate to the right array in the Zarr hierarchy
+            # The exact path will depend on your Zarr structure
+            try:
+                # Assuming a structure like zarr_group['scale{scale}']
+                # You might need to adjust this path based on your actual Zarr structure
+                scale_array = zarr_group[f'scale{scale}'] 
+                
+                # Get the specific chunk/tile - adjust slicing as needed
+                tile_data = scale_array[y*self.tile_size:(y+1)*self.tile_size, 
+                                       x*self.tile_size:(x+1)*self.tile_size]
+                
+                # Make sure we have a properly shaped array
+                if tile_data.shape != (self.tile_size, self.tile_size):
+                    # Resize or pad if necessary
+                    result = np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
+                    h, w = tile_data.shape
+                    result[:min(h, self.tile_size), :min(w, self.tile_size)] = tile_data[:min(h, self.tile_size), :min(w, self.tile_size)]
+                    return result
+                
+                return tile_data
+            except KeyError as e:
+                print(f"Error accessing Zarr array path: {e}")
+                # Try an alternative path structure if needed
+                try:
+                    # Alternative path structure if your zarr is organized differently
+                    tile_data = zarr_group[y, x]  # Simplified example
+                    return tile_data
+                except Exception:
                     return np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
         except Exception as e:
-            print(f"Error fetching tile {file_path}: {e}")
-            return np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
-
-    async def get_tile_np_data(self, channel: str, scale: int, x: int, y: int) -> np.ndarray:
-        """
-        Get a specific tile from the artifact manager using the async queue.
-
-        Args:
-            channel (str): Channel name (e.g., "BF_LED_matrix_full")
-            scale (int): Scale level (0-3)
-            x (int): X coordinate of the tile
-            y (int): Y coordinate of the tile
-
-        Returns:
-            np.ndarray: The tile image as a numpy array
-        """
-        # Create a future for this request
-        future = asyncio.Future()
-        
-        # Add the request to the queue
-        await self.tile_queue.put((channel, scale, x, y, future))
-        
-        # Wait for the result
-        try:
-            return await future
-        except Exception as e:
             print(f"Error getting tile data: {e}")
+            import traceback
+            print(traceback.format_exc())
             return np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
 
-    async def list_files(self, channel: str, scale: int):
-        """List available files for a specific channel and scale"""
+    async def get_tile_bytes(self, dataset_id, timestamp, channel, scale, x, y):
+        """Serve a tile as PNG bytes"""
         try:
-            dir_path = f"{channel}/scale{scale}"
-            files = await self.artifact_manager.list_files(ARTIFACT_ALIAS, dir_path=dir_path)
-            return files
-        except Exception as e:
-            print(f"Error listing files: {str(e)}")
-            return []
-
-    async def get_tile_bytes(self, channel_name: str, z: int, x: int, y: int):
-        """Serve a tile as bytes"""
-        try:
-            print(f"Backend: Fetching tile z={z}, x={x}, y={y}")
-            if channel_name is None:
-                channel_name = DEFAULT_CHANNEL
-
-            # Get tile data using TileManager
-            tile_data = await self.get_tile_np_data(channel_name, z, x, y)
-
+            # Use default timestamp if none provided
+            timestamp = timestamp or self.default_timestamp
+            
+            # Get tile data as numpy array
+            tile_data = await self.get_tile_np_data(dataset_id, timestamp, channel, scale, x, y)
+            
             # Convert to PNG bytes
             image = Image.fromarray(tile_data)
             buffer = io.BytesIO()
             image.save(buffer, format="PNG")
             return buffer.getvalue()
-
         except Exception as e:
-            print(f"Error in get_tile: {str(e)}")
+            print(f"Error in get_tile_bytes: {str(e)}")
             blank_image = Image.new("L", (self.tile_size, self.tile_size), color=0)
             buffer = io.BytesIO()
             blank_image.save(buffer, format="PNG")
             return buffer.getvalue()
 
-    async def get_tile_base64(self, channel_name: str, z: int, x: int, y: int):
+    async def get_tile_base64(self, dataset_id, timestamp, channel, scale, x, y):
         """Serve a tile as base64 string"""
-        tile_bytes = await self.get_tile_bytes(channel_name, z, x, y)
+        # Use default timestamp if none provided
+        timestamp = timestamp or self.default_timestamp
+        
+        tile_bytes = await self.get_tile_bytes(dataset_id, timestamp, channel, scale, x, y)
         return base64.b64encode(tile_bytes).decode('utf-8')
+
+    async def test_zarr_access(self, dataset_id=None, timestamp=None, channel=None):
+        """
+        Test function to verify Zarr file access is working correctly.
+        Attempts to access a known chunk at coordinates (335, 384) in scale0.
+        
+        Args:
+            dataset_id (str, optional): The dataset ID to test. Defaults to agent-lens/image-map-20250429-treatment-zip.
+            timestamp (str, optional): The timestamp to use. Defaults to the default timestamp.
+            channel (str, optional): The channel to test. Defaults to BF_LED_matrix_full.
+            
+        Returns:
+            dict: A dictionary with status, success flag, and additional info about the chunk.
+        """
+        try:
+            # Use default values if not provided
+            dataset_id = dataset_id or "agent-lens/image-map-20250429-treatment-zip"
+            timestamp = timestamp or self.default_timestamp
+            channel = channel or "BF_LED_matrix_full"
+            
+            print(f"Testing Zarr access for dataset: {dataset_id}, timestamp: {timestamp}, channel: {channel}")
+            
+            # Get the zarr group
+            zarr_group = await self.get_zarr_group(dataset_id, timestamp, channel)
+            if zarr_group is None:
+                return {
+                    "status": "error", 
+                    "success": False, 
+                    "message": "Failed to get Zarr group"
+                }
+                
+            # Directly test access to a known chunk at coordinates (335, 384) in scale0
+            # We know this chunk exists for sure in our dataset
+            test_y, test_x = 335, 384
+            test_y_start = test_y * self.chunk_size
+            test_x_start = test_x * self.chunk_size
+            
+            # Try to access the array
+            test_array = zarr_group['scale0']
+            
+            # Get the chunk dimensions and make sure coordinates are in bounds
+            array_shape = test_array.shape
+            test_y_end = min(test_y_start + self.chunk_size, array_shape[0])
+            test_x_end = min(test_x_start + self.chunk_size, array_shape[1])
+            
+            # Read the chunk directly
+            print(f"Reading test chunk at y={test_y_start}:{test_y_end}, x={test_x_start}:{test_x_end}")
+            test_chunk = test_array[test_y_start:test_y_end, test_x_start:test_x_end]
+            
+            # Gather statistics about the chunk for verification
+            chunk_stats = {
+                "shape": test_chunk.shape,
+                "min": float(test_chunk.min()) if test_chunk.size > 0 else None,
+                "max": float(test_chunk.max()) if test_chunk.size > 0 else None,
+                "mean": float(test_chunk.mean()) if test_chunk.size > 0 else None,
+                "non_zero_count": int(np.count_nonzero(test_chunk)),
+                "total_size": int(test_chunk.size)
+            }
+            
+            # Consider it successful if we got a non-empty chunk
+            success = test_chunk.size > 0 and np.count_nonzero(test_chunk) > 0
+            
+            return {
+                "status": "ok" if success else "error",
+                "success": success,
+                "message": "Successfully accessed test chunk" if success else "Chunk contained no data",
+                "chunk_stats": chunk_stats
+            }
+            
+        except Exception as e:
+            import traceback
+            error_traceback = traceback.format_exc()
+            print(f"Error in test_zarr_access: {str(e)}")
+            print(error_traceback)
+            
+            return {
+                "status": "error",
+                "success": False,
+                "message": f"Error accessing Zarr: {str(e)}",
+                "error": str(e),
+                "traceback": error_traceback
+            }
