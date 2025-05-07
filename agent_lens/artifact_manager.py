@@ -381,6 +381,22 @@ class ZarrTileManager:
         self.url_expiry_buffer = 300  # seconds
         # Default URL expiration time (1 hour)
         self.default_url_expiry = 3600  # seconds
+        # Function to open zarr store synchronously
+        self._open_zarr_sync = self._create_open_zarr_sync_function()
+
+    def _create_open_zarr_sync_function(self):
+        """Create a reusable function for opening zarr stores synchronously"""
+        def _open_zarr_sync(url, cache_size):
+            print(f"Opening Zarr store: {url}")
+            store = FSStore(url, mode="r")
+            if cache_size and cache_size > 0:
+                print(f"Using LRU cache with size: {cache_size} bytes")
+                store = LRUStoreCache(store, max_size=cache_size)
+            # It's generally recommended to open the root group
+            root_group = zarr.group(store=store)
+            print(f"Zarr group opened successfully.")
+            return root_group
+        return _open_zarr_sync
 
     async def connect(self, workspace_token=None, server_url="https://hypha.aicell.io"):
         """Connect to the Artifact Manager service"""
@@ -496,20 +512,9 @@ class ZarrTileManager:
                 # Construct the URL for FSStore using fsspec's zip chaining
                 store_url = f"zip::{download_url}"
                 
-                # Define the synchronous function to open the Zarr store and group
-                def _open_zarr_sync(url, cache_size):
-                    print(f"Opening Zarr store: {url}")
-                    store = FSStore(url, mode="r")
-                    if cache_size and cache_size > 0:
-                        store = LRUStoreCache(store, max_size=cache_size)
-                    # It's generally recommended to open the root group
-                    root_group = zarr.group(store=store)
-                    print(f"Zarr group opened successfully.")
-                    return root_group
-                    
                 # Run the synchronous Zarr operations in a thread pool
                 print("Running Zarr open in thread executor...")
-                zarr_group = await asyncio.to_thread(_open_zarr_sync, store_url, 2**28)  # Using default cache size
+                zarr_group = await asyncio.to_thread(self._open_zarr_sync, store_url, 2**28)  # Using default cache size
                 
                 # Cache the Zarr group for future use, along with expiration time
                 self.zarr_groups_cache[cache_key] = {
@@ -533,6 +538,31 @@ class ZarrTileManager:
                     to_keep = set(self.zarr_groups_cache.keys()) | {cache_key}
                     self.zarr_group_locks = {k: v for k, v in self.zarr_group_locks.items() if k in to_keep}
 
+    async def ensure_zarr_group(self, dataset_id, timestamp, channel):
+        """
+        Ensure a Zarr group is available in cache, but don't return it.
+        This is useful for preloading or refreshing the cache.
+        """
+        cache_key = f"{dataset_id}:{timestamp}:{channel}"
+        
+        now = time.time()
+        
+        # Check if we have a cached version and if it's still valid
+        if cache_key in self.zarr_groups_cache:
+            cached_data = self.zarr_groups_cache[cache_key]
+            # If URL is close to expiring, refresh it
+            if cached_data['expiry'] - now < self.url_expiry_buffer:
+                print(f"URL for {cache_key} is about to expire, refreshing")
+                # Remove from cache to force refresh
+                del self.zarr_groups_cache[cache_key]
+            else:
+                # Still valid, nothing to do
+                return True
+        
+        # Load the Zarr group into cache
+        zarr_group = await self.get_zarr_group(dataset_id, timestamp, channel)
+        return zarr_group is not None
+
     async def get_tile_np_data(self, dataset_id, timestamp, channel, scale, x, y):
         """
         Get a tile as numpy array using Zarr for efficient access
@@ -542,8 +572,8 @@ class ZarrTileManager:
             timestamp (str): The timestamp folder 
             channel (str): Channel name
             scale (int): Scale level
-            x (int): X coordinate
-            y (int): Y coordinate
+            x (int): X coordinate (in tile/chunk units)
+            y (int): Y coordinate (in tile/chunk units)
             
         Returns:
             np.ndarray: Tile data as numpy array
@@ -552,37 +582,75 @@ class ZarrTileManager:
             # Use default timestamp if none provided
             timestamp = timestamp or self.default_timestamp
             
-            # Get or create the zarr group
-            zarr_group = await self.get_zarr_group(dataset_id, timestamp, channel)
-            if not zarr_group:
+            # Ensure the zarr group is in cache without returning it
+            cache_key = f"{dataset_id}:{timestamp}:{channel}"
+            await self.ensure_zarr_group(dataset_id, timestamp, channel)
+            
+            # Access the cached zarr group
+            if cache_key not in self.zarr_groups_cache:
                 return np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
+                
+            zarr_group = self.zarr_groups_cache[cache_key]['group']
             
             # Navigate to the right array in the Zarr hierarchy
-            # The exact path will depend on your Zarr structure
             try:
-                # Assuming a structure like zarr_group['scale{scale}']
-                # You might need to adjust this path based on your actual Zarr structure
-                scale_array = zarr_group[f'scale{scale}'] 
+                # Get the scale array
+                scale_array = zarr_group[f'scale{scale}']
                 
-                # Get the specific chunk/tile - adjust slicing as needed
-                tile_data = scale_array[y*self.tile_size:(y+1)*self.tile_size, 
-                                       x*self.tile_size:(x+1)*self.tile_size]
+                # Since tile_size equals chunk_size, we can directly get the chunk
+                # This is more efficient than slicing
+                try:
+                    # Get the chunk directly using zarr's chunk-based access
+                    # This avoids reading unnecessary data and is more efficient
+                    chunk_coords = (y, x)  # zarr uses (y, x) order for coordinates
+                    chunk_key = '.'.join(map(str, chunk_coords))
+                    
+                    # Try to get the chunk directly from the chunk store
+                    if hasattr(scale_array.store, 'get_partial_values'):
+                        # Some stores support direct chunk access
+                        chunk = scale_array.store.get_partial_values([chunk_key])[chunk_key]
+                        if chunk is not None:
+                            # Decompress the chunk
+                            chunk = scale_array._decode_chunk(chunk)
+                            return chunk
+                    
+                    # If direct chunk access failed or isn't supported, use the standard method
+                    # but access exactly one chunk
+                    chunk = scale_array.get_orthogonal_selection((slice(y * self.chunk_size, (y+1) * self.chunk_size), 
+                                                                 slice(x * self.chunk_size, (x+1) * self.chunk_size)))
+                    
+                    # Make sure we have a properly shaped array
+                    if chunk.shape != (self.tile_size, self.tile_size):
+                        # Resize or pad if necessary
+                        result = np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
+                        h, w = chunk.shape
+                        result[:min(h, self.tile_size), :min(w, self.tile_size)] = chunk[:min(h, self.tile_size), :min(w, self.tile_size)]
+                        return result
+                    
+                    return chunk
+                    
+                except Exception as chunk_error:
+                    print(f"Error accessing chunk directly: {chunk_error}, falling back to standard slicing")
+                    # Fall back to standard slicing if direct chunk access fails
+                    tile_data = scale_array[y*self.tile_size:(y+1)*self.tile_size, 
+                                           x*self.tile_size:(x+1)*self.tile_size]
+                    
+                    # Make sure we have a properly shaped array
+                    if tile_data.shape != (self.tile_size, self.tile_size):
+                        # Resize or pad if necessary
+                        result = np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
+                        h, w = tile_data.shape
+                        result[:min(h, self.tile_size), :min(w, self.tile_size)] = tile_data[:min(h, self.tile_size), :min(w, self.tile_size)]
+                        return result
+                    
+                    return tile_data
                 
-                # Make sure we have a properly shaped array
-                if tile_data.shape != (self.tile_size, self.tile_size):
-                    # Resize or pad if necessary
-                    result = np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
-                    h, w = tile_data.shape
-                    result[:min(h, self.tile_size), :min(w, self.tile_size)] = tile_data[:min(h, self.tile_size), :min(w, self.tile_size)]
-                    return result
-                
-                return tile_data
             except KeyError as e:
                 print(f"Error accessing Zarr array path: {e}")
                 # Try an alternative path structure if needed
                 try:
                     # Alternative path structure if your zarr is organized differently
-                    tile_data = zarr_group[y, x]  # Simplified example
+                    tile_data = zarr_group[y, x]  # Direct chunk access for alternative structure
                     return tile_data
                 except Exception:
                     return np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
@@ -642,14 +710,18 @@ class ZarrTileManager:
             
             print(f"Testing Zarr access for dataset: {dataset_id}, timestamp: {timestamp}, channel: {channel}")
             
-            # Get the zarr group
-            zarr_group = await self.get_zarr_group(dataset_id, timestamp, channel)
-            if zarr_group is None:
+            # Ensure the zarr group is in cache
+            cache_key = f"{dataset_id}:{timestamp}:{channel}"
+            await self.ensure_zarr_group(dataset_id, timestamp, channel)
+            
+            if cache_key not in self.zarr_groups_cache:
                 return {
                     "status": "error", 
                     "success": False, 
                     "message": "Failed to get Zarr group"
                 }
+            
+            zarr_group = self.zarr_groups_cache[cache_key]['group']
                 
             # Directly test access to a known chunk at coordinates (335, 384) in scale0
             # We know this chunk exists for sure in our dataset
