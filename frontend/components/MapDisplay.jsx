@@ -6,6 +6,7 @@ import XYZ from 'ol/source/XYZ';
 import TileLayer from 'ol/layer/Tile';
 import MicroscopeControlPanel from './MicroscopeControlPanel';
 import ChannelSettings from './ChannelSettings';
+import { unByKey } from 'ol/Observable';
 
 const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incubatorControlService, setCurrentMap }) => {
   const [map, setMap] = useState(null);
@@ -50,6 +51,22 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
       addMapMask(newMap, setVectorLayer);
       effectRan.current = true;
       
+      // Add view change event listener to prioritize loading tiles in the current view
+      const viewChangeListener = newMap.getView().on('change', () => {
+        if (imageLayer) {
+          const source = imageLayer.getSource();
+          // Force refresh of tile queue with current viewport as high priority
+          source.refresh();
+          
+          // Get the current view extent and resolution
+          const extent = newMap.getView().calculateExtent(newMap.getSize());
+          const resolution = newMap.getView().getResolution();
+          
+          // Tell the source to load tiles in the current viewport first
+          source.loadTilesInExtent(extent, resolution);
+        }
+      });
+      
       // Check if an image map dataset has been set up in this session
       const imageMapDataset = localStorage.getItem('imageMapDataset');
       const wasExplicitlySetup = sessionStorage.getItem('mapSetupExplicit') === 'true';
@@ -64,6 +81,11 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
         // Add default tile layer only if map exists
         addTileLayer(newMap, currentChannel);
       }
+      
+      // Store the listener key for cleanup
+      return () => {
+        unByKey(viewChangeListener);
+      };
     }
 
     // Cleanup function
@@ -149,6 +171,49 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
     };
   };
 
+  // Helper function to determine tile priority based on viewport
+  const calculateTilePriority = (tileCoord, viewExtent) => {
+    // If viewExtent is not available or tileCoord is invalid, use default priority
+    if (!viewExtent || !tileCoord || !Array.isArray(tileCoord) || tileCoord.length < 3) {
+      return 10;
+    }
+    
+    // Get tile bounds
+    const tileSize = 256;
+    const tileX = tileCoord[1] * tileSize;
+    const tileY = tileCoord[2] * tileSize;
+    const tileExtent = [tileX, tileY, tileX + tileSize, tileY + tileSize];
+    
+    // Check if tile is in current viewport
+    const isInViewport = (
+      tileExtent[0] < viewExtent[2] && 
+      tileExtent[2] > viewExtent[0] && 
+      tileExtent[1] < viewExtent[3] && 
+      tileExtent[3] > viewExtent[1]
+    );
+    
+    // Assign priority based on visibility
+    if (isInViewport) {
+      return 1; // Highest priority for visible tiles
+    } else {
+      // Calculate distance from viewport center
+      const viewCenterX = (viewExtent[0] + viewExtent[2]) / 2;
+      const viewCenterY = (viewExtent[1] + viewExtent[3]) / 2;
+      const tileCenterX = (tileExtent[0] + tileExtent[2]) / 2;
+      const tileCenterY = (tileExtent[1] + tileExtent[3]) / 2;
+      
+      // Simple distance calculation
+      const distance = Math.sqrt(
+        Math.pow(viewCenterX - tileCenterX, 2) + 
+        Math.pow(viewCenterY - tileCenterY, 2)
+      );
+      
+      // Convert distance to priority (higher distance = lower priority = higher number)
+      // Cap at 20 to avoid extremely low priorities
+      return Math.min(Math.floor(distance / 256) + 5, 20);
+    }
+  };
+
   const loadTimepointMap = (timepoint, channelKey = 0) => {
     if (!timepoint || !mapDatasetId || !map) return;
     
@@ -175,42 +240,88 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
     // Get processing settings as URL params
     const processingParams = getProcessingSettingsParams();
     
+    // Get the current view extent for priority calculation
+    let viewExtent = map.getView().calculateExtent(map.getSize());
+    
     // Create a URL with processing settings parameters
-    const createTileUrl = (z, x, y) => {
-      const baseUrl = `tile-for-timepoint?dataset_id=${mapDatasetId}&timepoint=${timepoint}&channel_name=${channelName}&z=${z}&x=${x}&y=${y}`;
+    const createTileUrl = (z, x, y, tileCoord) => {
+      // Calculate priority based on viewport
+      const priority = calculateTilePriority(tileCoord, viewExtent);
+      
+      const baseUrl = `tile-for-timepoint?dataset_id=${mapDatasetId}&timepoint=${timepoint}&channel_name=${channelName}&z=${z}&x=${x}&y=${y}&priority=${priority}`;
       const params = new URLSearchParams(processingParams).toString();
       return params ? `${baseUrl}&${params}` : baseUrl;
     };
     
-    // Create a new tile layer for the selected timepoint
-    const newTileLayer = new TileLayer({
-      source: new XYZ({
-        url: createTileUrl('{z}', '{x}', '{y}'),
-        crossOrigin: 'anonymous',
-        tileSize: 256, // Update to match Zarr chunk size
-        maxZoom: 6, // Updated for 6 scale levels
-        tileGrid: getTileGrid(),
-        tileLoadFunction: function(tile, src) {
-          const tileCoord = tile.getTileCoord(); // [z, x, y]
-          const transformedZ = 5 - tileCoord[0]; // Updated for 6 scale levels (0-5)
-          const newSrc = createTileUrl(transformedZ, tileCoord[1], tileCoord[2]);
-          fetch(newSrc)
-            .then(response => response.text())
-            .then(data => {
-              const trimmed = data.replace(/^"|"$/g, '');
-              tile.getImage().src = `data:image/png;base64,${trimmed}`;
-              console.log(`Loaded timepoint tile at: ${newSrc}`);
-            })
-            .catch(error => {
-              console.log(`Failed to load timepoint tile: ${newSrc}`, error);
-            });
+    const tileSource = new XYZ({
+      url: createTileUrl('{z}', '{x}', '{y}'),
+      crossOrigin: 'anonymous',
+      tileSize: 256, // Update to match Zarr chunk size
+      maxZoom: 6, // Updated for 6 scale levels
+      tileGrid: getTileGrid(),
+      tileLoadFunction: function(tile, src) {
+        const tileCoord = tile.getTileCoord(); // [z, x, y]
+        const transformedZ = 5 - tileCoord[0]; // Updated for 6 scale levels (0-5)
+        const newSrc = createTileUrl(transformedZ, tileCoord[1], tileCoord[2], tileCoord);
+        fetch(newSrc)
+          .then(response => response.text())
+          .then(data => {
+            const trimmed = data.replace(/^"|"$/g, '');
+            tile.getImage().src = `data:image/png;base64,${trimmed}`;
+            console.log(`Loaded timepoint tile at: ${newSrc}`);
+          })
+          .catch(error => {
+            console.log(`Failed to load timepoint tile: ${newSrc}`, error);
+          });
+      }
+    });
+    
+    // Add custom method to prioritize loading tiles in the current viewport
+    tileSource.loadTilesInExtent = function(extent, resolution) {
+      try {
+        // Update the view extent for priority calculations
+        viewExtent = extent;
+        
+        // Use a simpler approach to determine which tiles to load
+        // Get the current zoom level
+        const z = this.getTileGrid().getZForResolution(resolution);
+        
+        // Calculate tile coordinates from extent
+        const tileSize = 256;
+        const minX = Math.floor(extent[0] / tileSize);
+        const minY = Math.floor(extent[1] / tileSize);
+        const maxX = Math.ceil(extent[2] / tileSize);
+        const maxY = Math.ceil(extent[3] / tileSize);
+        
+        // Prioritize loading tiles in the current view
+        for (let x = minX; x < maxX; x++) {
+          for (let y = minY; y < maxY; y++) {
+            // Skip invalid coordinates
+            if (x < 0 || y < 0) continue;
+            
+            const tileCoord = [z, x, y];
+            // This will move the tile to the front of the loading queue
+            this.getTile(z, x, y, 1, this.getProjection());
+          }
         }
-      }),
+      } catch (error) {
+        console.error("Error in loadTilesInExtent:", error);
+      }
+    };
+    
+    const newTileLayer = new TileLayer({
+      source: tileSource,
+      preload: 0 // Reduce preloading to focus on visible tiles
     });
   
     map.addLayer(newTileLayer);
     setImageLayer(newTileLayer);
     setIsMergeMode(false);
+    
+    // Immediately prioritize tiles in the current view
+    const currentExtent = map.getView().calculateExtent(map.getSize());
+    const currentResolution = map.getView().getResolution();
+    tileSource.loadTilesInExtent(currentExtent, currentResolution);
   };
 
   // Updated function to load merged channels with processing settings
@@ -230,42 +341,88 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
     // Get processing settings as URL params
     const processingParams = getProcessingSettingsParams();
     
+    // Get the current view extent for priority calculation
+    let viewExtent = map.getView().calculateExtent(map.getSize());
+    
     // Create a URL with processing settings parameters
-    const createTileUrl = (z, x, y) => {
-      const baseUrl = `merged-tiles?dataset_id=${mapDatasetId}&timepoint=${timepoint}&channels=${channelKeys.join(',')}&z=${z}&x=${x}&y=${y}`;
+    const createTileUrl = (z, x, y, tileCoord) => {
+      // Calculate priority based on viewport
+      const priority = calculateTilePriority(tileCoord, viewExtent);
+      
+      const baseUrl = `merged-tiles?dataset_id=${mapDatasetId}&timepoint=${timepoint}&channels=${channelKeys.join(',')}&z=${z}&x=${x}&y=${y}&priority=${priority}`;
       const params = new URLSearchParams(processingParams).toString();
       return params ? `${baseUrl}&${params}` : baseUrl;
     };
     
-    // Create a new tile layer for the merged channels
-    const newTileLayer = new TileLayer({
-      source: new XYZ({
-        url: createTileUrl('{z}', '{x}', '{y}'),
-        crossOrigin: 'anonymous',
-        tileSize: 256, // Update to match Zarr chunk size
-        maxZoom: 6, // Updated for 6 scale levels
-        tileGrid: getTileGrid(),
-        tileLoadFunction: function(tile, src) {
-          const tileCoord = tile.getTileCoord(); // [z, x, y]
-          const transformedZ = 5 - tileCoord[0]; // Updated for 6 scale levels (0-5)
-          const newSrc = createTileUrl(transformedZ, tileCoord[1], tileCoord[2]);
-          fetch(newSrc)
-            .then(response => response.text())
-            .then(data => {
-              const trimmed = data.replace(/^"|"$/g, '');
-              tile.getImage().src = `data:image/png;base64,${trimmed}`;
-              console.log(`Loaded merged timepoint tile at: ${newSrc}`);
-            })
-            .catch(error => {
-              console.log(`Failed to load merged timepoint tile: ${newSrc}`, error);
-            });
+    const tileSource = new XYZ({
+      url: createTileUrl('{z}', '{x}', '{y}'),
+      crossOrigin: 'anonymous',
+      tileSize: 256, // Update to match Zarr chunk size
+      maxZoom: 6, // Updated for 6 scale levels
+      tileGrid: getTileGrid(),
+      tileLoadFunction: function(tile, src) {
+        const tileCoord = tile.getTileCoord(); // [z, x, y]
+        const transformedZ = 5 - tileCoord[0]; // Updated for 6 scale levels (0-5)
+        const newSrc = createTileUrl(transformedZ, tileCoord[1], tileCoord[2], tileCoord);
+        fetch(newSrc)
+          .then(response => response.text())
+          .then(data => {
+            const trimmed = data.replace(/^"|"$/g, '');
+            tile.getImage().src = `data:image/png;base64,${trimmed}`;
+            console.log(`Loaded merged timepoint tile at: ${newSrc}`);
+          })
+          .catch(error => {
+            console.log(`Failed to load merged timepoint tile: ${newSrc}`, error);
+          });
+      }
+    });
+    
+    // Add custom method to prioritize loading tiles in the current viewport
+    tileSource.loadTilesInExtent = function(extent, resolution) {
+      try {
+        // Update the view extent for priority calculations
+        viewExtent = extent;
+        
+        // Use a simpler approach to determine which tiles to load
+        // Get the current zoom level
+        const z = this.getTileGrid().getZForResolution(resolution);
+        
+        // Calculate tile coordinates from extent
+        const tileSize = 256;
+        const minX = Math.floor(extent[0] / tileSize);
+        const minY = Math.floor(extent[1] / tileSize);
+        const maxX = Math.ceil(extent[2] / tileSize);
+        const maxY = Math.ceil(extent[3] / tileSize);
+        
+        // Prioritize loading tiles in the current view
+        for (let x = minX; x < maxX; x++) {
+          for (let y = minY; y < maxY; y++) {
+            // Skip invalid coordinates
+            if (x < 0 || y < 0) continue;
+            
+            const tileCoord = [z, x, y];
+            // This will move the tile to the front of the loading queue
+            this.getTile(z, x, y, 1, this.getProjection());
+          }
         }
-      }),
+      } catch (error) {
+        console.error("Error in loadTilesInExtent:", error);
+      }
+    };
+    
+    const newTileLayer = new TileLayer({
+      source: tileSource,
+      preload: 0 // Reduce preloading to focus on visible tiles
     });
   
     map.addLayer(newTileLayer);
     setImageLayer(newTileLayer);
     setIsMergeMode(true);
+    
+    // Immediately prioritize tiles in the current view
+    const currentExtent = map.getView().calculateExtent(map.getSize());
+    const currentResolution = map.getView().getResolution();
+    tileSource.loadTilesInExtent(currentExtent, currentResolution);
   };
 
   // Updated merged channels support for regular tile view with processing settings
@@ -281,43 +438,90 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
     // Get processing settings as URL params
     const processingParams = getProcessingSettingsParams();
     
+    // Get the current view extent for priority calculation
+    let viewExtent = map.getView().calculateExtent(map.getSize());
+    
     // Create a URL with processing settings parameters - now include default dataset_id and timestamp
-    const createTileUrl = (z, x, y) => {
+    const createTileUrl = (z, x, y, tileCoord) => {
+      // Calculate priority based on viewport
+      const priority = calculateTilePriority(tileCoord, viewExtent);
+      
       // Use the gallery default dataset ID if mapDatasetId isn't available
       const datasetId = mapDatasetId || 'agent-lens/image-map-20250429-treatment-zip';
-      const baseUrl = `merged-tiles?dataset_id=${datasetId}&channels=${channelKeysStr}&z=${z}&x=${x}&y=${y}`;
+      const baseUrl = `merged-tiles?dataset_id=${datasetId}&channels=${channelKeysStr}&z=${z}&x=${x}&y=${y}&priority=${priority}`;
       const params = new URLSearchParams(processingParams).toString();
       return params ? `${baseUrl}&${params}` : baseUrl;
     };
     
-    const tileLayer = new TileLayer({
-      source: new XYZ({
-        url: createTileUrl('{z}', '{x}', '{y}'),
-        crossOrigin: 'anonymous',
-        tileSize: 256, // Update to match Zarr chunk size
-        maxZoom: 6, // Updated for 6 scale levels
-        tileGrid: getTileGrid(),
-        tileLoadFunction: function(tile, src) {
-          const tileCoord = tile.getTileCoord(); // [z, x, y]
-          const transformedZ = 5 - tileCoord[0]; // Updated for 6 scale levels (0-5)
-          const newSrc = createTileUrl(transformedZ, tileCoord[1], tileCoord[2]);
-          fetch(newSrc)
-            .then(response => response.text())
-            .then(data => {
-              const trimmed = data.replace(/^"|"$/g, '');
-              tile.getImage().src = `data:image/png;base64,${trimmed}`;
-              console.log(`Loaded merged tile at location: ${newSrc}`);
-            })
-            .catch(error => {
-              console.log(`Failed to load merged tile: ${newSrc}`, error);
-            });
+    const tileSource = new XYZ({
+      url: createTileUrl('{z}', '{x}', '{y}'),
+      crossOrigin: 'anonymous',
+      tileSize: 256, // Update to match Zarr chunk size
+      maxZoom: 6, // Updated for 6 scale levels
+      tileGrid: getTileGrid(),
+      tileLoadFunction: function(tile, src) {
+        const tileCoord = tile.getTileCoord(); // [z, x, y]
+        const transformedZ = 5 - tileCoord[0]; // Updated for 6 scale levels (0-5)
+        const newSrc = createTileUrl(transformedZ, tileCoord[1], tileCoord[2], tileCoord);
+        fetch(newSrc)
+          .then(response => response.text())
+          .then(data => {
+            const trimmed = data.replace(/^"|"$/g, '');
+            tile.getImage().src = `data:image/png;base64,${trimmed}`;
+            console.log(`Loaded merged tile at location: ${newSrc}`);
+          })
+          .catch(error => {
+            console.log(`Failed to load merged tile: ${newSrc}`, error);
+          });
+      }
+    });
+    
+    // Add custom method to prioritize loading tiles in the current viewport
+    tileSource.loadTilesInExtent = function(extent, resolution) {
+      try {
+        // Update the view extent for priority calculations
+        viewExtent = extent;
+        
+        // Use a simpler approach to determine which tiles to load
+        // Get the current zoom level
+        const z = this.getTileGrid().getZForResolution(resolution);
+        
+        // Calculate tile coordinates from extent
+        const tileSize = 256;
+        const minX = Math.floor(extent[0] / tileSize);
+        const minY = Math.floor(extent[1] / tileSize);
+        const maxX = Math.ceil(extent[2] / tileSize);
+        const maxY = Math.ceil(extent[3] / tileSize);
+        
+        // Prioritize loading tiles in the current view
+        for (let x = minX; x < maxX; x++) {
+          for (let y = minY; y < maxY; y++) {
+            // Skip invalid coordinates
+            if (x < 0 || y < 0) continue;
+            
+            const tileCoord = [z, x, y];
+            // This will move the tile to the front of the loading queue
+            this.getTile(z, x, y, 1, this.getProjection());
+          }
         }
-      }),
+      } catch (error) {
+        console.error("Error in loadTilesInExtent:", error);
+      }
+    };
+    
+    const tileLayer = new TileLayer({
+      source: tileSource,
+      preload: 0 // Reduce preloading to focus on visible tiles
     });
   
     map.addLayer(tileLayer);
     setImageLayer(tileLayer);
     setIsMergeMode(true);
+    
+    // Immediately prioritize tiles in the current view
+    const currentExtent = map.getView().calculateExtent(map.getSize());
+    const currentResolution = map.getView().getResolution();
+    tileSource.loadTilesInExtent(currentExtent, currentResolution);
   };
 
   const channelNames = {
@@ -328,7 +532,7 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
     13: 'Fluorescence_638_nm_Ex'
   };
   
-  // Updated to support processing parameters
+  // Updated to support processing parameters and prioritize visible tiles
   const addTileLayer = (map, channelKey) => {
     if (!map) return;
     
@@ -341,43 +545,90 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
     // Get processing settings as URL params
     const processingParams = getProcessingSettingsParams();
     
+    // Get the current view extent for priority calculation
+    let viewExtent = map.getView().calculateExtent(map.getSize());
+    
     // Create a URL with processing settings parameters - now include default dataset_id and timestamp
-    const createTileUrl = (z, x, y) => {
+    const createTileUrl = (z, x, y, tileCoord) => {
+      // Calculate priority based on viewport
+      const priority = calculateTilePriority(tileCoord, viewExtent);
+      
       // Use the gallery default dataset ID if mapDatasetId isn't available
       const datasetId = mapDatasetId || 'agent-lens/image-map-20250429-treatment-zip';
-      const baseUrl = `tile?dataset_id=${datasetId}&timestamp=2025-04-29_16-38-27&channel_name=${channelName}&z=${z}&x=${x}&y=${y}`;
+      const baseUrl = `tile?dataset_id=${datasetId}&timestamp=2025-04-29_16-38-27&channel_name=${channelName}&z=${z}&x=${x}&y=${y}&priority=${priority}`;
       const params = new URLSearchParams(processingParams).toString();
       return params ? `${baseUrl}&${params}` : baseUrl;
     };
 
-    const tileLayer = new TileLayer({
-      source: new XYZ({
-        url: createTileUrl('{z}', '{x}', '{y}'),
-        crossOrigin: 'anonymous',
-        tileSize: 256, // Update to match Zarr chunk size
-        maxZoom: 6, // Updated for 6 scale levels
-        tileGrid: getTileGrid(),
-        tileLoadFunction: function(tile, src) {
-          const tileCoord = tile.getTileCoord(); // [z, x, y]
-          const transformedZ = 5 - tileCoord[0]; // Updated for 6 scale levels (0-5)
-          const newSrc = createTileUrl(transformedZ, tileCoord[1], tileCoord[2]);
-          fetch(newSrc)
-            .then(response => response.text())
-            .then(data => {
-              const trimmed = data.replace(/^"|"$/g, '');
-              tile.getImage().src = `data:image/png;base64,${trimmed}`;
-              console.log(`Loaded tile at location: ${newSrc}`);
-            })
-            .catch(error => {
-              console.log(`Failed to load tile: ${newSrc}`, error);
-            });
+    const tileSource = new XYZ({
+      url: createTileUrl('{z}', '{x}', '{y}'),
+      crossOrigin: 'anonymous',
+      tileSize: 256, // Update to match Zarr chunk size
+      maxZoom: 6, // Updated for 6 scale levels
+      tileGrid: getTileGrid(),
+      tileLoadFunction: function(tile, src) {
+        const tileCoord = tile.getTileCoord(); // [z, x, y]
+        const transformedZ = 5 - tileCoord[0]; // Updated for 6 scale levels (0-5)
+        const newSrc = createTileUrl(transformedZ, tileCoord[1], tileCoord[2], tileCoord);
+        fetch(newSrc)
+          .then(response => response.text())
+          .then(data => {
+            const trimmed = data.replace(/^"|"$/g, '');
+            tile.getImage().src = `data:image/png;base64,${trimmed}`;
+            console.log(`Loaded tile at location: ${newSrc}`);
+          })
+          .catch(error => {
+            console.log(`Failed to load tile: ${newSrc}`, error);
+          });
+      }
+    });
+    
+    // Add custom method to prioritize loading tiles in the current viewport
+    tileSource.loadTilesInExtent = function(extent, resolution) {
+      try {
+        // Update the view extent for priority calculations
+        viewExtent = extent;
+        
+        // Use a simpler approach to determine which tiles to load
+        // Get the current zoom level
+        const z = this.getTileGrid().getZForResolution(resolution);
+        
+        // Calculate tile coordinates from extent
+        const tileSize = 256;
+        const minX = Math.floor(extent[0] / tileSize);
+        const minY = Math.floor(extent[1] / tileSize);
+        const maxX = Math.ceil(extent[2] / tileSize);
+        const maxY = Math.ceil(extent[3] / tileSize);
+        
+        // Prioritize loading tiles in the current view
+        for (let x = minX; x < maxX; x++) {
+          for (let y = minY; y < maxY; y++) {
+            // Skip invalid coordinates
+            if (x < 0 || y < 0) continue;
+            
+            const tileCoord = [z, x, y];
+            // This will move the tile to the front of the loading queue
+            this.getTile(z, x, y, 1, this.getProjection());
+          }
         }
-      }),
+      } catch (error) {
+        console.error("Error in loadTilesInExtent:", error);
+      }
+    };
+
+    const tileLayer = new TileLayer({
+      source: tileSource,
+      preload: 0 // Reduce preloading to focus on visible tiles
     });
   
     map.addLayer(tileLayer);
     setImageLayer(tileLayer);
     setIsMergeMode(false);
+    
+    // Immediately prioritize tiles in the current view
+    const currentExtent = map.getView().calculateExtent(map.getSize());
+    const currentResolution = map.getView().getResolution();
+    tileSource.loadTilesInExtent(currentExtent, currentResolution);
   };
 
   const toggleTimepointSelector = () => {

@@ -383,6 +383,13 @@ class ZarrTileManager:
         self.default_url_expiry = 3600  # seconds
         # Function to open zarr store synchronously
         self._open_zarr_sync = self._create_open_zarr_sync_function()
+        
+        # Add a priority queue for tile requests
+        self.tile_request_queue = asyncio.PriorityQueue()
+        # Track in-progress tile requests to avoid duplicates
+        self.in_progress_tiles = set()
+        # Start the tile request processor
+        self.tile_processor_task = None
 
     def _create_open_zarr_sync_function(self):
         """Create a reusable function for opening zarr stores synchronously"""
@@ -417,6 +424,10 @@ class ZarrTileManager:
             # Initialize aiohttp session for any HTTP requests
             self.session = aiohttp.ClientSession()
             
+            # Start the tile request processor
+            if self.tile_processor_task is None or self.tile_processor_task.done():
+                self.tile_processor_task = asyncio.create_task(self._process_tile_requests())
+            
             print("ZarrTileManager connected successfully")
             return True
         except Exception as e:
@@ -428,6 +439,14 @@ class ZarrTileManager:
     async def close(self):
         """Close the tile manager and cleanup resources"""
         self.is_running = False
+        
+        # Cancel the tile processor task
+        if self.tile_processor_task and not self.tile_processor_task.done():
+            self.tile_processor_task.cancel()
+            try:
+                await self.tile_processor_task
+            except asyncio.CancelledError:
+                pass
         
         # Close the cached Zarr groups
         self.zarr_groups_cache.clear()
@@ -562,6 +581,71 @@ class ZarrTileManager:
         # Load the Zarr group into cache
         zarr_group = await self.get_zarr_group(dataset_id, timestamp, channel)
         return zarr_group is not None
+
+    async def _process_tile_requests(self):
+        """Process tile requests from the priority queue"""
+        try:
+            while self.is_running:
+                try:
+                    # Get the next tile request with highest priority (lowest number)
+                    priority, (dataset_id, timestamp, channel, scale, x, y) = await self.tile_request_queue.get()
+                    
+                    # Create a unique key for this tile
+                    tile_key = f"{dataset_id}:{timestamp}:{channel}:{scale}:{x}:{y}"
+                    
+                    # Skip if this tile is already being processed
+                    if tile_key in self.in_progress_tiles:
+                        self.tile_request_queue.task_done()
+                        continue
+                    
+                    # Mark this tile as in progress
+                    self.in_progress_tiles.add(tile_key)
+                    
+                    try:
+                        # Process the tile request
+                        await self.get_tile_np_data(dataset_id, timestamp, channel, scale, x, y)
+                    except Exception as e:
+                        print(f"Error processing tile request: {e}")
+                    finally:
+                        # Remove from in-progress set when done
+                        self.in_progress_tiles.discard(tile_key)
+                        self.tile_request_queue.task_done()
+                        
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    print(f"Error in tile request processor: {e}")
+                    # Small delay to avoid tight loop in case of persistent errors
+                    await asyncio.sleep(0.1)
+        except asyncio.CancelledError:
+            print("Tile request processor cancelled")
+        except Exception as e:
+            print(f"Tile request processor exited with error: {e}")
+            import traceback
+            print(traceback.format_exc())
+
+    async def request_tile(self, dataset_id, timestamp, channel, scale, x, y, priority=10):
+        """
+        Queue a tile request with a specific priority.
+        Lower priority numbers are processed first.
+        
+        Args:
+            dataset_id (str): The dataset ID
+            timestamp (str): The timestamp folder
+            channel (str): Channel name
+            scale (int): Scale level
+            x (int): X coordinate
+            y (int): Y coordinate
+            priority (int): Priority level (lower is higher priority, default is 10)
+        """
+        tile_key = f"{dataset_id}:{timestamp}:{channel}:{scale}:{x}:{y}"
+        
+        # Skip if already in progress
+        if tile_key in self.in_progress_tiles:
+            return
+        
+        # Add to the priority queue
+        await self.tile_request_queue.put((priority, (dataset_id, timestamp, channel, scale, x, y)))
 
     async def get_tile_np_data(self, dataset_id, timestamp, channel, scale, x, y):
         """
