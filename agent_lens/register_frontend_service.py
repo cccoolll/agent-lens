@@ -923,6 +923,7 @@ async def _register_probes(server, probe_service_id):
         probe_service_id (str): The ID to use for probe registrations.
     """
     async def is_service_healthy():
+        print("Checking service health")
         try:
             # Check artifact manager connection
             if artifact_manager_instance.server is None:
