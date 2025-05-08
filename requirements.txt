@@ -15,7 +15,7 @@ blosc==1.11.2
 aiohttp==3.11.14
 scikit-image==0.25.2
 zarr==2.15.0
-ffspec==2025.3.2
+fsspec==2025.3.2
 # Segmentation service (unused):
 # segment-anything==1.0
 # kaibu_utils==0.1.14
