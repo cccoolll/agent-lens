@@ -880,39 +880,8 @@ async def register_service_probes(server, server_id="agent-lens"):
         server (Server): The server instance.
         server_id (str): The ID of the service.
     """
-    # Check if we're running locally
-    is_local = "--port" in " ".join(sys.argv) or "start-server" in " ".join(sys.argv)
-    
-    # When running locally, we need to connect to remote server for probes
-    # We only modify probe IDs, not the service ID itself
-    probe_id_suffix = "-local" if is_local else ""
-    probe_service_id = f"{server_id}{probe_id_suffix}"
-    
-    if is_local:
-        print(f"Running in local mode, connecting to remote server for probes with ID: {probe_service_id}")
-        try:
-            # Create a separate connection to the remote server for probe registration
-            remote_token = os.environ.get("WORKSPACE_TOKEN") or WORKSPACE_TOKEN
-            if not remote_token:
-                print("Warning: No workspace token available for remote probe registration")
-                return
-                
-            remote_server = await connect_to_server({
-                "name": "agent-lens-probe-client",
-                "server_url": "https://hypha.aicell.io",
-                "token": remote_token,
-                "workspace": "agent-lens",
-            })
-            
-            # Use the remote_server for probe registration with the local suffix
-            await _register_probes(remote_server, probe_service_id)
-        except Exception as e:
-            print(f"Failed to register probes on remote server: {e}")
-            import traceback
-            print(traceback.format_exc())
-    else:
-        # Normal operation - register probes on the same server
-        await _register_probes(server, probe_service_id)
+    # Register probes on the server
+    await _register_probes(server, server_id)
 
 async def _register_probes(server, probe_service_id):
     """
@@ -1028,8 +997,12 @@ async def setup_service(server, server_id="agent-lens"):
 
     print(f"Frontend service registered successfully with ID: {server_id}")
 
-    # Register service health probes
-    await register_service_probes(server, server_id)
+    # Check if we're running locally
+    is_local = "--port" in " ".join(sys.argv) or "start-server" in " ".join(sys.argv)
+    
+    # Only register service health probes when not running locally
+    if not is_local:
+        await register_service_probes(server, server_id)
 
     # Store the cleanup function in the server's config
     server.config["cleanup"] = tile_manager.close
