@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   agent-lens:
-    image: ghcr.io/aicell-lab/agent-lens:sha-7227a96
+    image: ghcr.io/aicell-lab/agent-lens:sha-e12aa7b
     container_name: agent-lens
     environment:
       - WORKSPACE_TOKEN=${AGENT_LENS_WORKSPACE_TOKEN}
