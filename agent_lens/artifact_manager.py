@@ -22,15 +22,29 @@ import zarr
 from zarr.storage import LRUStoreCache, FSStore
 import fsspec
 import time
-import logging
+from asyncio import Lock
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,  # Set the log level
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-# Add this for lock management
-from asyncio import Lock
+import logging
+import logging.handlers
+def setup_logging(log_file="artifact_manager.log", max_bytes=100000, backup_count=3):
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+
+    # Rotating file handler
+    file_handler = logging.handlers.RotatingFileHandler(log_file, maxBytes=max_bytes, backupCount=backup_count)
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+    return logger
+
+logger = setup_logging()
 
 dotenv.load_dotenv()  
 ENV_FILE = dotenv.find_dotenv()  
@@ -279,16 +293,16 @@ class AgentLensArtifactManager:
             list: A list of subfolders in the specified directory.
         """
         try:
-            logging.info(f"Listing files for dataset_id={dataset_id}, dir_path={dir_path}")
+            logger.info(f"Listing files for dataset_id={dataset_id}, dir_path={dir_path}")
             files = await self._svc.list_files(dataset_id, dir_path=dir_path)
-            logging.info(f"Files received, length: {len(files)}")
+            logger.info(f"Files received, length: {len(files)}")
             subfolders = [file for file in files if file.get('type') == 'directory']
-            logging.info(f"Subfolders filtered, length: {len(subfolders)}")
+            logger.info(f"Subfolders filtered, length: {len(subfolders)}")
             return subfolders
         except Exception as e:
-            logging.info(f"Error listing subfolders for {dataset_id}: {e}")
+            logger.info(f"Error listing subfolders for {dataset_id}: {e}")
             import traceback
-            logging.info(traceback.format_exc())
+            logger.info(traceback.format_exc())
             return []
 
     async def get_zarr_group(
@@ -319,38 +333,38 @@ class AgentLensArtifactManager:
         zip_file_path = f"{timestamp}/{channel}.zip"
 
         try:
-            logging.info(f"Getting download URL for: {art_id}/{zip_file_path}")
+            logger.info(f"Getting download URL for: {art_id}/{zip_file_path}")
             # Get the direct download URL for the zip file
             download_url = await self._svc.get_file(art_id, zip_file_path)
-            logging.info(f"Obtained download URL.")
+            logger.info(f"Obtained download URL.")
 
             # Construct the URL for FSStore using fsspec's zip chaining
             store_url = f"zip::{download_url}"
 
             # Define the synchronous function to open the Zarr store and group
             def _open_zarr_sync(url, cache_size):
-                logging.info(f"Opening Zarr store: {url}")
+                logger.info(f"Opening Zarr store: {url}")
                 store = FSStore(url, mode="r")
                 if cache_size and cache_size > 0:
-                    logging.info(f"Using LRU cache with size: {cache_size} bytes")
+                    logger.info(f"Using LRU cache with size: {cache_size} bytes")
                     store = LRUStoreCache(store, max_size=cache_size)
                 # It's generally recommended to open the root group
                 root_group = zarr.group(store=store)
-                logging.info(f"Zarr group opened successfully.")
+                logger.info(f"Zarr group opened successfully.")
                 return root_group
 
             # Run the synchronous Zarr operations in a thread pool
-            logging.info("Running Zarr open in thread executor...")
+            logger.info("Running Zarr open in thread executor...")
             zarr_group = await asyncio.to_thread(_open_zarr_sync, store_url, cache_max_size)
             return zarr_group
 
         except RemoteException as e:
-            logging.info(f"Error getting file URL from Artifact Manager: {e}")
+            logger.info(f"Error getting file URL from Artifact Manager: {e}")
             raise FileNotFoundError(f"Could not find or access zip file {zip_file_path} in artifact {art_id}") from e
         except Exception as e:
-            logging.info(f"An error occurred while accessing the Zarr group: {e}")
+            logger.info(f"An error occurred while accessing the Zarr group: {e}")
             import traceback
-            logging.info(traceback.format_exc())
+            logger.info(traceback.format_exc())
             raise
 
 # Constants
@@ -399,14 +413,14 @@ class ZarrTileManager:
     def _create_open_zarr_sync_function(self):
         """Create a reusable function for opening zarr stores synchronously"""
         def _open_zarr_sync(url, cache_size):
-            logging.info(f"Opening Zarr store: {url}")
+            logger.info(f"Opening Zarr store: {url}")
             store = FSStore(url, mode="r")
             if cache_size and cache_size > 0:
-                logging.info(f"Using LRU cache with size: {cache_size} bytes")
+                logger.info(f"Using LRU cache with size: {cache_size} bytes")
                 store = LRUStoreCache(store, max_size=cache_size)
             # It's generally recommended to open the root group
             root_group = zarr.group(store=store)
-            logging.info(f"Zarr group opened successfully.")
+            logger.info(f"Zarr group opened successfully.")
             return root_group
         return _open_zarr_sync
 
@@ -433,12 +447,12 @@ class ZarrTileManager:
             if self.tile_processor_task is None or self.tile_processor_task.done():
                 self.tile_processor_task = asyncio.create_task(self._process_tile_requests())
             
-            logging.info("ZarrTileManager connected successfully")
+            logger.info("ZarrTileManager connected successfully")
             return True
         except Exception as e:
-            logging.info(f"Error connecting to artifact manager: {str(e)}")
+            logger.info(f"Error connecting to artifact manager: {str(e)}")
             import traceback
-            logging.info(traceback.format_exc())
+            logger.info(traceback.format_exc())
             return False
 
     async def close(self):
@@ -486,7 +500,7 @@ class ZarrTileManager:
             # If we can't extract, use default expiry
             return time.time() + self.default_url_expiry
         except Exception as e:
-            logging.info(f"Error extracting URL expiry: {e}")
+            logger.info(f"Error extracting URL expiry: {e}")
             # Default to current time + 1 hour
             return time.time() + self.default_url_expiry
 
@@ -501,16 +515,16 @@ class ZarrTileManager:
             cached_data = self.zarr_groups_cache[cache_key]
             # If URL is close to expiring, refresh it
             if cached_data['expiry'] - now < self.url_expiry_buffer:
-                logging.info(f"URL for {cache_key} is about to expire, refreshing")
+                logger.info(f"URL for {cache_key} is about to expire, refreshing")
                 # Remove from cache to force refresh
                 del self.zarr_groups_cache[cache_key]
             else:
-                logging.info(f"Using cached Zarr group for {cache_key}, expires in {int(cached_data['expiry'] - now)} seconds")
+                logger.info(f"Using cached Zarr group for {cache_key}, expires in {int(cached_data['expiry'] - now)} seconds")
                 return cached_data['group']
         
         # Get or create a lock for this cache key to prevent concurrent processing
         if cache_key not in self.zarr_group_locks:
-            logging.info(f"Creating lock for {cache_key}")
+            logger.info(f"Creating lock for {cache_key}")
             self.zarr_group_locks[cache_key] = Lock()
         
         # Acquire the lock for this cache key
@@ -519,13 +533,13 @@ class ZarrTileManager:
             if cache_key in self.zarr_groups_cache:
                 cached_data = self.zarr_groups_cache[cache_key]
                 if cached_data['expiry'] - now >= self.url_expiry_buffer:
-                    logging.info(f"Using cached Zarr group for {cache_key} after lock acquisition")
+                    logger.info(f"Using cached Zarr group for {cache_key} after lock acquisition")
                     return cached_data['group']
             
             try:
                 # We no longer need to parse the dataset_id into workspace and artifact_alias
                 # Just use the dataset_id directly since it's already the full path
-                logging.info(f"Accessing artifact at: {dataset_id}/{timestamp}/{channel}.zip")
+                logger.info(f"Accessing artifact at: {dataset_id}/{timestamp}/{channel}.zip")
                 
                 # Get the direct download URL for the zip file
                 zip_file_path = f"{timestamp}/{channel}.zip"
@@ -538,7 +552,7 @@ class ZarrTileManager:
                 store_url = f"zip::{download_url}"
                 
                 # Run the synchronous Zarr operations in a thread pool
-                logging.info("Running Zarr open in thread executor...")
+                logger.info("Running Zarr open in thread executor...")
                 zarr_group = await asyncio.to_thread(self._open_zarr_sync, store_url, 2**28)  # Using default cache size
                 
                 # Cache the Zarr group for future use, along with expiration time
@@ -548,12 +562,12 @@ class ZarrTileManager:
                     'expiry': expiry_time
                 }
                 
-                logging.info(f"Cached Zarr group for {cache_key}, expires in {int(expiry_time - now)} seconds")
+                logger.info(f"Cached Zarr group for {cache_key}, expires in {int(expiry_time - now)} seconds")
                 return zarr_group
             except Exception as e:
-                logging.info(f"Error getting Zarr group: {e}")
+                logger.info(f"Error getting Zarr group: {e}")
                 import traceback
-                logging.info(traceback.format_exc())
+                logger.info(traceback.format_exc())
                 return None
             finally:
                 # Clean up old locks if they're no longer needed
@@ -577,7 +591,7 @@ class ZarrTileManager:
             cached_data = self.zarr_groups_cache[cache_key]
             # If URL is close to expiring, refresh it
             if cached_data['expiry'] - now < self.url_expiry_buffer:
-                logging.info(f"URL for {cache_key} is about to expire, refreshing")
+                logger.info(f"URL for {cache_key} is about to expire, refreshing")
                 # Remove from cache to force refresh
                 del self.zarr_groups_cache[cache_key]
             else:
@@ -611,7 +625,7 @@ class ZarrTileManager:
                         # Process the tile request
                         await self.get_tile_np_data(dataset_id, timestamp, channel, scale, x, y)
                     except Exception as e:
-                        logging.info(f"Error processing tile request: {e}")
+                        logger.info(f"Error processing tile request: {e}")
                     finally:
                         # Remove from in-progress set when done
                         self.in_progress_tiles.discard(tile_key)
@@ -620,15 +634,15 @@ class ZarrTileManager:
                 except asyncio.CancelledError:
                     break
                 except Exception as e:
-                    logging.info(f"Error in tile request processor: {e}")
+                    logger.info(f"Error in tile request processor: {e}")
                     # Small delay to avoid tight loop in case of persistent errors
                     await asyncio.sleep(0.1)
         except asyncio.CancelledError:
-            logging.info("Tile request processor cancelled")
+            logger.info("Tile request processor cancelled")
         except Exception as e:
-            logging.info(f"Tile request processor exited with error: {e}")
+            logger.info(f"Tile request processor exited with error: {e}")
             import traceback
-            logging.info(traceback.format_exc())
+            logger.info(traceback.format_exc())
 
     async def request_tile(self, dataset_id, timestamp, channel, scale, x, y, priority=10):
         """
@@ -720,7 +734,7 @@ class ZarrTileManager:
                     return chunk
                     
                 except Exception as chunk_error:
-                    logging.info(f"Error accessing chunk directly: {chunk_error}, falling back to standard slicing")
+                    logger.info(f"Error accessing chunk directly: {chunk_error}, falling back to standard slicing")
                     # Fall back to standard slicing if direct chunk access fails
                     tile_data = scale_array[y*self.tile_size:(y+1)*self.tile_size, 
                                            x*self.tile_size:(x+1)*self.tile_size]
@@ -732,11 +746,11 @@ class ZarrTileManager:
                         h, w = tile_data.shape
                         result[:min(h, self.tile_size), :min(w, self.tile_size)] = tile_data[:min(h, self.tile_size), :min(w, self.tile_size)]
                         return result
-                    logging.info(f"Returning tile data for {dataset_id}:{timestamp}:{channel}:{scale}:{x}:{y}")
+                    logger.info(f"Returning tile data for {dataset_id}:{timestamp}:{channel}:{scale}:{x}:{y}")
                     return tile_data
                 
             except KeyError as e:
-                logging.info(f"KeyError accessing Zarr array path: {e}")
+                logger.info(f"KeyError accessing Zarr array path: {e}")
                 # Try an alternative path structure if needed
                 try:
                     # Alternative path structure if your zarr is organized differently
@@ -745,9 +759,9 @@ class ZarrTileManager:
                 except Exception:
                     return np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
         except Exception as e:
-            logging.info(f"Error getting tile data: {e}")
+            logger.info(f"Error getting tile data: {e}")
             import traceback
-            logging.info(traceback.format_exc())
+            logger.info(traceback.format_exc())
             return np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
 
     async def get_tile_bytes(self, dataset_id, timestamp, channel, scale, x, y):
@@ -765,7 +779,7 @@ class ZarrTileManager:
             image.save(buffer, format="PNG")
             return buffer.getvalue()
         except Exception as e:
-            logging.info(f"Error in get_tile_bytes: {str(e)}")
+            logger.info(f"Error in get_tile_bytes: {str(e)}")
             blank_image = Image.new("L", (self.tile_size, self.tile_size), color=0)
             buffer = io.BytesIO()
             blank_image.save(buffer, format="PNG")
@@ -798,7 +812,7 @@ class ZarrTileManager:
             timestamp = timestamp or self.default_timestamp
             channel = channel or "BF_LED_matrix_full"
             
-            logging.info(f"Testing Zarr access for dataset: {dataset_id}, timestamp: {timestamp}, channel: {channel}")
+            logger.info(f"Testing Zarr access for dataset: {dataset_id}, timestamp: {timestamp}, channel: {channel}")
             
             # Ensure the zarr group is in cache
             cache_key = f"{dataset_id}:{timestamp}:{channel}"
@@ -823,8 +837,8 @@ class ZarrTileManager:
         except Exception as e:
             import traceback
             error_traceback = traceback.format_exc()
-            logging.info(f"Error in test_zarr_access: {str(e)}")
-            logging.info(error_traceback)
+            logger.info(f"Error in test_zarr_access: {str(e)}")
+            logger.info(error_traceback)
             
             return {
                 "status": "error",

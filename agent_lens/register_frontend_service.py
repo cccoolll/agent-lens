@@ -133,7 +133,7 @@ def get_frontend_api():
                 threshold_dict = json.loads(threshold_settings) if threshold_settings else {}
                 color_dict = json.loads(color_settings) if color_settings else {}
             except json.JSONDecodeError as e:
-                logging.error(f"Error parsing settings JSON: {e}")
+                logger.error(f"Error parsing settings JSON: {e}")
                 contrast_dict = {}
                 brightness_dict = {}
                 threshold_dict = {}
@@ -226,7 +226,7 @@ def get_frontend_api():
             return base64.b64encode(buffer.getvalue()).decode('utf-8')
             
         except Exception as e:
-            logging.error(f"Error in tile_endpoint: {e}")
+            logger.error(f"Error in tile_endpoint: {e}")
             blank_image = Image.new("L", (tile_manager.tile_size, tile_manager.tile_size), color=0)
             buffer = io.BytesIO()
             blank_image.save(buffer, format="PNG")
@@ -295,7 +295,7 @@ def get_frontend_api():
             threshold_dict = json.loads(threshold_settings) if threshold_settings else {}
             color_dict = json.loads(color_settings) if color_settings else {}
         except json.JSONDecodeError as e:
-            logging.error(f"Error parsing settings JSON: {e}")
+            logger.error(f"Error parsing settings JSON: {e}")
             contrast_dict = {}
             brightness_dict = {}
             threshold_dict = {}
@@ -344,7 +344,7 @@ def get_frontend_api():
                 
                 channel_tiles.append((tile_data, channel_key))
             except Exception as e:
-                logging.error(f"Error getting tile for channel {channel_name}: {e}")
+                logger.error(f"Error getting tile for channel {channel_name}: {e}")
                 # Use blank tile on error
                 blank_tile = np.zeros((tile_manager.tile_size, tile_manager.tile_size), dtype=np.uint8)
                 channel_tiles.append((blank_tile, channel_key))
@@ -380,7 +380,7 @@ def get_frontend_api():
                         
                         # Screen blend mode for better visibility
                         merged_image = 1.0 - (1.0 - merged_image) * (1.0 - colored_channel)
-            logging.info(f"Merged image: {merged_image.shape}, all channels: {channel_tiles}")
+            logger.info(f"Merged image: {merged_image.shape}, all channels: {channel_tiles}")
             # Convert back to 8-bit for display
             merged_image = util.img_as_ubyte(merged_image)
         else:
@@ -491,9 +491,9 @@ def get_frontend_api():
         try:
             return await tile_manager.get_tile_np_data(dataset_id, timepoint, channel_name, z, x, y)
         except Exception as e:
-            logging.error(f"Error fetching timepoint tile data: {e}")
+            logger.error(f"Error fetching timepoint tile data: {e}")
             import traceback
-            logging.error(traceback.format_exc())
+            logger.error(traceback.format_exc())
             return np.zeros((tile_manager.tile_size, tile_manager.tile_size), dtype=np.uint8)
 
     @app.get("/datasets")
@@ -510,24 +510,24 @@ def get_frontend_api():
         try:
             # Use the list method to get children of the specified artifact_id
             gallery_id = "agent-lens/image-map-of-u2os-fucci-drug-treatment-zip"
-            logging.info(f"Fetching datasets from gallery: {gallery_id}")
+            logger.info(f"Fetching datasets from gallery: {gallery_id}")
             datasets = await artifact_manager_instance._svc.list(parent_id=gallery_id)
             
             # Log the response for debugging
-            logging.info(f"Gallery response received, datasets found: {len(datasets) if datasets else 0}")
+            logger.info(f"Gallery response received, datasets found: {len(datasets) if datasets else 0}")
             
             # Format the response to match the expected keys in the frontend
             formatted_datasets = []
             for dataset in datasets:
                 name = dataset.get("manifest", {}).get("name", dataset.get("alias", "Unknown"))
                 dataset_id = dataset.get("id")
-                logging.info(f"Dataset found: {name} ({dataset_id})")
+                logger.info(f"Dataset found: {name} ({dataset_id})")
                 formatted_datasets.append({"id": dataset_id, "name": name})
             return formatted_datasets
         except Exception as e:
-            logging.error(f"Error fetching datasets: {e}")
+            logger.error(f"Error fetching datasets: {e}")
             import traceback
-            logging.error(traceback.format_exc())
+            logger.error(traceback.format_exc())
             return []
 
     @app.get("/subfolders")
@@ -545,14 +545,14 @@ def get_frontend_api():
         Returns:
             dict: A dictionary containing paginated items and total count.
         """
-        logging.info(f"Fetching contents for dataset: {dataset_id}, dir_path: {dir_path}, offset: {offset}, limit: {limit}")
+        logger.info(f"Fetching contents for dataset: {dataset_id}, dir_path: {dir_path}, offset: {offset}, limit: {limit}")
         # Ensure the artifact manager is connected
         if artifact_manager_instance.server is None:
             _, artifact_manager_instance._svc = await get_artifact_manager()
         try:
             # Get all files and directories in the current path
             all_items = await artifact_manager_instance._svc.list_files(dataset_id, dir_path=dir_path)
-            logging.info(f"All items, length: {len(all_items)}")
+            logger.info(f"All items, length: {len(all_items)}")
             
             # Sort: directories first, then files, both alphabetically
             directories = [item for item in all_items if item.get('type') == 'directory']
@@ -568,7 +568,7 @@ def get_frontend_api():
             total_count = len(sorted_items)
             paginated_items = sorted_items[offset:offset + limit] if offset < total_count else []
             
-            logging.info(f"Returning {len(paginated_items)} of {total_count} items (offset: {offset}, limit: {limit})")
+            logger.info(f"Returning {len(paginated_items)} of {total_count} items (offset: {offset}, limit: {limit})")
             
             # Return both the items and the total count
             return {
@@ -578,9 +578,9 @@ def get_frontend_api():
                 "limit": limit
             }
         except Exception as e:
-            logging.error(f"Error fetching contents: {e}")
+            logger.error(f"Error fetching contents: {e}")
             import traceback
-            logging.error(traceback.format_exc())
+            logger.error(traceback.format_exc())
             return {"items": [], "total": 0, "offset": offset, "limit": limit, "error": str(e)}
 
     @app.get("/file")
@@ -595,7 +595,7 @@ def get_frontend_api():
         Returns:
             dict: A dictionary containing the pre-signed URL for the file.
         """
-        logging.info(f"Getting file URL for dataset: {dataset_id}, file_path: {file_path}")
+        logger.info(f"Getting file URL for dataset: {dataset_id}, file_path: {file_path}")
         # Ensure the artifact manager is connected
         if artifact_manager_instance.server is None:
             _, artifact_manager_instance._svc = await get_artifact_manager()
@@ -604,9 +604,9 @@ def get_frontend_api():
             url = await artifact_manager_instance._svc.get_file(dataset_id, file_path)
             return {"url": url}
         except Exception as e:
-            logging.error(f"Error getting file URL: {e}")
+            logger.error(f"Error getting file URL: {e}")
             import traceback
-            logging.error(traceback.format_exc())
+            logger.error(traceback.format_exc())
             return {"error": str(e)}
 
     @app.get("/download")
@@ -621,7 +621,7 @@ def get_frontend_api():
         Returns:
             Response: A redirect to the pre-signed URL for downloading the file.
         """
-        logging.info(f"Downloading file from dataset: {dataset_id}, file_path: {file_path}")
+        logger.info(f"Downloading file from dataset: {dataset_id}, file_path: {file_path}")
         # Ensure the artifact manager is connected
         if artifact_manager_instance.server is None:
             _, artifact_manager_instance._svc = await get_artifact_manager()
@@ -631,9 +631,9 @@ def get_frontend_api():
             from fastapi.responses import RedirectResponse
             return RedirectResponse(url=url)
         except Exception as e:
-            logging.error(f"Error downloading file: {e}")
+            logger.error(f"Error downloading file: {e}")
             import traceback
-            logging.error(traceback.format_exc())
+            logger.error(traceback.format_exc())
             from fastapi.responses import JSONResponse
             return JSONResponse(content={"error": str(e)}, status_code=404)
 
@@ -649,7 +649,7 @@ def get_frontend_api():
         Returns:
             dict: A dictionary containing success status and message.
         """
-        logging.info(f"Setting up image map for dataset: {dataset_id}")
+        logger.info(f"Setting up image map for dataset: {dataset_id}")
         # Ensure the artifact manager is connected
         if artifact_manager_instance.server is None:
             _, artifact_manager_instance._svc = await get_artifact_manager()
@@ -658,17 +658,17 @@ def get_frontend_api():
             # Check if the dataset exists
             try:
                 # List files to verify the dataset exists and is accessible
-                logging.info(f"Verifying dataset access: {dataset_id}")
+                logger.info(f"Verifying dataset access: {dataset_id}")
                 files = await artifact_manager_instance._svc.list_files(dataset_id)
                 
                 if files is not None:
-                    logging.info(f"Image map dataset found: {dataset_id} with {len(files)} files")
+                    logger.info(f"Image map dataset found: {dataset_id} with {len(files)} files")
                     # Also check for timestamp folders which should exist in the dataset
                     timepoints = [file for file in files if file.get('type') == 'directory']
                     if timepoints:
-                        logging.info(f"Found {len(timepoints)} timepoints in dataset: {[tp.get('name') for tp in timepoints]}")
+                        logger.info(f"Found {len(timepoints)} timepoints in dataset: {[tp.get('name') for tp in timepoints]}")
                     else:
-                        logging.info(f"Warning: No timepoints (directories) found in dataset: {dataset_id}")
+                        logger.info(f"Warning: No timepoints (directories) found in dataset: {dataset_id}")
                     
                     return {
                         "success": True, 
@@ -677,17 +677,17 @@ def get_frontend_api():
                         "timepoints": len(timepoints) if timepoints else 0
                     }
                 else:
-                    logging.info(f"Image map dataset not found: {dataset_id}")
+                    logger.info(f"Image map dataset not found: {dataset_id}")
                     return {"success": False, "message": f"Image map dataset not found: {dataset_id}"}
             except Exception as e:
-                logging.error(f"Error checking dataset: {e}")
+                logger.error(f"Error checking dataset: {e}")
                 import traceback
-                logging.error(traceback.format_exc())
+                logger.error(traceback.format_exc())
                 return {"success": False, "message": f"Error checking image map dataset: {str(e)}"}
         except Exception as e:
-            logging.error(f"Error setting up image map: {e}")
+            logger.error(f"Error setting up image map: {e}")
             import traceback
-            logging.error(traceback.format_exc())
+            logger.error(traceback.format_exc())
             return {"success": False, "message": f"Error setting up image map: {str(e)}"}
 
     @app.get("/list-timepoints")
@@ -702,7 +702,7 @@ def get_frontend_api():
         Returns:
             dict: A dictionary containing timepoints (subfolders) in the dataset.
         """
-        logging.info(f"Listing timepoints for dataset: {dataset_id}")
+        logger.info(f"Listing timepoints for dataset: {dataset_id}")
         # Ensure the artifact manager is connected
         if artifact_manager_instance.server is None:
             _, artifact_manager_instance._svc = await get_artifact_manager()
@@ -725,9 +725,9 @@ def get_frontend_api():
                 "timepoints": timepoints
             }
         except Exception as e:
-            logging.error(f"Error listing timepoints: {e}")
+            logger.error(f"Error listing timepoints: {e}")
             import traceback
-            logging.error(traceback.format_exc())
+            logger.error(traceback.format_exc())
             return {
                 "success": False, 
                 "message": f"Error listing timepoints: {str(e)}",
@@ -771,7 +771,7 @@ def get_frontend_api():
         """
         import json
         
-        logging.info(f"Fetching tile for timepoint: {timepoint}, z={z}, x={x}, y={y}")
+        logger.info(f"Fetching tile for timepoint: {timepoint}, z={z}, x={x}, y={y}")
         
         try:
             # Queue the tile request with the specified priority
@@ -788,7 +788,7 @@ def get_frontend_api():
                 threshold_dict = json.loads(threshold_settings) if threshold_settings else {}
                 color_dict = json.loads(color_settings) if color_settings else {}
             except json.JSONDecodeError as e:
-                logging.error(f"Error parsing settings JSON: {e}")
+                logger.error(f"Error parsing settings JSON: {e}")
                 contrast_dict = {}
                 brightness_dict = {}
                 threshold_dict = {}
@@ -881,9 +881,9 @@ def get_frontend_api():
             return base64.b64encode(buffer.getvalue()).decode('utf-8')
                 
         except Exception as e:
-            logging.error(f"Error fetching tile for timepoint: {e}")
+            logger.error(f"Error fetching tile for timepoint: {e}")
             import traceback
-            logging.error(traceback.format_exc())
+            logger.error(traceback.format_exc())
             blank_image = Image.new("L", (tile_manager.tile_size, tile_manager.tile_size), color=0)
             buffer = io.BytesIO()
             blank_image.save(buffer, format="PNG")
@@ -915,13 +915,13 @@ async def _register_probes(server, probe_service_id):
         probe_service_id (str): The ID to use for probe registrations.
     """
     async def is_service_healthy():
-        logging.info("Checking service health")
+        logger.info("Checking service health")
         try:
             # Check artifact manager connection
             if artifact_manager_instance.server is None:
                 api_server, artifact_manager = await get_artifact_manager()
                 await artifact_manager_instance.connect_server(api_server)
-                logging.info("Connected to artifact manager for health check")
+                logger.info("Connected to artifact manager for health check")
             
             # Test artifact manager functionality by listing a gallery
             # Using a known gallery ID from the application
@@ -949,35 +949,35 @@ async def _register_probes(server, probe_service_id):
                 
                 if not test_result.get("success", False):
                     error_msg = test_result.get("message", "Unknown error")
-                    logging.error(f"Zarr access test failed: {error_msg}")
+                    logger.error(f"Zarr access test failed: {error_msg}")
                     raise RuntimeError(f"Zarr access test failed: {error_msg}")
                 else:
                     # Log successful test with some stats
                     stats = test_result.get("chunk_stats", {})
                     non_zero = stats.get("non_zero_count", 0)
                     total = stats.get("total_size", 1)
-                    logging.info(f"Zarr access test succeeded. Non-zero values: {non_zero}/{total} ({(non_zero/total)*100:.1f}%)")
+                    logger.info(f"Zarr access test succeeded. Non-zero values: {non_zero}/{total} ({(non_zero/total)*100:.1f}%)")
             except asyncio.TimeoutError:
-                logging.error("Zarr access test timed out after 30 seconds")
+                logger.error("Zarr access test timed out after 30 seconds")
                 raise RuntimeError("Zarr access test timed out")
             except Exception as zarr_error:
-                logging.error(f"Zarr access test failed: {zarr_error}")
+                logger.error(f"Zarr access test failed: {zarr_error}")
                 raise RuntimeError(f"Zarr access test failed: {str(zarr_error)}")
             
-            logging.info("All services are healthy")
+            logger.info("All services are healthy")
             return {"status": "ok", "message": "All services are healthy"}
         except Exception as e:
-            logging.error(f"Health check failed: {str(e)}")
+            logger.error(f"Health check failed: {str(e)}")
             import traceback
-            logging.error(traceback.format_exc())
+            logger.error(traceback.format_exc())
             raise RuntimeError(f"Service health check failed: {str(e)}")
     
-    logging.info(f"Registering health probes for Kubernetes with ID: {probe_service_id}")
+    logger.info(f"Registering health probes for Kubernetes with ID: {probe_service_id}")
     await server.register_probes({
         f"readiness-{probe_service_id}": is_service_healthy,
         f"liveness-{probe_service_id}": is_service_healthy
     })
-    logging.info("Health probes registered successfully")
+    logger.info("Health probes registered successfully")
 
 async def setup_service(server, server_id="agent-lens"):
     """
@@ -992,20 +992,20 @@ async def setup_service(server, server_id="agent-lens"):
     # Ensure tile_manager is connected with the server (with proper token and so on)
     connection_success = await tile_manager.connect(workspace_token=WORKSPACE_TOKEN, server_url=SERVER_URL)
     if not connection_success:
-        logging.warning("Warning: Failed to connect ZarrTileManager to artifact manager service.")
-        logging.warning("The tile endpoints may not function correctly.")
+        logger.warning("Warning: Failed to connect ZarrTileManager to artifact manager service.")
+        logger.warning("The tile endpoints may not function correctly.")
     else:
-        logging.info("ZarrTileManager connected successfully to artifact manager service.")
+        logger.info("ZarrTileManager connected successfully to artifact manager service.")
     
     # Ensure artifact_manager_instance is connected
     if artifact_manager_instance.server is None:
         try:
             api_server, artifact_manager = await get_artifact_manager()
             await artifact_manager_instance.connect_server(api_server)
-            logging.info("AgentLensArtifactManager connected successfully.")
+            logger.info("AgentLensArtifactManager connected successfully.")
         except Exception as e:
-            logging.warning(f"Warning: Failed to connect AgentLensArtifactManager: {e}")
-            logging.warning("Some endpoints may not function correctly.")
+            logger.warning(f"Warning: Failed to connect AgentLensArtifactManager: {e}")
+            logger.warning("Some endpoints may not function correctly.")
     
     # Register the service
     await server.register_service(
@@ -1018,7 +1018,7 @@ async def setup_service(server, server_id="agent-lens"):
         }
     )
 
-    logging.info(f"Frontend service registered successfully with ID: {server_id}")
+    logger.info(f"Frontend service registered successfully with ID: {server_id}")
 
     # Check if we're running locally
     is_local = "--port" in " ".join(sys.argv) or "start-server" in " ".join(sys.argv)
