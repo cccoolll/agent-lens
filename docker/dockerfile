@@ -63,9 +63,12 @@ COPY --chown=agent_lens:agent_lens frontend/package*.json frontend/vite.config.m
 # Configure npm to use the new global directory
 RUN npm config set prefix '/home/agent_lens/.npm-global'
 
-RUN npm install --prefix frontend
-
-RUN npm install react-color
+# Install frontend dependencies and build
+RUN npm install --prefix frontend && \
+    npm install react-color && \
+    cd frontend && \
+    npm run build && \
+    cd ..
 
 RUN pip install --upgrade pip
 RUN pip install --user -r requirements.txt
