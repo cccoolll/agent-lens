@@ -22,7 +22,7 @@ import asyncio
 # Configure logging
 import logging
 import logging.handlers
-def setup_logging(log_file="app/logs/agent_lens_frontend_service.log", max_bytes=100000, backup_count=3):
+def setup_logging(log_file="agent_lens_frontend_service.log", max_bytes=100000, backup_count=3):
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
