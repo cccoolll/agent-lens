@@ -4,13 +4,13 @@
         {
             "label": "Start MinIO",
             "type": "shell",
-            "command": "docker-compose -f docker/docker-compose.yml up -d minio",
+            "command": "docker-compose -f docker/docker-compose-local-hypha.yml up -d minio",
             "problemMatcher": [],
         },
         {
             "label": "Start Redis",
             "type": "shell",
-            "command": "docker-compose -f docker/docker-compose.yml up -d redis",
+            "command": "docker-compose -f docker/docker-compose-local-hypha.yml up -d redis",
             "problemMatcher": [],
         },
         {
@@ -30,7 +30,7 @@
         {
             "label": "Stop MinIO",
             "type": "shell",
-            "command": "docker-compose -f docker/docker-compose.yml down minio",
+            "command": "docker-compose -f docker/docker-compose-local-hypha.yml down minio",
             "problemMatcher": [],
         }
     ]
