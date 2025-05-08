@@ -1,28 +1,8 @@
 version: '3.8'
 
 services:
-  squid-control:
-    image: ghcr.io/aicell-lab/squid-control:sha-8bec8a6
-    container_name: squid-control
-    environment:
-      - SQUID_WORKSPACE_TOKEN=${SQUID_WORKSPACE_TOKEN}
-      - WORKSPACE_TOKEN_CHATBOT=${WORKSPACE_TOKEN_CHATBOT}
-      - MICROSCOPE_SERVICE_ID=${MICROSCOPE_SERVICE_ID}
-    healthcheck:
-      test: ["CMD", "/bin/sh", "-c", "curl -s https://hypha.aicell.io/squid-control/services/probes/liveness-${MICROSCOPE_SERVICE_ID} | jq -e '.status == \"ok\"'"]
-      interval: 300s
-      timeout: 60s
-      retries: 3
-      start_period: 120s
-    restart: unless-stopped
-    user: "1000:1000"
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-
   agent-lens:
-    image: ghcr.io/aicell-lab/agent-lens:sha-b0dc076
+    image: ghcr.io/aicell-lab/agent-lens:sha-7227a96
     container_name: agent-lens
     environment:
       - WORKSPACE_TOKEN=${AGENT_LENS_WORKSPACE_TOKEN}
@@ -44,6 +24,27 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+
+  squid-control:
+    image: ghcr.io/aicell-lab/squid-control:sha-5337124
+    container_name: squid-control
+    environment:
+      - SQUID_WORKSPACE_TOKEN=${SQUID_WORKSPACE_TOKEN}
+      - WORKSPACE_TOKEN_CHATBOT=${WORKSPACE_TOKEN_CHATBOT}
+      - MICROSCOPE_SERVICE_ID=${MICROSCOPE_SERVICE_ID}
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "curl -s https://hypha.aicell.io/squid-control/services/probes/liveness-${MICROSCOPE_SERVICE_ID} | jq -e '.status == \"ok\"'"]
+      interval: 300s
+      timeout: 60s
+      retries: 3
+      start_period: 120s
+    restart: unless-stopped
+    user: "1000:1000"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
 
 volumes:
   agent-lens-cache: 
