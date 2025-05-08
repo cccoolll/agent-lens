@@ -65,7 +65,7 @@ RUN npm config set prefix '/home/agent_lens/.npm-global'
 
 # Install frontend dependencies and build
 RUN npm install --prefix frontend && \
-    npm install react-color && \
+    npm install --prefix frontend react-color html2canvas && \
     cd frontend && \
     npm run build && \
     cd ..
