@@ -69,7 +69,8 @@ def get_frontend_api():
         contrast_settings: str = None,
         brightness_settings: str = None,
         threshold_settings: str = None,
-        color_settings: str = None
+        color_settings: str = None,
+        priority: int = 10  # Default priority (lower is higher priority)
     ):
         """
         Endpoint to serve tiles with customizable image processing settings.
@@ -86,6 +87,7 @@ def get_frontend_api():
             brightness_settings (str, optional): JSON string with brightness settings
             threshold_settings (str, optional): JSON string with min/max threshold settings
             color_settings (str, optional): JSON string with color settings
+            priority (int, optional): Priority level for tile loading (lower is higher priority)
         
         Returns:
             str: Base64 encoded tile image
@@ -93,6 +95,10 @@ def get_frontend_api():
         import json
         
         try:
+            # Queue the tile request with the specified priority
+            # This allows the frontend to prioritize visible tiles
+            await tile_manager.request_tile(dataset_id, timestamp, channel_name, z, x, y, priority)
+            
             # Get the raw tile data as numpy array using ZarrTileManager
             # ZarrTileManager will handle URL expiration internally
             tile_data = await tile_manager.get_tile_np_data(dataset_id, timestamp, channel_name, z, x, y)
@@ -217,6 +223,7 @@ def get_frontend_api():
         brightness_settings: str = None,
         threshold_settings: str = None,
         color_settings: str = None,
+        priority: int = 10  # Default priority (lower is higher priority)
     ):
         """
         Endpoint to merge tiles from multiple channels with customizable image processing settings.
@@ -233,6 +240,7 @@ def get_frontend_api():
             brightness_settings (str, optional): JSON string with brightness settings for each channel
             threshold_settings (str, optional): JSON string with min/max threshold settings for each channel
             color_settings (str, optional): JSON string with color settings for each channel
+            priority (int, optional): Priority level for tile loading (lower is higher priority)
         
         Returns:
             str: Base64 encoded merged tile image
@@ -299,6 +307,10 @@ def get_frontend_api():
             channel_name = channel_names.get(channel_key, DEFAULT_CHANNEL)
             
             try:
+                # Queue the tile request with the specified priority
+                # This allows the frontend to prioritize visible tiles
+                await tile_manager.request_tile(dataset_id, timepoint, channel_name, z, x, y, priority)
+                
                 # Get tile from Zarr store - ZarrTileManager will handle URL expiration internally
                 tile_data = await tile_manager.get_tile_np_data(dataset_id, timepoint, channel_name, z, x, y)
                 
@@ -711,7 +723,8 @@ def get_frontend_api():
         contrast_settings: str = None,
         brightness_settings: str = None,
         threshold_settings: str = None,
-        color_settings: str = None
+        color_settings: str = None,
+        priority: int = 10  # Default priority (lower is higher priority)
     ):
         """
         Endpoint to serve tiles for a specific timepoint from an image map dataset with customizable processing.
@@ -728,6 +741,7 @@ def get_frontend_api():
             brightness_settings (str, optional): JSON string with brightness settings
             threshold_settings (str, optional): JSON string with min/max threshold settings
             color_settings (str, optional): JSON string with color settings
+            priority (int, optional): Priority level for tile loading (lower is higher priority)
 
         Returns:
             str: Base64 encoded tile image.
@@ -737,6 +751,10 @@ def get_frontend_api():
         print(f"Fetching tile for timepoint: {timepoint}, z={z}, x={x}, y={y}")
         
         try:
+            # Queue the tile request with the specified priority
+            # This allows the frontend to prioritize visible tiles
+            await tile_manager.request_tile(dataset_id, timepoint, channel_name, z, x, y, priority)
+            
             # Get the tile data using ZarrTileManager - URL expiration handled internally
             tile_data = await tile_manager.get_tile_np_data(dataset_id, timepoint, channel_name, z, x, y)
             
@@ -905,6 +923,7 @@ async def _register_probes(server, probe_service_id):
         probe_service_id (str): The ID to use for probe registrations.
     """
     async def is_service_healthy():
+        print("Checking service health")
         try:
             # Check artifact manager connection
             if artifact_manager_instance.server is None:
