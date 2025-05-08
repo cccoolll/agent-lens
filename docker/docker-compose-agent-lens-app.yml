@@ -34,7 +34,7 @@ services:
       - MICROSCOPE_SERVICE_ID=${MICROSCOPE_SERVICE_ID}
     healthcheck:
       test: ["CMD", "/bin/sh", "-c", "curl -s https://hypha.aicell.io/squid-control/services/probes/liveness-${MICROSCOPE_SERVICE_ID} | jq -e '.status == \"ok\"'"]
-      interval: 300s
+      interval: 1000s
       timeout: 60s
       retries: 3
       start_period: 120s
