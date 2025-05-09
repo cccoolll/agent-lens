@@ -261,7 +261,7 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
       tileGrid: getTileGrid(),
       tileLoadFunction: function(tile, src) {
         const tileCoord = tile.getTileCoord(); // [z, x, y]
-        const transformedZ = 4 - tileCoord[0]; // Updated for 5 scale levels (0-4)
+        const transformedZ = 5 - tileCoord[0]; // Updated for 6 scale levels (0-5)
         const newSrc = createTileUrl(transformedZ, tileCoord[1], tileCoord[2], tileCoord);
         
         // Create a black canvas as a fallback
@@ -390,7 +390,7 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
       tileGrid: getTileGrid(),
       tileLoadFunction: function(tile, src) {
         const tileCoord = tile.getTileCoord(); // [z, x, y]
-        const transformedZ = 4 - tileCoord[0]; // Updated for 5 scale levels (0-4)
+        const transformedZ = 5 - tileCoord[0]; // Updated for 6 scale levels (0-5)
         const newSrc = createTileUrl(transformedZ, tileCoord[1], tileCoord[2], tileCoord);
         
         // Create a black canvas as a fallback
@@ -513,7 +513,7 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
       url: createTileUrl('{z}', '{x}', '{y}'),
       crossOrigin: 'anonymous',
       tileSize: 256, // Update to match Zarr chunk size
-      maxZoom: 6, // Updated for 6 scale levels
+      maxZoom: 5, // Updated for 6 scale levels
       tileGrid: getTileGrid(),
       tileLoadFunction: function(tile, src) {
         const tileCoord = tile.getTileCoord(); // [z, x, y]
@@ -648,7 +648,7 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
       url: createTileUrl('{z}', '{x}', '{y}'),
       crossOrigin: 'anonymous',
       tileSize: 256, // Update to match Zarr chunk size
-      maxZoom: 6, // Updated for 6 scale levels
+      maxZoom: 5, // Updated for 6 scale levels
       tileGrid: getTileGrid(),
       tileLoadFunction: function(tile, src) {
         const tileCoord = tile.getTileCoord(); // [z, x, y]
