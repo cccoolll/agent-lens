@@ -34,8 +34,8 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
     color: {}
   });
 
-  const imageWidth = 1024;
-  const imageHeight = 1024;
+  const imageWidth = 2048;
+  const imageHeight = 2048;
   const extent = [0, 0, imageWidth, imageHeight];
 
   // Initialize the map when the component mounts
@@ -257,11 +257,11 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
       url: createTileUrl('{z}', '{x}', '{y}'),
       crossOrigin: 'anonymous',
       tileSize: 256, // Update to match Zarr chunk size
-      maxZoom: 5, // Updated for 5 scale levels
+      maxZoom: 4, // Updated for 5 scale levels
       tileGrid: getTileGrid(),
       tileLoadFunction: function(tile, src) {
         const tileCoord = tile.getTileCoord(); // [z, x, y]
-        const transformedZ = 5 - tileCoord[0]; // Updated for 6 scale levels (0-5)
+        const transformedZ = 4 - tileCoord[0]; // Updated for 6 scale levels (0-5)
         const newSrc = createTileUrl(transformedZ, tileCoord[1], tileCoord[2], tileCoord);
         
         // Create a black canvas as a fallback
@@ -386,11 +386,11 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
       url: createTileUrl('{z}', '{x}', '{y}'),
       crossOrigin: 'anonymous',
       tileSize: 256, // Update to match Zarr chunk size
-      maxZoom: 5, // Updated for 6 scale levels
+      maxZoom: 4, // Updated for 5 scale levels
       tileGrid: getTileGrid(),
       tileLoadFunction: function(tile, src) {
         const tileCoord = tile.getTileCoord(); // [z, x, y]
-        const transformedZ = 5 - tileCoord[0]; // Updated for 6 scale levels (0-5)
+        const transformedZ = 4 - tileCoord[0]; // Updated for 5 scale levels (0-4)
         const newSrc = createTileUrl(transformedZ, tileCoord[1], tileCoord[2], tileCoord);
         
         // Create a black canvas as a fallback
@@ -513,11 +513,11 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
       url: createTileUrl('{z}', '{x}', '{y}'),
       crossOrigin: 'anonymous',
       tileSize: 256, // Update to match Zarr chunk size
-      maxZoom: 5, // Updated for 6 scale levels
+      maxZoom: 4, // Updated for 5 scale levels
       tileGrid: getTileGrid(),
       tileLoadFunction: function(tile, src) {
         const tileCoord = tile.getTileCoord(); // [z, x, y]
-        const transformedZ = 5 - tileCoord[0]; // Updated for 6 scale levels (0-5)
+        const transformedZ = 4 - tileCoord[0]; // Updated for 6 scale levels (0-5)
         const newSrc = createTileUrl(transformedZ, tileCoord[1], tileCoord[2], tileCoord);
         
         // Create a black canvas as a fallback
@@ -648,11 +648,11 @@ const MapDisplay = ({ appendLog, segmentService, microscopeControlService, incub
       url: createTileUrl('{z}', '{x}', '{y}'),
       crossOrigin: 'anonymous',
       tileSize: 256, // Update to match Zarr chunk size
-      maxZoom: 5, // Updated for 6 scale levels
+      maxZoom: 4, // Updated for 5 scale levels
       tileGrid: getTileGrid(),
       tileLoadFunction: function(tile, src) {
         const tileCoord = tile.getTileCoord(); // [z, x, y]
-        const transformedZ = 5 - tileCoord[0]; // Updated for 6 scale levels (0-5)
+        const transformedZ = 4 - tileCoord[0]; // Updated for 5 scale levels (0-4)
         const newSrc = createTileUrl(transformedZ, tileCoord[1], tileCoord[2], tileCoord);
         
         // Create a black canvas as a fallback
