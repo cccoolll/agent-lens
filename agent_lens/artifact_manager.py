@@ -845,7 +845,7 @@ class ZarrTileManager:
             y (int): Y coordinate (in tile/chunk units)
             
         Returns:
-            np.ndarray: Tile data as numpy array
+            np.ndarray or None: Tile data as numpy array, or None if tile not found/empty
         """
         try:
             # Use default timestamp if none provided
@@ -887,21 +887,14 @@ class ZarrTileManager:
             try:
                 zarr_group = await self.get_zarr_group(dataset_id, timestamp, channel)
                 if zarr_group is None:
-                    # Return empty tile if Zarr group can't be loaded
-                    zero_array = np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
-                    self.processed_tile_cache[cache_key] = {
-                        'data': zero_array,
-                        'timestamp': time.time()
-                    }
-                    return zero_array
+                    # Return None instead of empty array if group can't be loaded
+                    # This allows frontend to handle it appropriately
+                    logger.info(f"Could not load Zarr group, returning None for {cache_key}")
+                    return None
             except Exception as e:
                 logger.info(f"Error ensuring zarr group: {e}")
-                zero_array = np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
-                self.processed_tile_cache[cache_key] = {
-                    'data': zero_array,
-                    'timestamp': time.time()
-                }
-                return zero_array
+                # Return None instead of zero array
+                return None
             
             # Mark this group as being processed
             self.in_progress_tiles.add(group_key)
@@ -928,6 +921,14 @@ class ZarrTileManager:
                     )
                     logger.info(f'Fetched region with size in KB: {region_data.nbytes / 1024:.1f}')
                     
+                    # Check if region data is valid (contains non-zero values)
+                    # If it's all zeros or mostly zeros, we consider it empty
+                    if np.count_nonzero(region_data) < 10:  # Arbitrary threshold
+                        logger.info(f"Region data is empty (all zeros), returning None")
+                        # Remove group from processing to allow future attempts
+                        self.in_progress_tiles.discard(group_key)
+                        return None
+                    
                     # Extract the specific tile data from the region
                     tile_y_offset = (y - region_y_start) * self.chunk_size
                     tile_x_offset = (x - region_x_start) * self.chunk_size
@@ -943,6 +944,11 @@ class ZarrTileManager:
                             tile_y_offset:tile_y_offset + self.chunk_size,
                             tile_x_offset:tile_x_offset + self.chunk_size
                         ]
+                        
+                        # Check if this specific tile is empty
+                        if np.count_nonzero(tile_data) < 10:  # Arbitrary threshold
+                            logger.info(f"Tile data is empty, returning None for {cache_key}")
+                            return None
                         
                         # Cache the requested tile
                         self.processed_tile_cache[cache_key] = {
@@ -974,12 +980,14 @@ class ZarrTileManager:
                                         region_x * self.chunk_size:(region_x + 1) * self.chunk_size
                                     ]
                                     
-                                    # Cache this adjacent tile
-                                    adjacent_cache_key = f"{dataset_id}:{timestamp}:{channel}:{scale}:{region_tile_x}:{region_tile_y}"
-                                    self.processed_tile_cache[adjacent_cache_key] = {
-                                        'data': adjacent_tile_data,
-                                        'timestamp': now
-                                    }
+                                    # Only cache non-empty tiles
+                                    if np.count_nonzero(adjacent_tile_data) >= 10:
+                                        # Cache this adjacent tile
+                                        adjacent_cache_key = f"{dataset_id}:{timestamp}:{channel}:{scale}:{region_tile_x}:{region_tile_y}"
+                                        self.processed_tile_cache[adjacent_cache_key] = {
+                                            'data': adjacent_tile_data,
+                                            'timestamp': now
+                                        }
                         
                         return tile_data
                     else:
@@ -988,6 +996,11 @@ class ZarrTileManager:
                         logger.info("Tile coordinates outside fetched region, falling back to direct access")
                         tile_data = scale_array[y*self.tile_size:(y+1)*self.tile_size, 
                                             x*self.tile_size:(x+1)*self.tile_size]
+                        
+                        # Check if this specific tile is empty
+                        if np.count_nonzero(tile_data) < 10:  # Arbitrary threshold
+                            logger.info(f"Tile data is empty from direct access, returning None for {cache_key}")
+                            return None
                         
                         # Cache the tile
                         self.processed_tile_cache[cache_key] = {
@@ -999,24 +1012,12 @@ class ZarrTileManager:
                         
                 except KeyError as e:
                     logger.info(f"KeyError accessing Zarr array path: {e}")
-                    # Try an alternative path structure if needed
-                    try:
-                        # Alternative path structure if your zarr is organized differently
-                        tile_data = zarr_group[y, x]  # Direct chunk access for alternative structure
-                        # Cache the processed tile
-                        self.processed_tile_cache[cache_key] = {
-                            'data': tile_data,
-                            'timestamp': time.time()
-                        }
-                        return tile_data
-                    except Exception:
-                        zero_array = np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
-                        # Cache the zero array
-                        self.processed_tile_cache[cache_key] = {
-                            'data': zero_array,
-                            'timestamp': time.time()
-                        }
-                        return zero_array
+                    # Return None instead of zero array
+                    return None
+                except Exception as inner_e:
+                    logger.info(f"Error processing tile data: {inner_e}")
+                    # Return None instead of zero array
+                    return None
             finally:
                 # Remove the group key from in-progress set
                 self.in_progress_tiles.discard(group_key)
@@ -1025,14 +1026,8 @@ class ZarrTileManager:
             logger.info(f"Error getting tile data: {e}")
             import traceback
             logger.info(traceback.format_exc())
-            zero_array = np.zeros((self.tile_size, self.tile_size), dtype=np.uint8)
-            # Cache the zero array even for errors to prevent repeated errors
-            cache_key = f"{dataset_id}:{timestamp}:{channel}:{scale}:{x}:{y}"
-            self.processed_tile_cache[cache_key] = {
-                'data': zero_array,
-                'timestamp': time.time()
-            }
-            return zero_array
+            # Return None instead of zero array
+            return None
 
     async def get_tile_bytes(self, dataset_id, timestamp, channel, scale, x, y):
         """Serve a tile as PNG bytes"""

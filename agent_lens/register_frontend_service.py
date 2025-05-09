@@ -182,6 +182,14 @@ def get_frontend_api():
             # ZarrTileManager will handle URL expiration internally
             tile_data = await tile_manager.get_tile_np_data(dataset_id, timestamp, channel_name, z, x, y)
             
+            # If tile_data is None, return an empty response to let the client handle it
+            if tile_data is None:
+                logger.info(f"No tile data available for {dataset_id}:{timestamp}:{channel_name}:{z}:{x}:{y}")
+                # Create an empty response with status 204 (No Content)
+                response = Response(status_code=204)
+                response.headers["X-Empty-Tile"] = "true"
+                return response
+            
             # Parse settings from JSON strings if provided
             try:
                 contrast_dict = json.loads(contrast_settings) if contrast_settings else {}
@@ -380,22 +388,9 @@ def get_frontend_api():
         channel_keys = [int(key) for key in channels.split(',') if key]
         
         if not channel_keys:
-            # Return a blank tile if no channels are specified
-            blank_image = Image.new("RGB", (tile_manager.tile_size, tile_manager.tile_size), color=(0, 0, 0))
-            buffer = io.BytesIO()
-            blank_image.save(buffer, format="PNG")
-            img_bytes = buffer.getvalue()
-            
-            # Generate cache key and ETag
-            etag = hashlib.md5(img_bytes).hexdigest()
-            base64_data = base64.b64encode(img_bytes).decode('utf-8')
-            
-            # Create response with caching headers
-            response = Response(content=base64_data)
-            response.headers["Cache-Control"] = "public, max-age=3600"
-            response.headers["ETag"] = etag
-            # Add image format header to help client know how to decode
-            response.headers["X-Image-Format"] = "webp" if WEBP_SUPPORT else "png"
+            # Return an empty response if no channels are specified
+            response = Response(status_code=204)
+            response.headers["X-Empty-Tile"] = "true"
             return response
         
         # Default channel colors (RGB format)
@@ -445,6 +440,8 @@ def get_frontend_api():
         
         # Get tiles for each channel using ZarrTileManager
         channel_tiles = []
+        missing_tiles = 0
+        
         for channel_key in channel_keys:
             channel_name = channel_names.get(channel_key, DEFAULT_CHANNEL)
             
@@ -456,17 +453,28 @@ def get_frontend_api():
                 # Get tile from Zarr store - ZarrTileManager will handle URL expiration internally
                 tile_data = await tile_manager.get_tile_np_data(dataset_id, timepoint, channel_name, z, x, y)
                 
+                # Skip tile if it's None (not available)
+                if tile_data is None:
+                    missing_tiles += 1
+                    continue
+                
                 # Ensure the tile data is properly shaped (check if empty/None)
-                if tile_data is None or tile_data.size == 0:
-                    # Create a blank tile if we couldn't get data
-                    tile_data = np.zeros((tile_manager.tile_size, tile_manager.tile_size), dtype=np.uint8)
+                if tile_data.size == 0:
+                    # Skip this channel if we couldn't get data
+                    missing_tiles += 1
+                    continue
                 
                 channel_tiles.append((tile_data, channel_key))
             except Exception as e:
                 logger.error(f"Error getting tile for channel {channel_name}: {e}")
-                # Use blank tile on error
-                blank_tile = np.zeros((tile_manager.tile_size, tile_manager.tile_size), dtype=np.uint8)
-                channel_tiles.append((blank_tile, channel_key))
+                missing_tiles += 1
+        
+        # If all tiles are missing, return empty response
+        if missing_tiles == len(channel_keys) or not channel_tiles:
+            logger.info(f"No tiles available for any channels at {dataset_id}:{timepoint}:{channels}:{z}:{x}:{y}")
+            response = Response(status_code=204)
+            response.headers["X-Empty-Tile"] = "true"
+            return response
         
         # Create an RGB image to merge the channels
         merged_image = np.zeros((tile_manager.tile_size, tile_manager.tile_size, 3), dtype=np.float32)
@@ -914,6 +922,13 @@ def get_frontend_api():
             
             # Get the tile data using ZarrTileManager - URL expiration handled internally
             tile_data = await tile_manager.get_tile_np_data(dataset_id, timepoint, channel_name, z, x, y)
+            
+            # If no tile data is available, return an empty response
+            if tile_data is None:
+                logger.info(f"No tile data available for {dataset_id}:{timepoint}:{channel_name}:{z}:{x}:{y}")
+                response = Response(status_code=204)
+                response.headers["X-Empty-Tile"] = "true"
+                return response
             
             # Parse settings from JSON strings if provided
             try:
